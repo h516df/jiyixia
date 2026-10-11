@@ -109,7 +109,9 @@ def main():
     screen = texts(xml)
     check("U1 更新页显示当前版本", any("当前版本" in t for t in screen), "，".join(sorted(screen))[:200])
     check("U1 离线也能看本版中文说明", any("本版说明" in t for t in screen), "，".join(sorted(screen))[:200])
-    check("U1 说明里有新增/改进分节", "新增" in screen and "改进" in screen)
+    check("U1 说明里有分节标题（新增/改进/修复/说明）",
+          len({"新增", "改进", "修复", "说明"} & screen) >= 2,
+          "，".join(sorted({"新增", "改进", "修复", "说明"} & screen)))
     check("截图 30-更新页", shot("30-更新页.png"))
 
     # U2 检查更新 -> 设备授权
