@@ -18,19 +18,17 @@ data class Task(
     val closedAt: Instant? = null,
 )
 
-/** 一件事在界面上落到哪一档。到期没办就自动落到 OVERDUE，不用用户动手。 */
+/**
+ * 一件事此刻落在有效期的哪一段。
+ * 过期的事不再占主流水，自动退场到「已过期」折叠区，但记录不删。
+ */
 enum class Bucket(val label: String) {
+    OVERDUE("已过期"),
     TODAY("今天"),
-    TOMORROW("明天"),
-    THIS_WEEK("这周"),
     LATER("以后"),
     NO_DUE("没定期限"),
-    OVERDUE("已过期"),
     CLOSED("已办/作废"),
 }
-
-/** 主列表的档位顺序。OVERDUE 单独折在底部，CLOSED 只在历史里出现。 */
-val MAIN_BUCKETS = listOf(Bucket.TODAY, Bucket.TOMORROW, Bucket.THIS_WEEK, Bucket.LATER, Bucket.NO_DUE)
 
 fun bucketOf(task: Task, today: LocalDate): Bucket {
     if (task.state != TaskState.OPEN) return Bucket.CLOSED
@@ -38,9 +36,7 @@ fun bucketOf(task: Task, today: LocalDate): Bucket {
     return when {
         due.isBefore(today) -> Bucket.OVERDUE
         due == today -> Bucket.TODAY
-        due == today.plusDays(1) -> Bucket.TOMORROW
-        due.isAfter(today.plusDays(7)) -> Bucket.LATER
-        else -> Bucket.THIS_WEEK
+        else -> Bucket.LATER
     }
 }
 
@@ -64,20 +60,26 @@ fun metaLine(task: Task, today: LocalDate): String {
     return if (who.isEmpty()) whenText else "$who · $whenText"
 }
 
-/** 主列表：先按档位，档内按到期日，最后按记下来的时间。 */
-fun sortForMain(tasks: List<Task>, today: LocalDate): List<Task> = tasks.sortedWith(
-    compareBy(
-        { MAIN_BUCKETS.indexOf(bucketOf(it, today)).let { i -> if (i < 0) Int.MAX_VALUE else i } },
-        { it.due ?: LocalDate.MAX },
-        { it.createdAt },
-    )
-)
+/** 流水：最近记的在最上面。 */
+fun sortForTimeline(tasks: List<Task>): List<Task> = tasks.sortedByDescending { it.createdAt }
+
+/** 今天就要交的，单独拎到最上面，免得被后来的流水压下去。 */
+fun dueToday(tasks: List<Task>, today: LocalDate): List<Task> =
+    tasks.filter { bucketOf(it, today) == Bucket.TODAY }.sortedBy { it.createdAt }
+
+/** 流水里其余的部分：有效期内、今天不到期、也没办完的，按记录时间倒序。 */
+fun timelineRest(tasks: List<Task>, today: LocalDate): List<Task> =
+    tasks.filter {
+        it.state == TaskState.OPEN &&
+            bucketOf(it, today) != Bucket.TODAY &&
+            bucketOf(it, today) != Bucket.OVERDUE
+    }.sortedByDescending { it.createdAt }
 
 /** 过期区：越早过期的排越前。 */
 fun sortForOverdue(tasks: List<Task>, today: LocalDate): List<Task> =
     tasks.filter { bucketOf(it, today) == Bucket.OVERDUE }.sortedBy { it.due }
 
-/** 历史：办完/作废的，最近处理的在前。 */
+/** 历史：办完和作废的，最近处理的在前。 */
 fun sortForHistory(tasks: List<Task>): List<Task> =
     tasks.filter { it.state != TaskState.OPEN }.sortedByDescending { it.closedAt ?: it.createdAt }
 

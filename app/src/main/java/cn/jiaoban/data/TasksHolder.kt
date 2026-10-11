@@ -7,6 +7,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import cn.jiaoban.Task
 import cn.jiaoban.TaskState
+import cn.jiaoban.parse.DueParser
+import cn.jiaoban.parse.PersonParser
 import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
@@ -29,14 +31,31 @@ class TasksHolder(private val store: TaskStore) {
     var loaded by mutableStateOf(false)
         private set
 
+    /** 读盘还没回来时用户就动过数据了，这时不能再拿读到的旧快照覆盖内存。 */
+    private var dirty = false
+
     fun start() {
         io.execute {
             val list = store.load()
             main.post {
-                tasks = list
+                // 读盘期间如果用户已经记了东西，别拿旧快照把它盖掉
+                if (!dirty) tasks = list
                 loaded = true
             }
         }
+    }
+
+    /**
+     * 一句话进来，人和期限都自己认：认出谁交代的、认出什么时候要，认不出就默认 3 天。
+     * 输入框和「分享进来」走的是同一条路。
+     */
+    fun addFromText(text: String, today: LocalDate) {
+        val clean = text.trim().replace(Regex("\\s+"), " ")
+        if (clean.isEmpty()) return
+        val clipped = if (clean.length > 200) clean.substring(0, 200) else clean
+        val from = PersonParser.parse(clipped, recentFroms())
+        val due = DueParser.withDefault(clipped, today)
+        add(clipped, from, due)
     }
 
     fun add(text: String, from: String, due: LocalDate?) {
@@ -71,6 +90,7 @@ class TasksHolder(private val store: TaskStore) {
         tasks.asReversed().map { it.from.trim() }.filter { it.isNotEmpty() }.distinct().take(6)
 
     private fun commit(next: List<Task>) {
+        dirty = true
         tasks = next
         io.execute { store.save(next) }
     }

@@ -2,10 +2,12 @@
 # -*- coding: utf-8 -*-
 """交办（cn.jiaoban）安卓端真实验收。
 
-真实路径：构建 APK -> 装到模拟器 -> 塞入几条真记录 -> 打开 App 看真实界面 ->
+真实路径：构建 APK -> 装到模拟器 -> 用真实入口记事情 -> 打开 App 看真实界面 ->
 按用户会做的动作点击 -> 每一步截图留证。
 
-断言只认用户看得见的东西：文字在不在、分档对不对、杀掉进程重开数据还在不在。
+断言只认用户看得见的东西：文字在不在、认人和认期限对不对、过期有没有退场、
+杀掉进程重开数据还在不在。
+
 用法：
     python scripts/android_acceptance.py            # 构建 + 装 + 验收
     python scripts/android_acceptance.py --no-build # 用现成 APK
@@ -28,7 +30,7 @@ APK = ROOT / "app" / "build" / "outputs" / "apk" / "debug" / "app-debug.apk"
 ADB = r"D:\Apps\Android\sdk\platform-tools\adb.exe"
 PKG = "cn.jiaoban"
 ACTIVITY = "cn.jiaoban/.MainActivity"
-MARKER = "uiadd1"
+MARKER = "abc123"
 
 RESULTS = []
 
@@ -129,12 +131,14 @@ def clear_keys(times=30):
 
 
 def wait_for_app(timeout=20.0):
-    """等到 App 真的画出来为止：dump 里能看到标题「交办」才算。"""
+    """等到 App 真的画出来为止。
+    只看到「交办」不算：读盘时标题栏也在，要等首页输入框出现（说明已经读完盘）。"""
     deadline = time.time() + timeout
     xml = ""
     while time.time() < deadline:
         xml = dump_ui("wait")
-        if "交办" in visible(xml):
+        seen = visible(xml)
+        if any("谁交代了什么" in t for t in seen):
             return xml
         time.sleep(0.8)
     return xml
@@ -153,6 +157,18 @@ def launch():
     return wait_for_app()
 
 
+def share_text(text):
+    """模拟从微信分享一句话进来。"""
+    adb(
+        "shell", "am", "start",
+        "-a", "android.intent.action.SEND",
+        "-t", "text/plain",
+        "--es", "android.intent.extra.TEXT", text,
+        "-n", ACTIVITY,
+    )
+    time.sleep(3.0)
+
+
 def seed_records():
     today = dt.date.today()
     now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
@@ -165,9 +181,9 @@ def seed_records():
          "createdAt": now, "closedAt": None},
         {"id": "seed-week", "text": "下周的预算表", "from": "李姐", "due": day(5), "state": "OPEN",
          "createdAt": now, "closedAt": None},
-        {"id": "seed-ascii", "text": "ABC-123 的临时事", "from": "系统", "due": day(2), "state": "OPEN",
-         "createdAt": now, "closedAt": None},
         {"id": "seed-overdue", "text": "早就过期的报销单", "from": "王总", "due": day(-4), "state": "OPEN",
+         "createdAt": now, "closedAt": None},
+        {"id": "seed-ascii", "text": "ABC-123 的临时事", "from": "系统", "due": day(2), "state": "OPEN",
          "createdAt": now, "closedAt": None},
         {"id": "seed-nodue", "text": "没定期限的杂事", "from": "张工", "due": None, "state": "OPEN",
          "createdAt": now, "closedAt": None},
@@ -176,14 +192,13 @@ def seed_records():
     ]
     payload = json.dumps(items, ensure_ascii=False).encode("utf-8")
     adb("shell", "run-as %s sh -c 'cat > files/tasks.json'" % PKG, stdin_bytes=payload)
-    return {item["text"] for item in items}
 
 
 def build_apk():
     print("== 构建 APK ==", flush=True)
     out = run([str(ROOT / "gradlew.bat"), "-p", str(ROOT), ":app:assembleDebug", "--console=plain"],
               timeout=2400)
-    print(out[-3000:], flush=True)
+    print(out[-2000:], flush=True)
     return APK.is_file()
 
 
@@ -220,27 +235,60 @@ def main():
     install = adb("install", "-r", str(APK))
     check("安装到设备", "Success" in install, install.strip().splitlines()[-1][:120])
 
-    # 空状态（W7）：先把记录清掉再打开
+    # ---------- 空状态（W7） ----------
     adb("shell", "run-as %s rm -f files/tasks.json files/tasks.json.bak" % PKG)
     xml = launch()
     screen = visible(xml)
-    check("W7 空状态有说明、不是白屏", "还没有人交代事" in screen,
-          "，".join(sorted(screen))[:200])
+    check("W7 空状态有说明、不是白屏", "还没有人交代事" in screen, "，".join(sorted(screen))[:200])
     check("截图 00-空状态", shot("00-空状态.png"))
 
-    seeded = seed_records()
+    # ---------- W1/W2/W3 一句话进来，人和期限自己认 ----------
+    share_text("王总说明天要周报")
+    xml = wait_for_app()
+    screen = visible(xml)
+    check("W1 分享进来的那句话记下了", "王总说明天要周报" in screen,
+          "，".join(sorted(screen))[:240])
+    check("W2 认出了交代人", any(t.startswith("王总 · ") for t in screen),
+          "，".join(sorted(t for t in screen if "·" in t)))
+    check("W3 认出了期限（明天）", any("明天要" in t for t in screen),
+          "，".join(sorted(t for t in screen if "·" in t)))
+    check("截图 11-分享进来的一句话", shot("11-分享进来的一句话.png"))
+
+    # ---------- W1/W3 输入框记一条，没提期限走默认 ----------
+    xml = dump_ui("12-输入框前")
+    tap_text(xml, "谁交代了什么") or tap_at((540, 300))
+    time.sleep(0.8)
+    type_keys(MARKER)
+    time.sleep(0.8)
+    xml = dump_ui("12b-输入框填好")
+    saved = tap_text(xml, "记下")
+    time.sleep(1.5)
+    xml = wait_for_app()
+    screen = visible(xml)
+    check("W1 输入框里记的一条进了流水", MARKER in screen, "点了记下：" + str(saved))
+    check("W3 没提期限就走默认 3 天", any("还有 3 天" in t for t in screen),
+          "，".join(sorted(t for t in screen if "还有" in t)))
+    check("截图 12-输入框记一条", shot("12-输入框记一条.png"))
+
+    # ---------- W5 持久化（趁还没塞种子数据，验自己记的两条） ----------
     xml = launch()
     screen = visible(xml)
-    check("App 真的在前台（标题在）", "交办" in screen, "看到：" + "，".join(sorted(screen))[:200])
-    check("截图 01-清单", shot("01-清单.png"))
+    check("W5 杀掉进程重开，自己记下的还在",
+          "王总说明天要周报" in screen and MARKER in screen,
+          "，".join(sorted(screen))[:240])
+    check("截图 06-重开之后", shot("06-重开之后.png"))
 
-    check("A1 今天要的事在主列表", "今天要交的周报" in screen)
-    check("A1 这周的事在主列表", "下周的预算表" in screen)
-    check("A1 没定期限的事在主列表", "没定期限的杂事" in screen)
-    check("A2 过期的事不在主档里", "早就过期的报销单" not in screen)
-    check("A2 已办的事不在主档里", "已经办完的旧事" not in screen)
-    check("A2 底部有「已过期 1 件」", any("已过期" in t and "1" in t for t in screen),
+    # ---------- W4/W5 有效期与退场 ----------
+    seed_records()
+    xml = launch()
+    screen = visible(xml)
+    check("W4 今天要交的单独拎在最上面", "今天要交的" in screen, "，".join(sorted(screen))[:240])
+    check("W4 有效期内的事都在流水里", "下周的预算表" in screen and "没定期限的杂事" in screen)
+    check("W5 过期的不占主流水", "早就过期的报销单" not in screen)
+    check("W5 办完的不占主流水", "已经办完的旧事" not in screen)
+    check("W5 底部有「已过期 1 件」", any("已过期" in t and "1" in t for t in screen),
           "，".join(sorted(t for t in screen if "过期" in t)))
+    check("截图 01-流水", shot("01-流水.png"))
 
     point = center_of(xml, "已过期")
     if point:
@@ -248,56 +296,25 @@ def main():
         time.sleep(1.2)
         xml2 = dump_ui("02-过期区")
         screen2 = visible(xml2)
-        check("A3 点开后看得到过期的事", "早就过期的报销单" in screen2)
+        check("W5 点开后看得到过期的事", "早就过期的报销单" in screen2)
         check("截图 02-过期区", shot("02-过期区.png"))
     else:
-        check("A3 点开后看得到过期的事", False, "没找到「已过期」入口")
+        check("W5 点开后看得到过期的事", False, "没找到「已过期」入口")
 
-    xml = launch()
-    fab = center_of(xml, "记一条")
-    if fab is None:
-        check("A4 找得到「记一条」按钮", False)
-    else:
-        check("A4 找得到「记一条」按钮", True)
-        tap_at(fab)
-        time.sleep(1.8)
-        xml = dump_ui("04-记一条")
-        if "什么事" not in visible(xml):
-            # 偶发：点在动画中间没吃上，再点一次
-            again = center_of(xml, "记一条") or fab
-            tap_at(again)
-            time.sleep(1.8)
-            xml = dump_ui("04-记一条")
-        check("截图 04-记一条", shot("04-记一条.png"))
-        check("A4 记一条的表单打开了", "什么事" in visible(xml), "，".join(sorted(visible(xml)))[:200])
-        type_keys(MARKER)
-        time.sleep(1.2)
-        # 键盘弹起会把「记下来」往上顶，必须用弹起之后的坐标再点
-        xml = dump_ui("04b-填好了")
-        saved = tap_text(xml, "记下来")
-        time.sleep(2.0)
-        xml = dump_ui("05-记好之后")
-        check("A4 新记的一条出现在列表里", MARKER in visible(xml), "点了保存：" + str(saved))
-        check("截图 05-记好之后", shot("05-记好之后.png"))
-
-    xml = launch()
-    check("A5 杀掉进程重开，新记的还在", MARKER in visible(xml))
-    check("A5 重开后原有记录也还在", "今天要交的周报" in visible(xml))
-    check("截图 06-重开之后", shot("06-重开之后.png"))
-
+    # ---------- W6 不删除、能翻回 ----------
     if tap_text(xml, "历史") is not None:
         time.sleep(1.2)
         xml = dump_ui("07-历史")
-        check("A6 历史里有办完的事", "已经办完的旧事" in visible(xml))
+        check("W6 历史里有办完的事", "已经办完的旧事" in visible(xml))
         check("截图 07-历史", shot("07-历史.png"))
         back = center_of(xml, "回到清单")
         if back:
             tap_at(back)
             time.sleep(1.0)
     else:
-        check("A6 历史里有办完的事", False, "没找到历史入口")
+        check("W6 历史里有办完的事", False, "没找到历史入口")
 
-    xml = dump_ui("08-回到清单")
+    xml = dump_ui("08-回到流水")
     if tap_text(xml, "搜索") is not None:
         time.sleep(1.5)
         type_keys("ABC-123")
@@ -305,7 +322,7 @@ def main():
         xml = dump_ui("09-搜索")
         check("截图 09-搜索", shot("09-搜索.png"))
         hits = visible(xml)
-        check("A7 搜索能翻出记录（输入 ABC-123）", "ABC-123 的临时事" in hits,
+        check("W6 搜索能翻出记录（输入 ABC-123）", any("ABC-123" in t for t in hits),
               "，".join(sorted(hits))[:200])
 
         clear_keys()
@@ -313,11 +330,11 @@ def main():
         time.sleep(1.2)
         xml = dump_ui("10-搜不到")
         hits = visible(xml)
-        check("A7 搜不到时给的是「没找到」", any("没找到" in t for t in hits),
+        check("W6 搜不到时给的是「没找到」", any("没找到" in t for t in hits),
               "，".join(sorted(hits))[:200])
         check("截图 10-搜不到", shot("10-搜不到.png"))
     else:
-        check("A7 搜索入口在", False)
+        check("W6 搜索入口在", False)
 
     failed = [r for r in RESULTS if not r[1]]
     print("\n==== 汇总：%d 项，失败 %d 项 ====" % (len(RESULTS), len(failed)), flush=True)

@@ -10,12 +10,34 @@ android {
         applicationId = "cn.jiaoban"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1"
+        versionCode = 2
+        versionName = "0.2"
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
+    }
+    // 正式版用本机调试证书签：这样正式版能直接覆盖安装调试版，已经记的东西不丢
+    signingConfigs {
+        create("release") {
+            val keystore = rootProject.file("${System.getProperty("user.home")}/.android/debug.keystore")
+            if (keystore.isFile) {
+                storeFile = keystore
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
+    }
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
+            signingConfig = signingConfigs.getByName("release")
+        }
     }
     buildFeatures { compose = true }
     testOptions { unitTests.isReturnDefaultValues = true }
@@ -38,8 +60,6 @@ dependencies {
     implementation("androidx.compose.material:material-icons-core:1.7.8")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
-    // 中文时间自然语言解析（Apache-2.0，无第三方依赖）：把"明天/下周三/月底"认成日期
-    implementation("com.github.xkzhangsan:xk-time:3.2.4")
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20250517")

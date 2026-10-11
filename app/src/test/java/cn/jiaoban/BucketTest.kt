@@ -14,11 +14,10 @@ class BucketTest {
     private fun task(
         days: Long?,
         state: TaskState = TaskState.OPEN,
-        text: String = "把周报发给客户",
         from: String = "王总",
     ) = Task(
         id = "id-" + (days?.toString() ?: "none") + "-" + state.name,
-        text = text,
+        text = "把周报发给客户",
         from = from,
         due = days?.let { today.plusDays(it) },
         state = state,
@@ -26,22 +25,16 @@ class BucketTest {
     )
 
     @Test
-    fun todayGoesToTodayBucket() = assertEquals(Bucket.TODAY, bucketOf(task(0), today))
+    fun todayIsTodayBucket() = assertEquals(Bucket.TODAY, bucketOf(task(0), today))
 
     @Test
-    fun tomorrowGoesToTomorrowBucket() = assertEquals(Bucket.TOMORROW, bucketOf(task(1), today))
+    fun tomorrowIsLaterBucket() = assertEquals(Bucket.LATER, bucketOf(task(1), today))
 
     @Test
-    fun threeDaysLaterIsThisWeek() = assertEquals(Bucket.THIS_WEEK, bucketOf(task(3), today))
+    fun farFutureIsAlsoLater() = assertEquals(Bucket.LATER, bucketOf(task(60), today))
 
     @Test
-    fun sevenDaysLaterIsStillThisWeek() = assertEquals(Bucket.THIS_WEEK, bucketOf(task(7), today))
-
-    @Test
-    fun eightDaysLaterIsLater() = assertEquals(Bucket.LATER, bucketOf(task(8), today))
-
-    @Test
-    fun noDueDateGoesToNoDueBucket() = assertEquals(Bucket.NO_DUE, bucketOf(task(null), today))
+    fun noDueDateIsNoDueBucket() = assertEquals(Bucket.NO_DUE, bucketOf(task(null), today))
 
     @Test
     fun yesterdayIsAlreadyOverdue() = assertEquals(Bucket.OVERDUE, bucketOf(task(-1), today))
@@ -56,23 +49,28 @@ class BucketTest {
     fun voidedTaskIsClosed() = assertEquals(Bucket.CLOSED, bucketOf(task(-5, TaskState.VOID), today))
 
     @Test
-    fun overdueSortsBehindEveryLiveTask() {
-        val items = listOf(task(-2), task(0), task(null), task(30))
-        val main = sortForMain(items, today)
-        assertEquals(4, main.size)
-        assertEquals(Bucket.TODAY, bucketOf(main.first(), today))
-        assertTrue(bucketOf(main.last(), today) == Bucket.OVERDUE)
-        assertTrue(main.dropLast(1).none { bucketOf(it, today) == Bucket.OVERDUE })
+    fun timelineKeepsOnlyLiveTasks() {
+        val items = listOf(task(-2), task(0), task(null), task(30), task(0, TaskState.DONE))
+        val rest = timelineRest(items, today)
+        assertEquals(2, rest.size)
+        assertTrue(rest.none { bucketOf(it, today) == Bucket.OVERDUE })
+        assertTrue(rest.none { bucketOf(it, today) == Bucket.TODAY })
+        assertTrue(rest.none { it.state != TaskState.OPEN })
     }
 
     @Test
-    fun mainOrderIsTodayThenTomorrowThenWeekThenLaterThenNoDue() {
-        val items = listOf(task(null), task(20), task(3), task(1), task(0))
-        val labels = sortForMain(items, today).map { bucketOf(it, today) }
-        assertEquals(
-            listOf(Bucket.TODAY, Bucket.TOMORROW, Bucket.THIS_WEEK, Bucket.LATER, Bucket.NO_DUE),
-            labels,
-        )
+    fun timelineIsNewestFirst() {
+        val older = task(5).copy(id = "older", createdAt = Instant.parse("2026-10-01T00:00:00Z"))
+        val newer = task(6).copy(id = "newer", createdAt = Instant.parse("2026-10-09T00:00:00Z"))
+        assertEquals(listOf("newer", "older"), timelineRest(listOf(older, newer), today).map { it.id })
+    }
+
+    @Test
+    fun dueTodayPicksOnlyTodaysOpenOnes() {
+        val items = listOf(task(0), task(1), task(-1), task(0, TaskState.DONE))
+        val pinned = dueToday(items, today)
+        assertEquals(1, pinned.size)
+        assertEquals(Bucket.TODAY, bucketOf(pinned.first(), today))
     }
 
     @Test
