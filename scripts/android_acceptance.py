@@ -130,9 +130,10 @@ def clear_keys(times=30):
     time.sleep(0.4)
 
 
-def wait_for_app(timeout=20.0):
+def wait_for_app(timeout=45.0):
     """等到 App 真的画出来为止。
-    只看到「交办」不算：读盘时标题栏也在，要等首页输入框出现（说明已经读完盘）。"""
+    只看到「交办」不算：读盘时标题栏也在，要等输入条出现（说明已经读完盘）。
+    模拟器在内存紧张时会变慢，所以超时给宽一点，避免把「慢」判成「坏」。"""
     deadline = time.time() + timeout
     xml = ""
     while time.time() < deadline:
