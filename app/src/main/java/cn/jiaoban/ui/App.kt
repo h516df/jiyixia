@@ -31,8 +31,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -59,6 +62,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -80,11 +84,12 @@ import cn.jiaoban.sortForHistory
 import cn.jiaoban.sortForOverdue
 import cn.jiaoban.summaryLine
 import cn.jiaoban.timelineRest
+import cn.jiaoban.update.Updater
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
-private enum class AppScreen { MAIN, HISTORY }
+private enum class AppScreen { MAIN, HISTORY, UPDATE }
 
 /** 期限的常用选项，改期限时用。 */
 enum class DuePreset(val label: String, val days: Long?) {
@@ -103,12 +108,15 @@ private data class Preview(val from: String, val due: LocalDate?)
 @Composable
 fun App(store: TaskStore, sharedText: String? = null, onSharedHandled: () -> Unit = {}) {
     val holder = remember { TasksHolder(store).also { it.start() } }
+    val context = LocalContext.current
+    val updater = remember { Updater(context) }
     val today = LocalDate.now()
     var screen by remember { mutableStateOf(AppScreen.MAIN) }
     var searching by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
     var editing by remember { mutableStateOf<Task?>(null) }
     var overdueOpen by remember { mutableStateOf(false) }
+    var menuOpen by remember { mutableStateOf(false) }
 
     // 从别处分享进来的一句话，走和输入框一样的解析路径。
     // 必须等读盘完成，否则会和读盘竞态，把刚记下的东西从内存里抹掉。
@@ -148,7 +156,11 @@ fun App(store: TaskStore, sharedText: String? = null, onSharedHandled: () -> Uni
                     title = {
                         Column {
                             Text(
-                                text = if (screen == AppScreen.MAIN) "交办" else "办完和作废的",
+                                text = when (screen) {
+                                    AppScreen.MAIN -> "交办"
+                                    AppScreen.HISTORY -> "办完和作废的"
+                                    AppScreen.UPDATE -> "检查更新"
+                                },
                                 fontWeight = FontWeight.SemiBold,
                             )
                             if (screen == AppScreen.MAIN && holder.loaded && holder.tasks.isNotEmpty()) {
@@ -166,6 +178,18 @@ fun App(store: TaskStore, sharedText: String? = null, onSharedHandled: () -> Uni
                                 Icon(Icons.Default.Search, contentDescription = "搜索")
                             }
                             TextButton(onClick = { screen = AppScreen.HISTORY }) { Text("历史") }
+                            IconButton(onClick = { menuOpen = true }) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "更多")
+                            }
+                            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("检查更新") },
+                                    onClick = {
+                                        menuOpen = false
+                                        screen = AppScreen.UPDATE
+                                    },
+                                )
+                            }
                         } else {
                             TextButton(onClick = { screen = AppScreen.MAIN }) { Text("回到清单") }
                         }
@@ -179,6 +203,7 @@ fun App(store: TaskStore, sharedText: String? = null, onSharedHandled: () -> Uni
     ) { inner ->
         when {
             !holder.loaded -> LoadingState(inner)
+            screen == AppScreen.UPDATE -> UpdateScreen(updater, inner)
             screen == AppScreen.HISTORY -> HistoryScreen(holder, inner, onOpen = { editing = it })
             searching -> SearchScreen(holder, query, inner, onOpen = { editing = it })
             else -> Column(
