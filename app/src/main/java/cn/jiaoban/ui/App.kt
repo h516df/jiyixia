@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -117,6 +118,8 @@ fun App(store: TaskStore, sharedText: String? = null, onSharedHandled: () -> Uni
     var editing by remember { mutableStateOf<Task?>(null) }
     var overdueOpen by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
 
     // 从别处分享进来的一句话，走和输入框一样的解析路径。
     // 必须等读盘完成，否则会和读盘竞态，把刚记下的东西从内存里抹掉。
@@ -212,22 +215,31 @@ fun App(store: TaskStore, sharedText: String? = null, onSharedHandled: () -> Uni
                     .fillMaxSize()
                     .padding(inner),
             ) {
+                val hasOpen = holder.tasks.any { it.state == TaskState.OPEN }
+                Box(modifier = Modifier.weight(1f)) {
+                    if (!hasOpen) {
+                        EmptyState(hasHistory = holder.tasks.isNotEmpty())
+                    } else {
+                        TimelineList(
+                            holder = holder,
+                            today = today,
+                            listState = listState,
+                            overdueOpen = overdueOpen,
+                            onToggleOverdue = { overdueOpen = !overdueOpen },
+                            onOpen = { editing = it },
+                        )
+                    }
+                }
+                // 输入条放最下面：拇指够得到，键盘弹起来正好顶在它下面
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 InputBox(
                     known = holder.recentFroms(),
                     today = today,
-                    onSave = { text -> holder.addFromText(text, today) },
+                    onSave = { text ->
+                        holder.addFromText(text, today)
+                        scope.launch { listState.animateScrollToItem(0) }
+                    },
                 )
-                if (holder.tasks.none { it.state == TaskState.OPEN }) {
-                    EmptyState(hasHistory = holder.tasks.isNotEmpty())
-                } else {
-                    TimelineList(
-                        holder = holder,
-                        today = today,
-                        overdueOpen = overdueOpen,
-                        onToggleOverdue = { overdueOpen = !overdueOpen },
-                        onOpen = { editing = it },
-                    )
-                }
             }
         }
     }
@@ -286,7 +298,7 @@ private fun InputBox(
         )
     }
 
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(top = 10.dp, bottom = 12.dp)) {
         fun save() {
             if (draft.isBlank()) return
             onSave(draft)
@@ -326,6 +338,7 @@ private fun InputBox(
 private fun TimelineList(
     holder: TasksHolder,
     today: LocalDate,
+    listState: LazyListState,
     overdueOpen: Boolean,
     onToggleOverdue: () -> Unit,
     onOpen: (Task) -> Unit,
@@ -333,7 +346,6 @@ private fun TimelineList(
     val pinned = dueToday(holder.tasks, today)
     val rest = timelineRest(holder.tasks, today)
     val overdue = sortForOverdue(holder.tasks, today)
-    val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
     LazyColumn(
