@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- 一张单子：纸 + 两行字 + 一个勾 -->
+    <path
+        android:fillColor="#C2410C"
+        android:pathData="M34,26h40a8,8 0 0 1 8,8v40a8,8 0 0 1 -8,8H34a8,8 0 0 1 -8,-8V34a8,8 0 0 1 8,-8z" />
+    <path
+        android:fillColor="#FFF7ED"
+        android:pathData="M36,40h30v5H36z" />
+    <path
+        android:fillColor="#FFF7ED"
+        android:pathData="M36,51h18v5H36z" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M38,66l6,6l14,-15"
+        android:strokeColor="#FFF7ED"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:strokeWidth="6" />
+</vector>
