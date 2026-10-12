@@ -35,6 +35,9 @@ object UpdateConfig {
     const val APK_PREFIX = "Jiaoban"
     const val API = "https://api.github.com/repos/$REPO"
     const val VERIFY_URI = "https://github.com/login/device"
+
+    /** 兜底入口：App 里检查失败时，至少能在浏览器打开发布页手动下载。 */
+    const val RELEASES_PAGE = "https://github.com/$REPO/releases"
     const val MAX_APK = 120L * 1024 * 1024
 
     /** 只允许访问这个仓库自己的 API 路径。 */

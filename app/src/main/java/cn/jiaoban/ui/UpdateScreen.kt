@@ -113,7 +113,17 @@ fun UpdateScreen(updater: Updater, contentPadding: PaddingValues) {
 
             is UpdateState.Failed -> {
                 Text(state.message, fontSize = 14.sp, color = MaterialTheme.colorScheme.error)
-                Button(onClick = { updater.check() }) { Text("重试") }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { updater.check() }) { Text("重试") }
+                    TextButton(onClick = { openBrowser(context, cn.jiaoban.update.UpdateConfig.RELEASES_PAGE) }) {
+                        Text("去发布页手动下载")
+                    }
+                }
+                Text(
+                    text = "App 里检查失败不影响使用：旧版本继续能用，记录也不会丢。",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
 
@@ -147,8 +157,14 @@ private fun AuthCard(userCode: String, onOpenBrowser: () -> Unit, onCancel: () -
         ) {
             Text("需要你授权一次", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             Text(
-                text = "在浏览器打开 GitHub 的授权页，输入下面这个码，勾选 ${UpdateConfig.REPO_NAME} 这个仓库。授权完这边会自动继续。",
+                text = "在浏览器打开 GitHub 的授权页，输入下面这个码。",
                 fontSize = 13.sp,
+            )
+            Text(
+                text = "这一步里 GitHub 会问这个 App 能访问哪些仓库，要选上「${UpdateConfig.REPO_NAME}」" +
+                    "（或者直接选全部仓库），不然检查更新会看不到发布资料。授权完这边会自动继续。",
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.primary,
             )
             Text(
                 text = userCode,
