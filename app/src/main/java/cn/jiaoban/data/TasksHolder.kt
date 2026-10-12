@@ -52,10 +52,9 @@ class TasksHolder(private val store: TaskStore) {
     fun addFromText(text: String, today: LocalDate) {
         val clean = text.trim().replace(Regex("\\s+"), " ")
         if (clean.isEmpty()) return
-        val clipped = if (clean.length > 200) clean.substring(0, 200) else clean
-        val from = PersonParser.parse(clipped, recentFroms())
-        val due = DueParser.withDefault(clipped, today)
-        add(clipped, from, due)
+        val from = PersonParser.parse(clean, recentFroms())
+        val due = DueParser.withDefault(clean, today)
+        add(clean, from, due)
     }
 
     fun add(text: String, from: String, due: LocalDate?) {
