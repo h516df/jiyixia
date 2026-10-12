@@ -56,6 +56,7 @@ def adb(*args, **kw):
 
 
 def dump_ui(tag):
+    adb("shell", "rm", "-f", "/sdcard/jiaoban-ui.xml")
     adb("shell", "uiautomator", "dump", "/sdcard/jiaoban-ui.xml")
     xml = adb("exec-out", "cat", "/sdcard/jiaoban-ui.xml")
     (OUT / ("ui-%s.xml" % tag)).write_text(xml, encoding="utf-8")
@@ -92,6 +93,25 @@ def center_of(xml, needle):
     return None
 
 
+def scroll_until(xml, needle):
+    """按真实视口滚动到列表下方，而不是假定全部卡片同时可见。"""
+    for attempt in range(6):
+        if center_of(xml, needle) is not None:
+            return xml
+        root = ET.fromstring(xml)
+        bounds = re.match(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", next((n for n in root.iter() if n.get("scrollable") == "true" and n.get("class") != "android.widget.EditText"), root[0]).get("bounds", ""))
+        if not bounds:
+            return xml
+        left, top, right, bottom = map(int, bounds.groups())
+        x = (left + right) // 2
+        height = bottom - top
+        adb("shell", "input", "swipe", str(x), str(top + height * 7 // 10),
+            str(x), str(top + height * 3 // 10), "450")
+        time.sleep(.5)
+        xml = dump_ui("scroll-%s-%d" % (needle, attempt))
+    return xml
+
+
 def tap_at(point):
     adb("shell", "input", "tap", str(point[0]), str(point[1]))
     return point
@@ -111,18 +131,10 @@ def shot(name):
 
 
 def type_keys(text):
-    """用按键事件输入，绕开模拟器输入法偶发的首字符重复。"""
-    for ch in text:
-        if ch == "-":
-            key = "KEYCODE_MINUS"
-        elif ch.isdigit():
-            key = "KEYCODE_" + ch
-        elif ch.isalpha():
-            key = "KEYCODE_" + ch.upper()
-        else:
-            continue
-        adb("shell", "input", "keyevent", key)
-        time.sleep(0.12)
+    """等待输入焦点稳定后，整段注入已知 ASCII 测试输入。"""
+    time.sleep(1.5)
+    adb("shell", "input", "text", text)
+    time.sleep(.5)
 
 
 def clear_keys(times=30):
@@ -172,6 +184,12 @@ def share_text(text):
 
 
 def seed_records():
+    # 种子文件只能在旧进程退出后写，否则旧的后台落盘会盖回旧数据。
+    adb("shell", "am", "force-stop", PKG)
+    for _ in range(30):
+        if not adb("shell", "pidof", PKG).strip():
+            break
+        time.sleep(.2)
     today = dt.date.today()
     now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
@@ -234,10 +252,13 @@ def main():
         return 1
     check("找到模拟器", True, SERIAL)
 
+    if adb("shell", "getprop", "ro.boot.qemu.avd_name").strip() != "Jiaoban_Codex_API36":
+        parser.error("Only use the task's disposable Jiaoban_Codex_API36 emulator; this test replaces fixture records.")
     install = adb("install", "-r", str(APK))
     check("安装到设备", "Success" in install, install.strip().splitlines()[-1][:120])
 
     # ---------- 空状态（W7） ----------
+    adb("shell", "am", "force-stop", PKG)
     adb("shell", "run-as %s rm -f files/tasks.json files/tasks.json.bak" % PKG)
     xml = launch()
     screen = visible(xml)
@@ -306,9 +327,12 @@ def main():
     xml = launch()
     screen = visible(xml)
     check("W4 今天要交的单独拎在最上面", "今天要交的" in screen, "，".join(sorted(screen))[:240])
-    check("W4 有效期内的事都在流水里", "下周的预算表" in screen and "没定期限的杂事" in screen)
+    active_screen = visible(scroll_until(xml, "没定期限的杂事"))
+    check("W4 有效期内的事都在流水里", "下周的预算表" in screen and "没定期限的杂事" in active_screen)
     check("W5 过期的不占主流水", "早就过期的报销单" not in screen)
     check("W5 办完的不占主流水", "已经办完的旧事" not in screen)
+    xml = scroll_until(dump_ui("before-overdue"), "已过期")
+    screen = visible(xml)
     check("W5 底部有「已过期 1 件」", any("已过期" in t and "1" in t for t in screen),
           "，".join(sorted(t for t in screen if "过期" in t)))
     check("截图 01-流水", shot("01-流水.png"))
@@ -401,6 +425,11 @@ def main():
     print("\n==== 汇总：%d 项，失败 %d 项 ====" % (len(RESULTS), len(failed)), flush=True)
     for name, _ok, detail in failed:
         print("  FAIL " + name + ((" | " + detail) if detail else ""), flush=True)
+    import hashlib
+    (OUT / "core-results.json").write_text(json.dumps({
+        "serial": SERIAL, "apkSha256": hashlib.sha256(APK.read_bytes()).hexdigest(),
+        "results": [{"name": name, "passed": ok, "detail": detail} for name, ok, detail in RESULTS]
+    }, ensure_ascii=False, indent=2), encoding="utf-8")
     return 1 if failed else 0
 
 

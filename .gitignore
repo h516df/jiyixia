@@ -9,3 +9,5 @@ local.properties
 verification/
 .trash/
 dist/
+
+__pycache__/
