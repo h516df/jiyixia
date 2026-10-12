@@ -1,0 +1,7 @@
+{
+  "serial": "127.0.0.1:5581",
+  "passed": true,
+  "expectedBroken": false,
+  "apkSha256": "f7bbbee04abd1b58f6d1610b9a67391e6e4a4682431835ff5bf12f7288a42e01",
+  "probeSha256": "4091ea432f8ee4b1f2ff314d19dc974017c175a73a7bd140f9dffcc55dcf9bd2"
+}

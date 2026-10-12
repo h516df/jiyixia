@@ -1,0 +1,35 @@
+{
+  "serial": "127.0.0.1:5581",
+  "processUnchanged": true,
+  "results": [
+    {
+      "name": "Install test APK",
+      "passed": true
+    },
+    {
+      "name": "Current version and offline notes are visible",
+      "passed": true
+    },
+    {
+      "name": "First check reaches real GitHub device authorization",
+      "passed": true
+    },
+    {
+      "name": "Cancel returns to check button",
+      "passed": true
+    },
+    {
+      "name": "Retry reaches device authorization again",
+      "passed": true
+    },
+    {
+      "name": "Retry uses the same live app process",
+      "passed": true
+    },
+    {
+      "name": "Repeated cancel and retry still work",
+      "passed": true
+    }
+  ],
+  "apkSha256": "f7bbbee04abd1b58f6d1610b9a67391e6e4a4682431835ff5bf12f7288a42e01"
+}

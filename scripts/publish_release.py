@@ -16,6 +16,7 @@ import hashlib
 import json
 import re
 import shutil
+import zipfile
 import subprocess
 import sys
 from pathlib import Path
@@ -62,7 +63,7 @@ def markdown(notes, sha):
         lines.append("")
     lines.append(f"SHA256: `{sha}`")
     lines.append("")
-    lines.append("数据只存在手机本地，不联网、不注册；只有点「检查更新」时才联网。")
+    lines.append("应用使用本地记录，不设账号体系；只有主动检查更新时由应用联网。系统云备份与换机行为取决于手机设置，备份策略仍在 Issue #5 待确认。")
     return "\n".join(lines)
 
 
@@ -86,6 +87,10 @@ def main():
     if not APK.is_file():
         raise SystemExit("没有正式包：" + str(APK))
 
+    with zipfile.ZipFile(APK) as archive:
+        embedded_notes = json.loads(archive.read("assets/release-notes.json"))
+    if embedded_notes != notes:
+        raise SystemExit("安装包里的更新说明与发布材料不一致，请重新构建。")
     sha = hashlib.sha256(APK.read_bytes()).hexdigest()
     out = DIST / f"v{version}"
     out.mkdir(parents=True, exist_ok=True)
@@ -94,7 +99,7 @@ def main():
     sha_out = out / f"{PREFIX}-v{version}-SHA256.txt"
     shutil.copyfile(APK, apk_out)
     shutil.copyfile(NOTES, notes_out)
-    sha_out.write_text(f"{sha}  app-release.apk\n", encoding="utf-8")
+    sha_out.write_text(f"{sha}  {apk_out.name}\n", encoding="utf-8")
 
     print("== 发布材料 ==", flush=True)
     for f in (apk_out, notes_out, sha_out):
@@ -112,13 +117,12 @@ def main():
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     ).returncode == 0
     if existing:
-        print("== 这个 tag 已经有发布版，覆盖资产和说明 ==", flush=True)
-        run(["gh", "release", "upload", f"v{version}", str(apk_out), str(notes_out), str(sha_out),
-             "--repo", REPO, "--clobber"])
-        run(["gh", "release", "edit", f"v{version}", "--repo", REPO, "--title", title, "--notes", body])
-    else:
-        run(["gh", "release", "create", f"v{version}", str(apk_out), str(notes_out), str(sha_out),
-             "--repo", REPO, "--title", title, "--notes", body])
+        raise SystemExit("这个版本已经发布，停止以免覆盖已有安装包。")
+    head = run(["git", "rev-parse", "HEAD"]).strip()
+    body_file = out / "release-body.md"
+    body_file.write_text(body, encoding="utf-8")
+    run(["gh", "release", "create", f"v{version}", str(apk_out), str(notes_out), str(sha_out),
+         "--repo", REPO, "--target", head, "--title", title, "--notes-file", str(body_file)])
     print(run(["gh", "release", "view", f"v{version}", "--repo", REPO,
                "--json", "tagName,url,assets", "--jq",
                '"tag=\\(.tagName) assets=\\([.assets[].name] | join(", ")) \\(.url)"']).strip(), flush=True)
