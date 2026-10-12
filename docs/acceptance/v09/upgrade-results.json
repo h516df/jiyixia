@@ -1,6 +1,6 @@
 {
   "passed": true,
-  "sourceFingerprint": "65d6358402c1a3a7cb08f7f88e5e7d4bfc0fc45b2dddd9269e5d75f1b52d6fc2",
+  "sourceFingerprint": "36c99183e43dfc01ef1b99e1e373d9647b962f271e37b5ed85a4d1d73b31af97",
   "serial": "127.0.0.1:5591",
   "avd": "Jiaoban_Redesign_API36",
   "old": {
@@ -13,7 +13,7 @@
     "package": "cn.jiaoban",
     "versionCode": 9,
     "versionName": "0.9",
-    "sha256": "f5fbb1df3ad7365fb7c95ba42c93b450c00b95fdb6dca87bc3233c67ffab0651"
+    "sha256": "c87080ecf3c7441d8797a76ee3f6c505cdf0f3c1bde50c15566c8c364ea39f57"
   },
   "certificateSha256": "21b74e3e2a10e12da8284d4e6bd7d99e55b00a385215902e94d7896f7a46c967",
   "recordsBefore": "DATA_SHA256: 6948d4938fe15ca08e3c99175c23ab48f9667862da59d1bb89363ec5a47f1969 count=7\\n",

@@ -5,10 +5,10 @@
 ## 对应范围与产物
 
 - Issue #12：别人交代给我的事，快速记下、每天看该做什么、办完留记录；每条可选「必须办完」或「到期失效」。
-- App 业务代码提交：`fdb4942c102e8ab44bc69102df677513b0ae0f41`。随后证据/脚本提交不改变 App 源码。源码指纹按源码路径、内容与构建配置计算，文本统一 LF，避免不同 checkout 的 CRLF 差异。
-- App 源码指纹：`65d6358402c1a3a7cb08f7f88e5e7d4bfc0fc45b2dddd9269e5d75f1b52d6fc2`。
+- App 业务代码提交：`a9a4ad36dd281f00ce2342d1341850e6e334a3c6`。随后证据/脚本提交不改变 App 源码。源码指纹按源码路径、内容与构建配置计算，文本统一 LF，避免不同 checkout 的 CRLF 差异。
+- App 源码指纹：`36c99183e43dfc01ef1b99e1e373d9647b962f271e37b5ed85a4d1d73b31af97`。
 - 正式 APK：`Jiaoban-v0.9-universal.apk`，包名 `cn.jiaoban`，versionCode 9，1,821,016 bytes。
-- APK SHA256：`f5fbb1df3ad7365fb7c95ba42c93b450c00b95fdb6dca87bc3233c67ffab0651`。
+- APK SHA256：`c87080ecf3c7441d8797a76ee3f6c505cdf0f3c1bde50c15566c8c364ea39f57`。
 - 签名证书 SHA256：`21b74e3e2a10e12da8284d4e6bd7d99e55b00a385215902e94d7896f7a46c967`，与已发布 0.8 相同。
 
 ## 实际环境与结果

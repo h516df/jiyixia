@@ -106,6 +106,17 @@ public class RedesignRegressionProbe extends Instrumentation {
         if(bitmap==null) throw new AssertionError("No screenshot");
         try(FileOutputStream stream = new FileOutputStream(new File(out,name+".png"))) { bitmap.compress(Bitmap.CompressFormat.PNG,100,stream); }
     }
+    private boolean lightStatusIcons() {
+        Bitmap image=getUiAutomation().takeScreenshot();
+        if(image==null) return false;
+        int bright=0;
+        for(int y=(int)(image.getHeight()*.01);y<(int)(image.getHeight()*.045);y++)
+            for(int x=(int)(image.getWidth()*.04);x<(int)(image.getWidth()*.24);x++) {
+                int pixel=image.getPixel(x,y);
+                if(Color.red(pixel)>200 && Color.green(pixel)>200 && Color.blue(pixel)>200) bright++;
+            }
+        image.recycle(); return bright>50;
+    }
     private JSONArray data() throws Exception {
         File file = new File(getTargetContext().getFilesDir(),"tasks.json");
         return file.isFile()?new JSONArray(new String(Files.readAllBytes(file.toPath()),StandardCharsets.UTF_8)):new JSONArray();
@@ -281,7 +292,10 @@ public class RedesignRegressionProbe extends Instrumentation {
             check("Large-font narrow-screen navigation available",labels().containsAll(Arrays.asList("事情","按人","历史","设置")));
             shot("09-large-font");
             shell("settings put system font_scale 1.0"); shell("wm size reset");
-            shell("cmd uimode night yes"); SystemClock.sleep(600); waitFor(s->s.contains("记一件")); shot("10-dark");
+            shell("cmd uimode night yes"); SystemClock.sleep(600); waitFor(s->s.contains("记一件"));
+            long barEnd=SystemClock.elapsedRealtime()+7000;
+            while(!lightStatusIcons() && SystemClock.elapsedRealtime()<barEnd) SystemClock.sleep(200);
+            check("Dark status bar renders readable light time icons",lightStatusIcons()); shot("10-dark");
             check("Dark mode main path remains usable",labels().contains("记一件"));
             shell("cmd uimode night no");
             report.put("version",getTargetContext().getPackageManager().getPackageInfo("cn.jiaoban",0).versionName);

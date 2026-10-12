@@ -16,7 +16,7 @@
 
 0.9 / versionCode 9 已实现，98 项单测通过。最终正式包核心回归通过：中文输入与手动期限、两种到期策略、筛选实际结果、完整长文/emoji 原生分享、日历保存和取消、办完撤销、历史恢复、作废确认、按人、未保存编辑保护、已有编辑收到新分享的保护、同进程跨天、窄屏大字体、深色模式、重启后原记录文件哈希一致。
 0.8→0.9 同签名覆盖升级通过，7 条旧记录文件哈希完全一致，升级前后真实 UI 加载通过，未卸载/清数据。正式包更新取消/重试与同进程复试通过。
-业务代码 fdb4942c102e8ab44bc69102df677513b0ae0f41；源码指纹 65d6358402c1a3a7cb08f7f88e5e7d4bfc0fc45b2dddd9269e5d75f1b52d6fc2；正式 APK SHA256 f5fbb1df3ad7365fb7c95ba42c93b450c00b95fdb6dca87bc3233c67ffab0651。
+业务代码 a9a4ad36dd281f00ce2342d1341850e6e334a3c6；源码指纹 36c99183e43dfc01ef1b99e1e373d9647b962f271e37b5ed85a4d1d73b31af97；正式 APK SHA256 c87080ecf3c7441d8797a76ee3f6c505cdf0f3c1bde50c15566c8c364ea39f57。
 
 专用 AVD Jiaoban_Redesign_API36 / API36 / x86_64，设备 127.0.0.1:5591，ADB5043，时区 Asia/Shanghai。用户手机未连接，未进行用户本人账号授权、私有发布下载或系统安装确认。测试使用匿名夹具；Java 探针只在 androidTest APK。日期/字体/显示测试结束恢复。
 证据在 verification/redesign-debug、redesign-release、redesign-upgrade 与更新取消报告；均须核对 sourceFingerprint、APK/探针 SHA256 和实际设备。不要将早期失败或过时包当完成。

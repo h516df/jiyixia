@@ -11,5 +11,6 @@
 - 安卓验收使用本任务可丢弃 AVD，不在用户真机上运行会改种子记录/时钟的测试。
 - 0.9 改版使用 scripts/android_redesign_acceptance.py 与独立 Jiaoban_Redesign_API36；原脚本针对 0.8 历史 UI。证据核对源码指纹、安装包和探针哈希；探针按完整日期语义点击日历，分享走原生 Intent，避免 shell 引号/换行破坏输入。
 - Scaffold 新建按钮需要明确 zIndex，列表内容不应从无障碍控件树遮掉按钮。编辑未保存时拦截 SheetValue.Hidden，选择继续编辑须保持表单可见。
+- 跟随系统深色模式时同步 WindowInsetsControllerCompat 的状态栏/手势栏图标颜色；真实截图须确认时间和电量可读，不能只检查 Compose 卡片。
 - 日期原生探针只进入 androidTest APK；它恢复模拟器时间后结束。UiAutomation 节点需在变更后刷新缓存。
 - 更新检查不复用已取消的 UpdateHttp；授权、下载和系统安装的真实用户步骤不能靠模拟授权冒充。

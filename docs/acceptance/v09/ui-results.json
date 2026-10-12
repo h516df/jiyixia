@@ -1,8 +1,8 @@
 {
   "binding": {
-    "sourceFingerprint": "65d6358402c1a3a7cb08f7f88e5e7d4bfc0fc45b2dddd9269e5d75f1b52d6fc2",
-    "apkSha256": "f5fbb1df3ad7365fb7c95ba42c93b450c00b95fdb6dca87bc3233c67ffab0651",
-    "probeSha256": "83e2ca1a8ce7dca2cf9d22d56defe51486991ecd5147ec15128fb40ab8f5d50c",
+    "sourceFingerprint": "36c99183e43dfc01ef1b99e1e373d9647b962f271e37b5ed85a4d1d73b31af97",
+    "apkSha256": "c87080ecf3c7441d8797a76ee3f6c505cdf0f3c1bde50c15566c8c364ea39f57",
+    "probeSha256": "d4803f532227de6a3605fdebd4f8fcadeb819ed47da5ba2158adaa220e66667a",
     "serial": "127.0.0.1:5591",
     "avd": "Jiaoban_Redesign_API36",
     "sdk": "36",
@@ -16,7 +16,7 @@
     "abi": "x86_64",
     "timezone": "Asia/Shanghai",
     "recordCount": 9,
-    "sourceFingerprint": "65d6358402c1a3a7cb08f7f88e5e7d4bfc0fc45b2dddd9269e5d75f1b52d6fc2",
+    "sourceFingerprint": "36c99183e43dfc01ef1b99e1e373d9647b962f271e37b5ed85a4d1d73b31af97",
     "passed": true,
     "error": "",
     "checks": [
@@ -189,11 +189,15 @@
         "passed": true
       },
       {
+        "name": "Dark status bar renders readable light time icons",
+        "passed": true
+      },
+      {
         "name": "Dark mode main path remains usable",
         "passed": true
       }
     ],
     "restartPreservedRecords": true,
-    "recordsSnapshot": "DATA_SHA256: 17d953816db1791a7446c5bf9a10e987d49d8a3aef1b9d8f2ade520bf2d67b32 count=9\\n"
+    "recordsSnapshot": "DATA_SHA256: 90081d0cbf8e9c1ba0d2f556fe5c1e024d473c865fbab0f9f11fe81224206c92 count=9\\n"
   }
 }
