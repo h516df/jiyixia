@@ -9,8 +9,11 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.core.view.WindowInsetsControllerCompat
 import cn.jiaoban.data.TaskStore
 import cn.jiaoban.ui.App
 import cn.jiaoban.ui.JiaobanTheme
@@ -59,6 +62,14 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         shared.value = extractShared(intent)
         setContent {
+            val dark = isSystemInDarkTheme()
+            SideEffect {
+                // 系统主题切换后同步状态栏/手势条图标，避免深色页面上仍显示黑字。
+                WindowInsetsControllerCompat(window, window.decorView).apply {
+                    isAppearanceLightStatusBars = !dark
+                    isAppearanceLightNavigationBars = !dark
+                }
+            }
             JiaobanTheme {
                 val store = remember { TaskStore(File(filesDir, "tasks.json")) }
                 App(
