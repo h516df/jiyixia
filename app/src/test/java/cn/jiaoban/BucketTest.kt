@@ -89,4 +89,17 @@ class BucketTest {
         assertEquals("没定期限", metaLine(task(null, from = ""), today))
         assertEquals("王总 · 10月18日 · 还有 7 天", metaLine(task(7), today))
     }
+    @Test
+    fun theSameRecordsMoveToTheCorrectGroupsOnTheNextDay() {
+        val dueNow = task(0)
+        val dueNext = task(1)
+        val records = listOf(dueNow, dueNext, task(-1))
+        assertEquals(listOf(dueNow), dueToday(records, today))
+        val tomorrow = today.plusDays(1)
+        assertEquals(listOf(dueNext), dueToday(records, tomorrow))
+        assertEquals(2, sortForOverdue(records, tomorrow).size)
+        assertEquals("王总 · 今天要", metaLine(dueNext, tomorrow))
+        assertEquals("王总 · 过期 1 天", metaLine(dueNow, tomorrow))
+    }
+
 }
