@@ -30,7 +30,7 @@ sealed class UpdateState {
  */
 class Updater(private val context: Context) {
 
-    private val http = UpdateHttp()
+    @Volatile private var http = UpdateHttp()
     private val tokens = UpdateTokenStore(context)
     private val io = Executors.newSingleThreadExecutor { r ->
         Thread(r, "jiaoban-update").apply { isDaemon = true }
@@ -62,6 +62,8 @@ class Updater(private val context: Context) {
         candidate = null
         set(UpdateState.Checking)
         io.execute {
+            // 上次取消过的请求对象不能复用；单线程队列保证旧任务已退出。
+            http = UpdateHttp()
             try {
                 val token = tokenOrAuthorize()
                 val releases = http.json("/releases?per_page=20", token)
@@ -93,6 +95,8 @@ class Updater(private val context: Context) {
         cancelled = false
         set(UpdateState.Downloading(0))
         io.execute {
+            // 上次取消过的请求对象不能复用；单线程队列保证旧任务已退出。
+            http = UpdateHttp()
             try {
                 val token = tokens.load()?.access ?: throw UpdateFailure("授权失效了，请重新检查更新")
                 val dir = File(context.cacheDir, "updates").apply { mkdirs() }
@@ -144,6 +148,8 @@ class Updater(private val context: Context) {
     fun cancel() {
         cancelled = true
         http.cancel()
+        // 发现新版本后点“稍后”时没有后台任务负责回到首页。
+        if (state is UpdateState.Available) set(UpdateState.Idle)
     }
 
     private fun set(value: UpdateState) {
