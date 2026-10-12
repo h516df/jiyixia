@@ -1,0 +1,28 @@
+{
+  "releaseUrl": "https://github.com/h516df/Jiaoban/releases/tag/v0.8",
+  "tag": "v0.8",
+  "releaseCommit": "a2a469a9d22f5c3f1be87ca17f5e26e814209391",
+  "privateRepository": true,
+  "latest": true,
+  "draft": false,
+  "prerelease": false,
+  "readBackVerified": true,
+  "assets": [
+    {
+      "name": "Jiaoban-v0.8-universal.apk",
+      "size": 1722508,
+      "sha256": "f7bbbee04abd1b58f6d1610b9a67391e6e4a4682431835ff5bf12f7288a42e01"
+    },
+    {
+      "name": "Jiaoban-v0.8-release-notes.json",
+      "size": 660,
+      "sha256": "e1ff1ec4a85b31bdd9d0740d100ffabcf583143e338a896df9cf54dbc49f3efa"
+    },
+    {
+      "name": "Jiaoban-v0.8-SHA256.txt",
+      "size": 94,
+      "sha256": "1f788ca4709d64a5cdb095e9d8283887b80d23b2ae844645f343b5010029ee2b"
+    }
+  ],
+  "phoneInstallationVerified": false
+}

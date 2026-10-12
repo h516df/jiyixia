@@ -13,7 +13,7 @@
 - 整合候选：`D:/Worktrees/Jiaoban/codex-fixes-v08`，`agent/codex/fixes-v08`。
 - 修复 PR #7/#8/#9 已 squash 合并，main 基线 `a0f4476`。整合负责人为本会话。
 - canonical `D:/Projects/Jiaoban` 的 5 处 0.7 未提交授权改动归属未确认，完整保留，未纳入候选。禁止 reset、覆盖或清理。
-- 0.8 使用更高的 versionCode=8，避开原目录 0.7 草稿。仅准备候选，发布仍须用户确认。
+- 0.8 使用更高的 versionCode=8，避开原目录 0.7 草稿。用户于 2026-10-12 明确回复“发呀”，v0.8 已发布。
 
 ## 验收与边界
 
@@ -23,7 +23,7 @@
 
 整合 0.8 单测 87 项通过，完整 UI 35 项通过；正式包取消重复重试通过、日期 7 项通过；正式 0.4 → 0.8 覆盖安装后原记录文件 SHA256 与条数一致。最终报告与截图见 `docs/acceptance/v08/README.md`，详细日志在 `verification/`。
 
-正式候选 SHA256 `f7bbbee04abd1b58f6d1610b9a67391e6e4a4682431835ff5bf12f7288a42e01`，发布材料在 `dist/v0.8/`。仅 dry-run；须用户按通用规则第 9 条确认后再发布。当前分支提交和整合 CI 见对应 PR，工作区 clean 后只保留忽略的构建/证据文件。
+正式候选 SHA256 `f7bbbee04abd1b58f6d1610b9a67391e6e4a4682431835ff5bf12f7288a42e01`，发布材料在 `dist/v0.8/`。用户确认后已发布，标签 `v0.8` 指向 `a2a469a9d22f5c3f1be87ca17f5e26e814209391`。线上 APK、说明与 SHA256 已回下载逐字节核对；报告见 `docs/acceptance/v08/published-results.json`。专用模拟器与 ADB 5041 已关闭，原 canonical 草稿未动。当前分支提交和整合 CI 见对应 PR，工作区 clean 后只保留忽略的构建/证据文件。
 
 用户本人 GitHub 授权后的下载和系统安装未验证。待确认的签名备份、记录导出/恢复、系统备份策略仍留在 Issue #2/#3/#5；本轮未变更这些策略。
 

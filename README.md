@@ -62,7 +62,7 @@ python -X utf8 scripts\release_smoke.py
 
 截图和界面 dump 落在 `verification\`，脚本最后给出逐项 PASS/FAIL 汇总，任一项失败退出码非 0。
 
-## 本轮修复（0.8 候选）
+## 本轮修复（0.8）
 
 - 取消更新授权后可以再次检查，无需重启 App。
 - 长分享保存全部文字，末尾期限和 emoji 不再被截断。
@@ -78,4 +78,4 @@ python -X utf8 scripts\release_smoke.py
 - 没有物理删除，作废就是最终形态（故意的，留反悔余地）
 - 打开就自动弹键盘（为了"打开就能打字"）；嫌吵可以改成点了才弹
 
-候选验收报告与真实截图：[0.8 验收](docs/acceptance/v08/README.md)。
+[0.8 正式发布](https://github.com/h516df/Jiaoban/releases/tag/v0.8)。验收报告与真实截图：[0.8 验收](docs/acceptance/v08/README.md)。
