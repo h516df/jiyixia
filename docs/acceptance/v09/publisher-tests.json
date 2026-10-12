@@ -1,0 +1,16 @@
+{
+  "command": "python -m unittest discover -s scripts -p test_publish_release.py -v",
+  "tests": 5,
+  "failures": 0,
+  "errors": 0,
+  "passed": true,
+  "scope": "Mocked publication lookup boundaries; no user authorization or remote writes",
+  "cases": [
+    "Published tag is read without listing/creating",
+    "Hidden draft recovers its original ID across pages",
+    "Confirmed missing tag returns none",
+    "Permission failure stops",
+    "Duplicate drafts stop"
+  ],
+  "actualDraftIdResumed": 410860560
+}

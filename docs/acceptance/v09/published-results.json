@@ -1,0 +1,29 @@
+{
+  "privateRepository": true,
+  "tag": "v0.9",
+  "url": "https://github.com/h516df/Jiaoban/releases/tag/v0.9",
+  "targetCommit": "ebc7743319af36573abaf5fece15195e31d77cf3",
+  "sourceFingerprint": "36c99183e43dfc01ef1b99e1e373d9647b962f271e37b5ed85a4d1d73b31af97",
+  "draft": false,
+  "readBackVerified": true,
+  "assets": [
+    {
+      "id": 634511303,
+      "name": "Jiaoban-v0.9-release-notes.json",
+      "size": 1036,
+      "sha256": "40f072fe8d86430838510dff823d8f245dffd72b5c85160360920070dfba1b4d"
+    },
+    {
+      "id": 634511413,
+      "name": "Jiaoban-v0.9-SHA256.txt",
+      "size": 94,
+      "sha256": "340830a184e71b86c405eac01b6356c9707e027a8d957755fdfbd736a95b7bf8"
+    },
+    {
+      "id": 634511123,
+      "name": "Jiaoban-v0.9-universal.apk",
+      "size": 1821016,
+      "sha256": "c87080ecf3c7441d8797a76ee3f6c505cdf0f3c1bde50c15566c8c364ea39f57"
+    }
+  ]
+}

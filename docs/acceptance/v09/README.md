@@ -1,6 +1,6 @@
 # 交办 0.9 改版验收（2026-10-13）
 
-状态：正式候选通过本机单测、原生 UI 和 0.8 覆盖升级回归，待 PR/CI 与私有 Release 发布。用户手机当前版本 0.8；真机未连接，用户本人 GitHub 授权后的下载与系统安装尚未验收。
+状态：正式包通过本机单测、原生 UI 和 0.8 覆盖升级回归，PR #13 对应最终提交 CI 通过并合并，私有 [v0.9 Release](https://github.com/h516df/Jiaoban/releases/tag/v0.9) 已发布。用户手机当前版本 0.8；真机未连接，用户本人 GitHub 授权后的下载与系统安装尚未验收。
 
 ## 对应范围与产物
 
@@ -21,6 +21,10 @@
 | 正式包真实 UI | 核心路径全部通过，重启后 9 条记录文件哈希一致 | [ui-results.json](ui-results.json) |
 | 0.8→0.9 覆盖升级 | 同包名、同签名、versionCode 8→9；7 条旧记录文件哈希完全一致，升级前后 UI 实际加载；未卸载/清数据 | [upgrade-results.json](upgrade-results.json) |
 | 真实 GitHub 设备授权入口 | 显示当前版本与内置说明，取消返回、同进程再次检查、重复取消/重试均通过 | [update-cancel-results.json](update-cancel-results.json) |
+| 发布恢复逻辑 | 标签查询隐藏草稿时恢复原 ID、缺失、权限失败停止、重复草稿停止等 5 项通过 | [publisher-tests.json](publisher-tests.json) |
+| 私有 Release 资产 | APK/中文说明/SHA256 三项逐个下载回读一致，草稿转正式成功 | [published-results.json](published-results.json) |
+
+最终 PR head 025707183fb45f3201d3e72a9ea3e7384602167c，CI [Actions run 38285653986](https://github.com/h516df/Jiaoban/actions/runs/38285653986) 成功；squash 合并及正式 Release 目标 ebc7743319af36573abaf5fece15195e31d77cf3。合并后源码指纹重新核对一致。发布脚本的草稿恢复修正在收尾 PR 独立留痕，不改变 App 包及已验收指纹。
 
 UI 回归断言了筛选后的实际记录与保存后的 JSON：今天/逾期/接下来、到期失效展开、改为必须办完后重返逾期列表、中文解析与人工修改交代人/日期、完整换行/长分享/emoji 尾部、日历精确选日与取消、办完/撤销/历史恢复、作废确认、按人实际结果、未保存草稿退出保护、新分享不能静默覆盖草稿、同进程后台过夜与前台跨天、窄屏 900×2000/字体 1.3、深色模式和重启。日期/字体/显示设置在测试结束后恢复。
 

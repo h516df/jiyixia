@@ -51,6 +51,20 @@ def version_from_gradle():
         raise SystemExit("在 app/build.gradle.kts 里找不到 versionName/versionCode")
     return name.group(1), int(code.group(1))
 
+def find_release(tag):
+    """Tag lookup can hide an unpublished draft; list authenticated drafts before creating."""
+    query = subprocess.run(["gh", "api", f"repos/{REPO}/releases/tags/{tag}"], capture_output=True, timeout=120)
+    if query.returncode == 0:
+        return json.loads(query.stdout)
+    problem = query.stderr.decode("utf-8", "replace")
+    if "HTTP 404" not in problem:
+        raise SystemExit("无法核对已有发布，停止而不猜测状态：" + problem[:300])
+    pages = json.loads(run(["gh", "api", f"repos/{REPO}/releases?per_page=100", "--paginate", "--slurp"]))
+    matches = [release for page in pages for release in page if release["tag_name"] == tag]
+    if len(matches) > 1:
+        raise SystemExit("同一版本存在多个发布记录，保留现场并停止。")
+    return matches[0] if matches else None
+
 
 def markdown(notes, sha):
     lines = [f"## 交办 v{notes['versionName']}", "", "**覆盖安装即可，旧记录保留。**", ""]
@@ -130,17 +144,14 @@ def main():
     title = "交办 v%s｜%s" % (version, (notes.get("新增") or ["小改动"])[0][:24])
     body_file = out / "release-body.md"
     body_file.write_text(markdown(notes, sha), encoding="utf-8")
-    endpoint = f"repos/{REPO}/releases/tags/{tag}"
-    query = subprocess.run(["gh", "api", endpoint], capture_output=True, timeout=120)
-    if query.returncode:
-        problem = query.stderr.decode("utf-8", "replace")
-        if "404" not in problem:
-            raise SystemExit("无法核对已有发布，停止而不猜测状态：" + problem[:300])
+    meta = find_release(tag)
+    if meta is None:
         run(["gh", "release", "create", tag, "--repo", REPO, "--target", target,
              "--draft", "--title", title, "--notes-file", str(body_file)])
-        meta = json.loads(run(["gh", "api", endpoint]))
-    else:
-        meta = json.loads(query.stdout)
+        meta = find_release(tag)
+        if meta is None:
+            raise SystemExit("新草稿尚不可读取，保留现场并停止，不重复创建。")
+    endpoint = f"repos/{REPO}/releases/{meta['id']}"
     files = {p.name: p for p in (apk_out, notes_out, sha_out)}
     if meta["draft"] and meta["target_commitish"] != target:
         raise SystemExit("原草稿目标提交不一致，保留原草稿并停止。")

@@ -9,7 +9,7 @@
 ## 归属与基线
 
 唯一写手及整合负责人：当前 Codex 会话 01a130e0-bb60-79b0-a8e5-fe954461cebf。
-工作区 D:/Workspaces/Codex/2026-10-13/jia/work/repos/Jiaoban/codex-ui-workflow-redesign，分支 agent/codex/ui-workflow-redesign。
+工作区 D:/Workspaces/Codex/2026-10-13/jia/work/repos/Jiaoban/codex-ui-workflow-redesign。改版分支 agent/codex/ui-workflow-redesign 已经 PR #13 squash 合并；收尾分支 agent/codex/v09-release-record 从核对过的合并提交创建。
 基线 main a623131d1af5cf33d0e8a385078dbb957dbfe59d，已现场核对并快进。canonical D:/Projects/Jiaoban 的 0.7 原草稿仍完整保留，不能覆盖/清理/reset。
 
 ## 当前进度与验收
@@ -22,7 +22,9 @@
 证据在 verification/redesign-debug、redesign-release、redesign-upgrade 与更新取消报告；均须核对 sourceFingerprint、APK/探针 SHA256 和实际设备。不要将早期失败或过时包当完成。
 
 可长期复核的通过证据与截图见 docs/acceptance/v09/README.md。已分别自审 Issue 符合性与工程质量。
-下一步：PR/CI → 私有 Release 发布与资产回读。用户 2026-10-13 新规则已授权本任务内私有仓库推送、PR、经过验证的发布，不再单独确认。
+PR #13 最终 head 025707183fb45f3201d3e72a9ea3e7384602167c 的 CI 成功（Actions run 38285653986）；合并提交及 v0.9 发布目标 ebc7743319af36573abaf5fece15195e31d77cf3，App 源码指纹在合并后重新核对一致。私有 Release https://github.com/h516df/Jiaoban/releases/tag/v0.9 已正式发布，APK/更新说明/SHA256 三项资产逐个下载回读一致，见 docs/acceptance/v09/published-results.json。
+发布过程中标签查询未显示原草稿，已按列表与 release ID 恢复同一个草稿，不重复创建、不覆盖资产；恢复逻辑 5 项测试通过。项目稳定索引登记已经 agent-rules PR #36 合并（只加 projects.md 一行）。
+剩余用户步骤：手机仍是用户确认的 0.8，需要由本人授权更新下载并确认系统覆盖安装；真机路径未验收。用户 2026-10-13 新规则已授权本任务内私有仓库推送、PR、经过验证的发布，不再单独确认。
 
 ## 回退与限制
 
