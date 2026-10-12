@@ -13,6 +13,7 @@
     python scripts/android_acceptance.py --no-build # 用现成 APK
 """
 import argparse
+import os
 import datetime as dt
 import json
 import re
@@ -51,7 +52,7 @@ def run(argv, stdin_bytes=None, binary=False, timeout=600):
 
 
 def adb(*args, **kw):
-    return run([ADB, "-s", SERIAL, *args], **kw)
+    return run([ADB, "-P", os.environ.get("JIAOBAN_ADB_PORT", "5037"), "-s", SERIAL, *args], **kw)
 
 
 def dump_ui(tag):
@@ -254,6 +255,27 @@ def main():
     check("W3 认出了期限（明天）", any("明天要" in t for t in screen),
           "，".join(sorted(t for t in screen if "·" in t)))
     check("截图 11-分享进来的一句话", shot("11-分享进来的一句话.png"))
+
+    # 长消息的尾巴和末尾期限不能静默消失（Issue #4）。
+    long_text = "李姐说" + "活动规则与客户要求，" * 45 + "尾巴记号ZZZ，明天要提交汇总"
+    share_text(long_text)
+    deadline = time.monotonic() + 10
+    saved_long = []
+    while time.monotonic() < deadline:
+        payload = adb("exec-out", "run-as", PKG, "cat", "files/tasks.json")
+        try:
+            saved_long = [item for item in json.loads(payload) if "尾巴记号ZZZ" in item.get("text", "")]
+        except json.JSONDecodeError:
+            saved_long = []
+        if saved_long:
+            break
+        time.sleep(.3)
+    check("W13 长分享全文和尾巴完整落盘", len(saved_long) == 1 and saved_long[0]["text"] == long_text)
+    check("W13 长分享仍识别人和末尾期限", bool(saved_long) and saved_long[0]["from"] == "李姐" and
+          saved_long[0]["due"] == (dt.date.today() + dt.timedelta(days=1)).isoformat())
+    launch()
+    payload = adb("exec-out", "run-as", PKG, "cat", "files/tasks.json")
+    check("W13 重启后长分享仍完整", any(item.get("text") == long_text for item in json.loads(payload)))
 
     # ---------- W1/W3 输入框记一条，没提期限走默认 ----------
     xml = dump_ui("12-输入框前")
