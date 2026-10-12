@@ -193,8 +193,9 @@ internal class UpdateHttp {
         if (code in 200..299) return
         throw UpdateFailure(
             when (code) {
-                401, 403 -> "授权失效或权限不足，请重新授权"
-                404 -> "没找到更新资料，可能这个版本还没发布"
+                401, 403 -> "授权失效或权限不够：到本页清掉授权，再授权一次。"
+                404 -> "看不到发布资料。多半是授权时没勾上「" + UpdateConfig.REPO_NAME +
+                    "」这个仓库：清掉授权，重新授权一次并勾上它。"
                 in 500..599 -> "GitHub 暂时连不上，请稍后重试"
                 else -> "检查更新失败，请稍后重试"
             }

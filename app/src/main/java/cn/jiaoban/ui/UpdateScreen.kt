@@ -125,7 +125,8 @@ fun UpdateScreen(updater: Updater, contentPadding: PaddingValues) {
         if (updater.hasAuthorization()) {
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             Text(
-                text = "这台手机已经授权过。授权只用于读发布资料，随时可以清掉。",
+                text = "这台手机已经授权过。如果检查时提示看不到发布资料，" +
+                    "多半是授权范围里没有「${UpdateConfig.REPO_NAME}」这个仓库：清掉授权，重新授权并勾上它。",
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
