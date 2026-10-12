@@ -90,7 +90,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
-private enum class AppScreen { MAIN, HISTORY, UPDATE }
+private enum class AppScreen { MAIN, HISTORY, UPDATE, PEOPLE }
 
 /** 期限的常用选项，改期限时用。 */
 enum class DuePreset(val label: String, val days: Long?) {
@@ -118,6 +118,7 @@ fun App(store: TaskStore, sharedText: String? = null, onSharedHandled: () -> Uni
     var editing by remember { mutableStateOf<Task?>(null) }
     var overdueOpen by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
+    var selectedPerson by remember { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
@@ -133,11 +134,13 @@ fun App(store: TaskStore, sharedText: String? = null, onSharedHandled: () -> Uni
     }
 
     BackHandler(enabled = searching || screen != AppScreen.MAIN) {
-        if (searching) {
-            searching = false
-            query = ""
-        } else {
-            screen = AppScreen.MAIN
+        when {
+            searching -> {
+                searching = false
+                query = ""
+            }
+            screen == AppScreen.PEOPLE && selectedPerson != null -> selectedPerson = null
+            else -> screen = AppScreen.MAIN
         }
     }
 
@@ -163,6 +166,7 @@ fun App(store: TaskStore, sharedText: String? = null, onSharedHandled: () -> Uni
                                     AppScreen.MAIN -> "交办"
                                     AppScreen.HISTORY -> "办完和作废的"
                                     AppScreen.UPDATE -> "检查更新"
+                                    AppScreen.PEOPLE -> "按人看"
                                 },
                                 fontWeight = FontWeight.SemiBold,
                             )
@@ -186,6 +190,14 @@ fun App(store: TaskStore, sharedText: String? = null, onSharedHandled: () -> Uni
                             }
                             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                                 DropdownMenuItem(
+                                    text = { Text("按人看") },
+                                    onClick = {
+                                        menuOpen = false
+                                        selectedPerson = null
+                                        screen = AppScreen.PEOPLE
+                                    },
+                                )
+                                DropdownMenuItem(
                                     text = { Text("检查更新") },
                                     onClick = {
                                         menuOpen = false
@@ -207,6 +219,13 @@ fun App(store: TaskStore, sharedText: String? = null, onSharedHandled: () -> Uni
         when {
             !holder.loaded -> LoadingState(inner)
             screen == AppScreen.UPDATE -> UpdateScreen(updater, inner)
+            screen == AppScreen.PEOPLE -> PeopleScreen(
+                holder = holder,
+                contentPadding = inner,
+                selected = selectedPerson,
+                onSelect = { selectedPerson = it },
+                onOpen = { editing = it },
+            )
             screen == AppScreen.HISTORY -> HistoryScreen(holder, inner, onOpen = { editing = it })
             searching -> SearchScreen(holder, query, inner, onOpen = { editing = it })
             else -> Column(
@@ -282,6 +301,9 @@ private fun InputBox(
 ) {
     var draft by remember { mutableStateOf("") }
     val focus = remember { FocusRequester() }
+    // 打开就聚焦，光标已在输入条里。
+    // 试过延后 180ms 再弹键盘（想把键盘首次弹出的开销挪出启动那一帧），
+    // 但模拟器两次同包测量的最长帧在 263～433ms 之间抖，分辨不出这点差异，所以不保留没验证的改动。
     LaunchedEffect(Unit) { focus.requestFocus() }
 
     var preview by remember { mutableStateOf<Preview?>(null) }

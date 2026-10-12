@@ -104,3 +104,35 @@ fun summaryLine(tasks: List<Task>, today: LocalDate): String {
     if (overdue > 0) parts += "过期 $overdue 件"
     return parts.joinToString("，")
 }
+
+/** 一个人名下有多少事。按人看是记录本的主线：回头能说清谁在什么时候交代了什么。 */
+data class PersonStat(val name: String, val total: Int, val open: Int, val overdue: Int)
+
+fun peopleStats(tasks: List<Task>, today: LocalDate): List<PersonStat> =
+    tasks.groupBy { it.from.trim() }
+        .map { (name, list) ->
+            PersonStat(
+                name = name,
+                total = list.size,
+                open = list.count { it.state == TaskState.OPEN },
+                overdue = list.count { bucketOf(it, today) == Bucket.OVERDUE },
+            )
+        }
+        .sortedWith(
+            compareByDescending<PersonStat> { it.open }
+                .thenByDescending { it.total }
+                // 有名字的排前面，「没记是谁」放最后
+                .thenByDescending { it.name.isNotEmpty() }
+                .thenBy { it.name }
+        )
+
+/** 某个人的事：还在办的排前面（按到期日），办完作废的排后面（按处理时间）。 */
+fun sortForPerson(tasks: List<Task>, name: String): List<Task> {
+    val mine = tasks.filter { it.from.trim() == name.trim() }
+    val open = mine.filter { it.state == TaskState.OPEN }.sortedBy { it.due ?: LocalDate.MAX }
+    val closed = mine.filter { it.state != TaskState.OPEN }.sortedByDescending { it.closedAt ?: it.createdAt }
+    return open + closed
+}
+
+/** 人名那一栏怎么显示：没记是谁的单独归一类。 */
+fun personLabel(name: String): String = name.trim().ifEmpty { "没记是谁" }

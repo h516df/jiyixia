@@ -315,7 +315,45 @@ def main():
     else:
         check("W6 历史里有办完的事", False, "没找到历史入口")
 
+    # ---------- W12 按人看 ----------
+    xml = launch()
+    if tap_text(xml, "更多") is not None:
+        time.sleep(1.0)
+        xml = dump_ui("13-更多")
+        if tap_text(xml, "按人看") is not None:
+            time.sleep(1.4)
+            xml = dump_ui("14-按人看")
+            screen = visible(xml)
+            check("W12 按人看列出人名和件数",
+                  any("王总" in t for t in screen) and any("共" in t and "件" in t for t in screen),
+                  "，".join(sorted(screen))[:220])
+            check("截图 14-按人看", shot("14-按人看.png"))
+            if tap_text(xml, "王总") is not None:
+                time.sleep(1.4)
+                xml = dump_ui("15-某个人")
+                screen2 = visible(xml)
+                check("W12 点进某个人看得到他交代的事",
+                      any("王总" in t for t in screen2) and any("共" in t and "件" in t for t in screen2),
+                      "，".join(sorted(screen2))[:220])
+                check("截图 15-某个人", shot("15-某个人.png"))
+            else:
+                check("W12 点进某个人看得到他交代的事", False, "人名点不动")
+        else:
+            check("W12 按人看列出人名和件数", False, "更多菜单里没有按人看")
+    else:
+        check("W12 按人看列出人名和件数", False, "没找到更多菜单")
+
+    # 从按人看退回清单，再测搜索
     xml = dump_ui("08-回到流水")
+    for _ in range(3):
+        if any("搜索" in t for t in visible(xml)):
+            break
+        back = center_of(xml, "回到清单") or center_of(xml, "换个人")
+        if back is None:
+            break
+        tap_at(back)
+        time.sleep(1.2)
+        xml = dump_ui("08-回到流水")
     if tap_text(xml, "搜索") is not None:
         time.sleep(1.5)
         type_keys("ABC-123")
