@@ -7,12 +7,12 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-private val Paper = Color(0xFFFBF6EE)
-private val PaperNight = Color(0xFF17140F)
-private val Ink = Color(0xFF1C1A17)
-private val InkSoft = Color(0xFF6B6157)
-private val Orange = Color(0xFFC2410C)
-private val Green = Color(0xFF27705F)
+private val Paper = Color(0xFFF3F5F9)
+private val PaperNight = Color(0xFF111621)
+private val Ink = Color(0xFF182334)
+private val InkSoft = Color(0xFF596678)
+private val Orange = Color(0xFF315EB9)
+private val Green = Color(0xFF247563)
 
 private val LightColors = lightColorScheme(
     primary = Orange,
@@ -21,27 +21,31 @@ private val LightColors = lightColorScheme(
     onSecondary = Color.White,
     background = Paper,
     onBackground = Ink,
-    surface = Color(0xFFFFFDF9),
+    surface = Color.White,
     onSurface = Ink,
-    surfaceVariant = Color(0xFFF1E9DC),
+    surfaceVariant = Color(0xFFE9EDF4),
     onSurfaceVariant = InkSoft,
-    secondaryContainer = Color(0xFFF7E4D2),
-    onSecondaryContainer = Color(0xFF5A2A12),
-    outline = Color(0xFFD8CCB9),
-    outlineVariant = Color(0xFFE7DDCC),
+    primaryContainer = Color(0xFFE4EDFF),
+    onPrimaryContainer = Color(0xFF183665),
+    secondaryContainer = Color(0xFFE1F1EC),
+    onSecondaryContainer = Color(0xFF194B3D),
+    outline = Color(0xFFADB7C7),
+    outlineVariant = Color(0xFFDDE3ED),
 )
 
 private val DarkColors = darkColorScheme(
-    primary = Color(0xFFF08A4B),
-    onPrimary = Color(0xFF2A1206),
+    primary = Color(0xFFA9C6FF),
+    onPrimary = Color(0xFF142D58),
+    primaryContainer = Color(0xFF243B63),
+    onPrimaryContainer = Color(0xFFDEEAFF),
     secondary = Color(0xFF7CC4AE),
     onSecondary = Color(0xFF07231C),
     background = PaperNight,
     onBackground = Color(0xFFF2EBE0),
-    surface = Color(0xFF221E18),
+    surface = Color(0xFF1B2332),
     onSurface = Color(0xFFF2EBE0),
-    surfaceVariant = Color(0xFF2E2820),
-    onSurfaceVariant = Color(0xFFCBBFAF),
+    surfaceVariant = Color(0xFF293448),
+    onSurfaceVariant = Color(0xFFC1CBDD),
     secondaryContainer = Color(0xFF4A2A16),
     onSecondaryContainer = Color(0xFFF6D9C0),
     outline = Color(0xFF4A4238),

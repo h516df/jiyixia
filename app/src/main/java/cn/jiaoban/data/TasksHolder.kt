@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import cn.jiaoban.Task
 import cn.jiaoban.TaskState
+import cn.jiaoban.ExpiryPolicy
 import cn.jiaoban.parse.DueParser
 import cn.jiaoban.parse.PersonParser
 import java.time.Instant
@@ -49,15 +50,22 @@ class TasksHolder(private val store: TaskStore) {
      * 一句话进来，人和期限都自己认：认出谁交代的、认出什么时候要，认不出就默认 3 天。
      * 输入框和「分享进来」走的是同一条路。
      */
-    fun addFromText(text: String, today: LocalDate) {
-        val clean = text.trim().replace(Regex("\\s+"), " ")
+    fun addFromText(
+        text: String,
+        today: LocalDate,
+        fromOverride: String? = null,
+        dueOverride: LocalDate? = null,
+        overrideDue: Boolean = false,
+        expiryPolicy: ExpiryPolicy = ExpiryPolicy.MUST_FINISH,
+    ) {
+        val clean = text.trim()
         if (clean.isEmpty()) return
-        val from = PersonParser.parse(clean, recentFroms())
-        val due = DueParser.withDefault(clean, today)
-        add(clean, from, due)
+        val from = fromOverride ?: PersonParser.parse(clean, recentFroms())
+        val due = if (overrideDue) dueOverride else DueParser.withDefault(clean, today)
+        add(clean, from, due, expiryPolicy)
     }
 
-    fun add(text: String, from: String, due: LocalDate?) {
+    fun add(text: String, from: String, due: LocalDate?, expiryPolicy: ExpiryPolicy = ExpiryPolicy.MUST_FINISH) {
         val trimmed = text.trim()
         if (trimmed.isEmpty()) return
         commit(
@@ -68,6 +76,7 @@ class TasksHolder(private val store: TaskStore) {
                 due = due,
                 state = TaskState.OPEN,
                 createdAt = Instant.now(),
+                expiryPolicy = expiryPolicy,
             )
         )
     }

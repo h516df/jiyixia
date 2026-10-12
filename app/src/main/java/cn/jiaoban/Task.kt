@@ -7,6 +7,9 @@ import java.time.temporal.ChronoUnit
 /** 一条事的状态。作废不是删除，只是为了能反悔，记录还留着。 */
 enum class TaskState { OPEN, DONE, VOID }
 
+/** 必须办完的事逾期后继续跟进；有时效的事到期后收起。 */
+enum class ExpiryPolicy { MUST_FINISH, EXPIRES }
+
 /** 别人交代的一件事。 */
 data class Task(
     val id: String,
@@ -16,11 +19,12 @@ data class Task(
     val state: TaskState = TaskState.OPEN,
     val createdAt: Instant,
     val closedAt: Instant? = null,
+    val expiryPolicy: ExpiryPolicy = ExpiryPolicy.EXPIRES,
 )
 
 /**
  * 一件事此刻落在有效期的哪一段。
- * 过期的事不再占主流水，自动退场到「已过期」折叠区，但记录不删。
+ * 是否在期限过后收起，由每条记录的 ExpiryPolicy 决定；日期分档本身不改变记录状态。
  */
 enum class Bucket(val label: String) {
     OVERDUE("已过期"),
@@ -51,7 +55,7 @@ fun metaLine(task: Task, today: LocalDate): String {
     } else {
         val days = ChronoUnit.DAYS.between(today, due)
         when {
-            days < 0 -> "过期 ${-days} 天"
+            days < 0 -> if (task.expiryPolicy == ExpiryPolicy.MUST_FINISH) "逾期 ${-days} 天" else "过期 ${-days} 天"
             days == 0L -> "今天要"
             days == 1L -> "明天要"
             else -> "${due.monthValue}月${due.dayOfMonth}日 · 还有 $days 天"
@@ -136,3 +140,17 @@ fun sortForPerson(tasks: List<Task>, name: String): List<Task> {
 
 /** 人名那一栏怎么显示：没记是谁的单独归一类。 */
 fun personLabel(name: String): String = name.trim().ifEmpty { "没记是谁" }
+
+/** 每日首页只把主动选择到期失效的记录收起；未办完的工作不能自动消失。 */
+fun isExpired(task: Task, today: LocalDate): Boolean =
+    bucketOf(task, today) == Bucket.OVERDUE && task.expiryPolicy == ExpiryPolicy.EXPIRES
+
+fun activeTasks(tasks: List<Task>, today: LocalDate): List<Task> =
+    tasks.filter { it.state == TaskState.OPEN && !isExpired(it, today) }
+        .sortedWith(compareBy<Task> { it.due ?: LocalDate.MAX }.thenByDescending { it.createdAt })
+
+fun expiredTasks(tasks: List<Task>, today: LocalDate): List<Task> =
+    sortForOverdue(tasks, today).filter { isExpired(it, today) }
+
+fun followUpOverdue(tasks: List<Task>, today: LocalDate): List<Task> =
+    activeTasks(tasks, today).filter { bucketOf(it, today) == Bucket.OVERDUE }

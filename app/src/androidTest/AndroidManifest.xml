@@ -1,1 +1,4 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"><instrumentation android:name="cn.jiaoban.DateRegressionProbe" android:targetPackage="cn.jiaoban" /></manifest>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <instrumentation android:name="cn.jiaoban.DateRegressionProbe" android:targetPackage="cn.jiaoban" />
+    <instrumentation android:name="cn.jiaoban.RedesignRegressionProbe" android:targetPackage="cn.jiaoban" />
+</manifest>

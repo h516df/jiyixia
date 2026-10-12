@@ -2,6 +2,7 @@ package cn.jiaoban.data
 
 import cn.jiaoban.Task
 import cn.jiaoban.TaskState
+import cn.jiaoban.ExpiryPolicy
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.Instant
@@ -21,6 +22,7 @@ object TaskCodec {
             o.put("from", t.from)
             o.put("due", if (t.due == null) JSONObject.NULL else t.due.toString())
             o.put("state", t.state.name)
+            o.put("expiryPolicy", t.expiryPolicy.name)
             o.put("createdAt", t.createdAt.toString())
             o.put("closedAt", if (t.closedAt == null) JSONObject.NULL else t.closedAt.toString())
             arr.put(o)
@@ -48,6 +50,9 @@ object TaskCodec {
                     .getOrDefault(TaskState.OPEN),
                 createdAt = runCatching { Instant.parse(o.optString("createdAt")) }.getOrNull() ?: Instant.EPOCH,
                 closedAt = if (closedText.isBlank()) null else runCatching { Instant.parse(closedText) }.getOrNull(),
+                // 旧记录无字段时，保留原来的到期收起行为，不能替用户改决定。
+                expiryPolicy = runCatching { ExpiryPolicy.valueOf(o.optString("expiryPolicy", "EXPIRES")) }
+                    .getOrDefault(ExpiryPolicy.EXPIRES),
             )
         }
         return out

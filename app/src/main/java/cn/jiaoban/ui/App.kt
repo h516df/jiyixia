@@ -1,109 +1,40 @@
 package cn.jiaoban.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.*
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.shape.*
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Button
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.*
+import androidx.compose.ui.focus.*
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import cn.jiaoban.Bucket
-import cn.jiaoban.Task
-import cn.jiaoban.TaskState
-import cn.jiaoban.bucketOf
-import cn.jiaoban.data.TaskStore
-import cn.jiaoban.data.TasksHolder
-import cn.jiaoban.dueToday
-import cn.jiaoban.metaLine
-import cn.jiaoban.parse.DueParser
-import cn.jiaoban.parse.PersonParser
-import cn.jiaoban.searchAll
-import cn.jiaoban.sortForHistory
-import cn.jiaoban.sortForOverdue
-import cn.jiaoban.summaryLine
-import cn.jiaoban.timelineRest
+import androidx.compose.ui.unit.*
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import cn.jiaoban.*
+import cn.jiaoban.data.*
+import cn.jiaoban.parse.*
 import cn.jiaoban.update.Updater
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.time.LocalDate
+import java.time.*
 
-private enum class AppScreen { MAIN, HISTORY, UPDATE, PEOPLE }
-
-/** 期限的常用选项，改期限时用。 */
-enum class DuePreset(val label: String, val days: Long?) {
-    TODAY("今天", 0),
-    TOMORROW("明天", 1),
-    THREE("三天后", 3),
-    WEEK("一周后", 7),
-    NONE("没期限", null);
-
-    fun resolve(today: LocalDate): LocalDate? = days?.let { today.plusDays(it) }
+private enum class Screen(val label: String, val icon: ImageVector) {
+    MAIN("事情", Icons.Default.Home), PEOPLE("按人", Icons.Default.Person),
+    HISTORY("历史", Icons.Default.Check), SETTINGS("设置", Icons.Default.Settings), UPDATE("检查更新", Icons.Default.Refresh)
 }
-
-private data class Preview(val from: String, val due: LocalDate?)
+private enum class Filter(val label: String) { ALL("全部"), TODAY("今天"), OVERDUE("逾期"), LATER("接下来") }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -111,669 +42,443 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
     val holder = remember { TasksHolder(store).also { it.start() } }
     val context = LocalContext.current
     val updater = remember { Updater(context) }
-    var screen by remember { mutableStateOf(AppScreen.MAIN) }
-    var searching by remember { mutableStateOf(false) }
-    var query by remember { mutableStateOf("") }
-    var editing by remember { mutableStateOf<Task?>(null) }
-    var overdueOpen by remember { mutableStateOf(false) }
-    var menuOpen by remember { mutableStateOf(false) }
-    var selectedPerson by remember { mutableStateOf<String?>(null) }
-    val listState = rememberLazyListState()
+    val focus = LocalFocusManager.current
+    var screen by rememberSaveable { mutableStateOf(Screen.MAIN) }
+    var searching by rememberSaveable { mutableStateOf(false) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var editId by rememberSaveable { mutableStateOf<String?>(null) }
+    var creating by rememberSaveable { mutableStateOf(false) }
+    var sharedDraft by rememberSaveable { mutableStateOf("") }
+    var incomingShare by rememberSaveable { mutableStateOf<String?>(null) }
+    var person by rememberSaveable { mutableStateOf<String?>(null) }
+    val snack = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-
-    // 从别处分享进来的一句话，走和输入框一样的解析路径。
-    // 必须等读盘完成，否则会和读盘竞态，把刚记下的东西从内存里抹掉。
+    fun notify(message: String) { scope.launch { snack.showSnackbar(message) } }
+    fun changeState(task: Task, state: TaskState) {
+        val before = holder.tasks.firstOrNull { it.id == task.id } ?: return
+        holder.update(task); holder.setState(task.id, state); editId = null
+        scope.launch {
+            val result = snack.showSnackbar(when(state) {
+                TaskState.DONE -> "已办完，记录留在历史"; TaskState.VOID -> "已作废，记录仍保留"; else -> "已恢复"
+            }, actionLabel = "撤销", duration = SnackbarDuration.Short)
+            if(result == SnackbarResult.ActionPerformed) holder.update(before)
+        }
+    }
     LaunchedEffect(sharedText, holder.loaded) {
-        if (!holder.loaded) return@LaunchedEffect
-        val shared = sharedText?.trim()
-        if (!shared.isNullOrEmpty()) {
-            holder.addFromText(shared, today)
+        if(holder.loaded && !sharedText.isNullOrBlank()) {
+            if(creating || editId != null) {
+                incomingShare = sharedText.trim()
+            } else {
+                sharedDraft = sharedText.trim(); creating = true; searching = false; screen = Screen.MAIN
+            }
             onSharedHandled()
         }
     }
-
-    BackHandler(enabled = searching || screen != AppScreen.MAIN) {
+    BackHandler(enabled = searching || screen != Screen.MAIN) {
         when {
-            searching -> {
-                searching = false
-                query = ""
-            }
-            screen == AppScreen.PEOPLE && selectedPerson != null -> selectedPerson = null
-            else -> screen = AppScreen.MAIN
+            searching -> { searching = false; query = ""; focus.clearFocus() }
+            screen == Screen.PEOPLE && person != null -> person = null
+            screen == Screen.UPDATE -> screen = Screen.SETTINGS
+            else -> screen = Screen.MAIN
         }
     }
-
     Scaffold(
-        contentWindowInsets = WindowInsets.safeDrawing,
-        containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets.safeDrawing, containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = { SnackbarHost(snack) },
         topBar = {
-            if (searching) {
-                SearchBar(
-                    query = query,
-                    onQuery = { query = it },
-                    onClose = {
-                        searching = false
-                        query = ""
-                    },
-                )
-            } else {
-                TopAppBar(
-                    title = {
-                        Column {
-                            Text(
-                                text = when (screen) {
-                                    AppScreen.MAIN -> "交办"
-                                    AppScreen.HISTORY -> "办完和作废的"
-                                    AppScreen.UPDATE -> "检查更新"
-                                    AppScreen.PEOPLE -> "按人看"
-                                },
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                            if (screen == AppScreen.MAIN && holder.loaded && holder.tasks.isNotEmpty()) {
-                                Text(
-                                    text = summaryLine(holder.tasks, today),
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                    },
-                    actions = {
-                        if (screen == AppScreen.MAIN) {
-                            IconButton(onClick = { searching = true }) {
-                                Icon(Icons.Default.Search, contentDescription = "搜索")
-                            }
-                            TextButton(onClick = { screen = AppScreen.HISTORY }) { Text("历史") }
-                            IconButton(onClick = { menuOpen = true }) {
-                                Icon(Icons.Default.MoreVert, contentDescription = "更多")
-                            }
-                            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                                DropdownMenuItem(
-                                    text = { Text("按人看") },
-                                    onClick = {
-                                        menuOpen = false
-                                        selectedPerson = null
-                                        screen = AppScreen.PEOPLE
-                                    },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("检查更新") },
-                                    onClick = {
-                                        menuOpen = false
-                                        screen = AppScreen.UPDATE
-                                    },
-                                )
-                            }
-                        } else {
-                            TextButton(onClick = { screen = AppScreen.MAIN }) { Text("回到清单") }
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.background,
-                    ),
-                )
+            TopAppBar(title = {
+                if(searching) OutlinedTextField(query, { query = it }, singleLine = true,
+                    placeholder = { Text("搜事情或交代人") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp))
+                else Column {
+                    Text(if(screen == Screen.MAIN) "交办" else screen.label, fontWeight = FontWeight.Bold, fontSize = 26.sp)
+                    if(screen == Screen.MAIN) Text("${today.monthValue}月${today.dayOfMonth}日 · 星期${listOf("一","二","三","四","五","六","日")[today.dayOfWeek.value-1]}",
+                        style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }, navigationIcon = {
+                if(screen == Screen.UPDATE) IconButton(onClick = { screen = Screen.SETTINGS }) {
+                    Icon(Icons.Default.ArrowBack, "返回设置")
+                }
+            }, actions = {
+                if(searching) TextButton(onClick = { searching = false; query = ""; focus.clearFocus() }) { Text("取消") }
+                else if(screen != Screen.UPDATE && screen != Screen.SETTINGS) IconButton(onClick = { searching = true }) {
+                    Icon(Icons.Default.Search, "搜索全部记录")
+                }
+            }, colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background))
+        },
+        bottomBar = {
+            if(!searching && screen != Screen.UPDATE) NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+                Screen.entries.filter { it != Screen.UPDATE }.forEach { item ->
+                    NavigationBarItem(selected = screen == item,
+                        onClick = { screen = item; person = null; focus.clearFocus() },
+                        icon = { Icon(item.icon, null) }, label = { Text(item.label) })
+                }
             }
         },
-    ) { inner ->
+        floatingActionButton = {
+            if(holder.loaded && !searching && screen == Screen.MAIN) ExtendedFloatingActionButton(
+                onClick = { sharedDraft = ""; creating = true }, icon = { Icon(Icons.Default.Add, null) },
+                text = { Text("记一件") },
+                modifier = Modifier.zIndex(2f).semantics(mergeDescendants = true) { contentDescription = "记一件" },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary)
+        }
+    ) { padding ->
         when {
-            !holder.loaded -> LoadingState(inner)
-            screen == AppScreen.UPDATE -> UpdateScreen(updater, inner)
-            screen == AppScreen.PEOPLE -> PeopleScreen(
-                holder = holder,
-                today = today,
-                contentPadding = inner,
-                selected = selectedPerson,
-                onSelect = { selectedPerson = it },
-                onOpen = { editing = it },
-            )
-            screen == AppScreen.HISTORY -> HistoryScreen(holder, today, inner, onOpen = { editing = it })
-            searching -> SearchScreen(holder, today, query, inner, onOpen = { editing = it })
-            else -> Column(
-                // 注意：Scaffold 的 safeDrawing 已经含 IME 内边距，这里再加 imePadding 会双份挤压
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(inner),
-            ) {
-                val hasOpen = holder.tasks.any { it.state == TaskState.OPEN }
-                Box(modifier = Modifier.weight(1f)) {
-                    if (!hasOpen) {
-                        EmptyState(hasHistory = holder.tasks.isNotEmpty())
-                    } else {
-                        TimelineList(
-                            holder = holder,
-                            today = today,
-                            listState = listState,
-                            overdueOpen = overdueOpen,
-                            onToggleOverdue = { overdueOpen = !overdueOpen },
-                            onOpen = { editing = it },
-                        )
+            !holder.loaded -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+            searching -> RecordList(searchAll(holder.tasks, query), today, padding,
+                if(query.isBlank()) "输入关键词，找回所有记录" else "没有找到“$query”",
+                "办完、作废、到期失效的都能搜到", { editId = it.id })
+            screen == Screen.MAIN -> Home(holder.tasks, today, padding, { editId = it.id },
+                { changeState(it, TaskState.DONE) }, { sharedDraft = ""; creating = true })
+            screen == Screen.PEOPLE -> People(holder.tasks, today, padding, person, { person = it }, { editId = it.id })
+            screen == Screen.HISTORY -> History(holder.tasks, today, padding, { editId = it.id })
+            screen == Screen.UPDATE -> UpdateScreen(updater, padding)
+            else -> Settings(padding) { screen = Screen.UPDATE }
+        }
+    }
+    if(holder.loaded && (creating || editId != null)) {
+        val task = holder.tasks.firstOrNull { it.id == editId }
+        Editor(task, if(creating) sharedDraft else "", today, holder.recentFroms(),
+            onDismiss = { creating = false; editId = null; sharedDraft = "" },
+            onSave = { text, from, due, policy ->
+                if(task == null) holder.addFromText(text, today, fromOverride = from, dueOverride = due,
+                    overrideDue = true, expiryPolicy = policy)
+                else holder.update(task.copy(text = text.trim(), from = from.trim(), due = due, expiryPolicy = policy))
+                creating = false; editId = null; sharedDraft = ""; focus.clearFocus()
+                notify(if(task == null) "已记下" else "已保存")
+            }, onState = { updated, state -> changeState(updated, state) })
+    }
+    if(incomingShare != null) AlertDialog(onDismissRequest = { incomingShare = null },
+        title = { Text("收到新的分享") },
+        text = { Text("当前编辑还没有结束。继续当前编辑会取消这次分享；也可以放弃当前改动，改记分享内容。") },
+        confirmButton = { TextButton(onClick = { incomingShare = null }) { Text("继续当前编辑") } },
+        dismissButton = { TextButton(onClick = {
+            sharedDraft = incomingShare ?: ""; incomingShare = null
+            editId = null; creating = true; searching = false; screen = Screen.MAIN
+        }) { Text("改记分享内容") } })
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun Home(tasks: List<Task>, today: LocalDate, padding: PaddingValues,
+                 onOpen: (Task) -> Unit, onDone: (Task) -> Unit, onAdd: () -> Unit) {
+    var filter by rememberSaveable { mutableStateOf(Filter.ALL) }
+    var expiredOpen by rememberSaveable { mutableStateOf(false) }
+    val active = activeTasks(tasks, today)
+    val overdue = followUpOverdue(tasks, today)
+    val current = dueToday(active, today)
+    val later = active.filter { bucketOf(it, today) != Bucket.TODAY && bucketOf(it, today) != Bucket.OVERDUE }
+    val expired = expiredTasks(tasks, today)
+    LazyColumn(Modifier.fillMaxSize().padding(padding),
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 100.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        item {
+            Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = RoundedCornerShape(24.dp)) {
+                Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(if(overdue.isNotEmpty()) "有 ${overdue.size} 件事需要继续跟进"
+                        else if(current.isNotEmpty()) "今天先把这 ${current.size} 件办好"
+                        else if(active.isNotEmpty()) "今天从容一点，事情都在这里" else "把交代记下来，心里少装一点",
+                        fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Count("今天", current.size, filter == Filter.TODAY, Modifier.weight(1f)) { filter = Filter.TODAY }
+                        Count("逾期", overdue.size, filter == Filter.OVERDUE, Modifier.weight(1f)) { filter = Filter.OVERDUE }
+                        Count("待办", active.size, filter == Filter.ALL, Modifier.weight(1f)) { filter = Filter.ALL }
                     }
                 }
-                // 输入条放最下面：拇指够得到，键盘弹起来正好顶在它下面
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                InputBox(
-                    known = holder.recentFroms(),
-                    today = today,
-                    onSave = { text ->
-                        holder.addFromText(text, today)
-                        scope.launch { listState.animateScrollToItem(0) }
-                    },
-                )
             }
         }
-    }
-
-    editing?.let { task ->
-        TaskSheet(
-            task = task,
-            today = today,
-            onDismiss = { editing = null },
-            onSave = { updated ->
-                holder.update(updated)
-                editing = null
-            },
-            onDone = { updated ->
-                holder.update(updated)
-                holder.setState(updated.id, TaskState.DONE)
-                editing = null
-            },
-            onVoid = { updated ->
-                holder.update(updated)
-                holder.setState(updated.id, TaskState.VOID)
-                editing = null
-            },
-            onReopen = { updated ->
-                holder.update(updated)
-                holder.setState(updated.id, TaskState.OPEN)
-                editing = null
-            },
-        )
-    }
-}
-
-/** 首页最上面那一行：写一句话就完事，人和期限自己认。
- *  草稿状态放在这里面，打字时只重绘输入框，不会带着整个列表一起重绘。 */
-@Composable
-private fun InputBox(
-    known: List<String>,
-    today: LocalDate,
-    onSave: (String) -> Unit,
-) {
-    var draft by remember { mutableStateOf("") }
-    val focus = remember { FocusRequester() }
-    // 打开就聚焦，光标已在输入条里。
-    // 试过延后 180ms 再弹键盘（想把键盘首次弹出的开销挪出启动那一帧），
-    // 但模拟器两次同包测量的最长帧在 263～433ms 之间抖，分辨不出这点差异，所以不保留没验证的改动。
-    LaunchedEffect(Unit) { focus.requestFocus() }
-
-    var preview by remember { mutableStateOf<Preview?>(null) }
-    // 打字的间隙才去解析，不跟输入抢主线程
-    LaunchedEffect(draft, today, known) {
-        if (draft.isBlank()) {
-            preview = null
-            return@LaunchedEffect
-        }
-        delay(220)
-        preview = Preview(
-            from = PersonParser.parse(draft, known),
-            due = DueParser.parse(draft, today),
-        )
-    }
-
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(top = 10.dp, bottom = 12.dp)) {
-        fun save() {
-            if (draft.isBlank()) return
-            onSave(draft)
-            draft = ""
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(
-                value = draft,
-                onValueChange = { draft = it },
-                placeholder = { Text("谁交代了什么？") },
-                singleLine = true,
-                modifier = Modifier
-                    .weight(1f)
-                    .focusRequester(focus),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = { if (draft.isNotBlank()) save() }),
-            )
-            Spacer(Modifier.width(8.dp))
-            Button(onClick = { save() }, enabled = draft.isNotBlank()) { Text("记下") }
-        }
-        if (draft.isNotBlank()) {
-            val fallback = today.plusDays(DueParser.DEFAULT_DAYS)
-            val fromText = preview?.from?.takeIf { it.isNotEmpty() } ?: "没认出是谁"
-            val dueDate = preview?.due ?: fallback
-            Text(
-                text = "认出来了：$fromText · ${dueDate.monthValue}月${dueDate.dayOfMonth}日" +
-                    if (preview?.due == null) "（没提期限，默认 3 天）" else "",
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 4.dp, top = 4.dp),
-            )
-        }
-    }
-}
-
-@Composable
-private fun TimelineList(
-    holder: TasksHolder,
-    today: LocalDate,
-    listState: LazyListState,
-    overdueOpen: Boolean,
-    onToggleOverdue: () -> Unit,
-    onOpen: (Task) -> Unit,
-) {
-    val pinned = dueToday(holder.tasks, today)
-    val rest = timelineRest(holder.tasks, today)
-    val overdue = sortForOverdue(holder.tasks, today)
-    val scope = rememberCoroutineScope()
-
-    LazyColumn(
-        state = listState,
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = 6.dp, bottom = 24.dp),
-    ) {
-        if (pinned.isNotEmpty()) {
-            item(key = "header-today") { SectionHeader("今天要交的", pinned.size) }
-            items(pinned, key = { "pinned-" + it.id }) { task ->
-                TaskRow(
-                    task = task,
-                    today = today,
-                    onOpen = onOpen,
-                    onDone = { holder.setState(task.id, TaskState.DONE) },
-                )
+        item {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Filter.entries.forEach { f -> FilterChip(filter == f, { filter = f }, label = { Text(f.label) }) }
             }
         }
-        items(rest, key = { it.id }) { task ->
-            TaskRow(
-                task = task,
-                today = today,
-                onOpen = onOpen,
-                onDone = { holder.setState(task.id, TaskState.DONE) },
-            )
+        val groups = when(filter) {
+            Filter.ALL -> listOf("逾期 · 继续跟进" to overdue, "今天要办" to current, "接下来" to later)
+            Filter.TODAY -> listOf("今天要办" to current)
+            Filter.OVERDUE -> listOf("逾期 · 继续跟进" to overdue)
+            Filter.LATER -> listOf("接下来" to later)
         }
-        if (overdue.isNotEmpty()) {
-            item(key = "overdue-header") {
-                OverdueHeader(
-                    count = overdue.size,
-                    open = overdueOpen,
-                    onToggle = {
-                        onToggleOverdue()
-                        // 点开之后把折叠区滚进视野，否则新展开的内容在屏幕外面，看着像没反应
-                        if (!overdueOpen) scope.launch { listState.animateScrollToItem(pinned.size + rest.size + if (pinned.isNotEmpty()) 1 else 0) }
-                    },
-                )
-            }
-            if (overdueOpen) {
-                items(overdue, key = { "overdue-" + it.id }) { task ->
-                    TaskRow(task = task, today = today, onOpen = onOpen, dim = true)
-                }
+        if(groups.all { it.second.isEmpty() }) item {
+            Empty(if(filter == Filter.ALL) "暂时没有要办的事" else when(filter) {
+                Filter.TODAY -> "今天没有到期的事"; Filter.OVERDUE -> "没有逾期待办"; else -> "暂时没有后续安排"
+            }, if(filter == Filter.ALL) "领导交代、微信消息，都可以记在这里" else "切到“全部”查看其他事情",
+                if(filter == Filter.ALL) onAdd else null)
+        }
+        groups.forEach { (title, records) ->
+            if(records.isNotEmpty()) {
+                item(key = "section-$title") { Section(title, records.size) }
+                items(records, key = { it.id }) { TaskCard(it, today, onOpen, onDone) }
             }
         }
-    }
-}
-
-@Composable
-private fun SearchScreen(
-    holder: TasksHolder,
-    today: LocalDate,
-    query: String,
-    contentPadding: PaddingValues,
-    onOpen: (Task) -> Unit,
-) {
-    val hits = searchAll(holder.tasks, query)
-    if (hits.isEmpty()) {
-        CenteredHint(
-            contentPadding = contentPadding,
-            text = if (query.isBlank()) "输入几个字，过期、办完、作废的都能翻出来" else "没找到和“$query”有关的事",
-        )
-        return
-    }
-    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = contentPadding) {
-        item(key = "hits") { HintHeader("找到 ${hits.size} 件") }
-        items(hits, key = { "hit-" + it.id }) { task ->
-            TaskRow(
-                task = task,
-                today = today,
-                onOpen = onOpen,
-                dim = task.state != TaskState.OPEN,
-                stateNote = when (task.state) {
-                    TaskState.DONE -> "已办完"
-                    TaskState.VOID -> "已作废"
-                    TaskState.OPEN -> null
-                },
-            )
-        }
-        item(key = "tail") { Spacer(Modifier.height(24.dp)) }
-    }
-}
-
-@Composable
-private fun HistoryScreen(
-    holder: TasksHolder,
-    today: LocalDate,
-    contentPadding: PaddingValues,
-    onOpen: (Task) -> Unit,
-) {
-    val closed = sortForHistory(holder.tasks)
-    if (closed.isEmpty()) {
-        CenteredHint(contentPadding = contentPadding, text = "还没有办完或作废的事")
-        return
-    }
-    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = contentPadding) {
-        item(key = "hint") { HintHeader("办完和作废的都留在这，点开可以恢复") }
-        items(closed, key = { "closed-" + it.id }) { task ->
-            TaskRow(
-                task = task,
-                today = today,
-                onOpen = onOpen,
-                dim = true,
-                stateNote = if (task.state == TaskState.DONE) "已办完" else "已作废",
-            )
-        }
-        item(key = "tail") { Spacer(Modifier.height(24.dp)) }
-    }
-}
-
-@Composable
-private fun TaskRow(
-    task: Task,
-    today: LocalDate,
-    onOpen: (Task) -> Unit,
-    onDone: ((Task) -> Unit)? = null,
-    dim: Boolean = false,
-    stateNote: String? = null,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onOpen(task) }
-            .padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(8.dp)
-                .background(dotColor(task, today), CircleShape)
-        )
-        Spacer(Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = task.text,
-                fontSize = 16.sp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                color = if (dim) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-            )
-            Spacer(Modifier.height(3.dp))
-            Text(
-                text = listOfNotNull(metaLine(task, today), stateNote).joinToString(" · "),
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        if (onDone != null) {
-            IconButton(onClick = { onDone(task) }) {
-                Icon(
-                    imageVector = Icons.Default.Check,
-                    contentDescription = "办完了",
-                    tint = MaterialTheme.colorScheme.secondary,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun SectionHeader(label: String, count: Int) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = label,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.primary,
-        )
-        Spacer(Modifier.width(8.dp))
-        Text(text = "$count", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
-
-@Composable
-private fun OverdueHeader(count: Int, open: Boolean, onToggle: () -> Unit) {
-    Column {
-        HorizontalDivider(
-            modifier = Modifier.padding(top = 18.dp),
-            color = MaterialTheme.colorScheme.outlineVariant,
-        )
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onToggle() }
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "已过期 $count 件",
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.width(10.dp))
-            Text(
-                text = if (open) "收起" else "点开看看",
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.primary,
-            )
-        }
-    }
-}
-
-@Composable
-private fun HintHeader(text: String) {
-    Text(
-        text = text,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 6.dp),
-        fontSize = 12.sp,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-}
-
-@Composable
-private fun LoadingState(contentPadding: PaddingValues) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(contentPadding),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text("正在读记录", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
-
-@Composable
-private fun CenteredHint(contentPadding: PaddingValues, text: String) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(contentPadding)
-            .padding(24.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = text,
-            fontSize = 14.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
-    }
-}
-
-@Composable
-private fun EmptyState(hasHistory: Boolean) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 32.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(
-            text = if (hasHistory) "手上没有活的事" else "还没有人交代事",
-            fontSize = 22.sp,
-            fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(10.dp))
-        Text(
-            text = if (hasHistory) {
-                "都办完了。过期的会自己沉到底下，不用你收拾。"
-            } else {
-                "在上面写一句就行，比如：\n王总说明天要周报\n\n人和期限我替你认，过期了自己沉底，还能搜回来。"
-            },
-            fontSize = 14.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SearchBar(query: String, onQuery: (String) -> Unit, onClose: () -> Unit) {
-    val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { focus.requestFocus() }
-    TopAppBar(
-        title = {
-            OutlinedTextField(
-                value = query,
-                onValueChange = onQuery,
-                singleLine = true,
-                placeholder = { Text("搜人、搜事") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .focusRequester(focus),
-                trailingIcon = {
-                    if (query.isNotEmpty()) {
-                        IconButton(onClick = { onQuery("") }) {
-                            Icon(Icons.Default.Close, contentDescription = "清空")
+        if(expired.isNotEmpty() && filter == Filter.ALL) {
+            item(key = "expired-toggle") {
+                Surface(onClick = { expiredOpen = !expiredOpen }, shape = RoundedCornerShape(18.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant) {
+                    Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("到期失效 · ${expired.size} 件", fontWeight = FontWeight.Medium)
+                            Text("记录仍保留，点开查看或改为必须办完", style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
+                        Icon(if(expiredOpen) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                            if(expiredOpen) "收起到期失效" else "展开到期失效")
                     }
-                },
-            )
-        },
-        actions = { TextButton(onClick = onClose) { Text("关掉") } },
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
-    )
-}
-
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
-@Composable
-private fun TaskSheet(
-    task: Task,
-    today: LocalDate,
-    onDismiss: () -> Unit,
-    onSave: (Task) -> Unit,
-    onDone: (Task) -> Unit,
-    onVoid: (Task) -> Unit,
-    onReopen: (Task) -> Unit,
-) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var text by remember { mutableStateOf(task.text) }
-    var from by remember { mutableStateOf(task.from) }
-    var due by remember { mutableStateOf(task.due) }
-    val presetMatch = DuePreset.entries.firstOrNull { it.resolve(today) == due }
-    val customDue = due
-    val edited = task.copy(text = text.trim().ifBlank { task.text }, from = from.trim(), due = due)
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .imePadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Text(
-                text = when (task.state) {
-                    TaskState.OPEN -> "改一改"
-                    TaskState.DONE -> "这件已经办完"
-                    TaskState.VOID -> "这件已经作废"
-                },
-                fontSize = 20.sp,
-                fontWeight = FontWeight.SemiBold,
-            )
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = it },
-                label = { Text("什么事") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-                value = from,
-                onValueChange = { from = it },
-                label = { Text("谁交代的") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Text("什么时候要", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DuePreset.entries.forEach { option ->
-                    FilterChip(
-                        selected = presetMatch == option,
-                        onClick = { due = option.resolve(today) },
-                        label = { Text(option.label) },
-                    )
-                }
-                if (presetMatch == null && customDue != null) {
-                    FilterChip(
-                        selected = true,
-                        onClick = {},
-                        label = { Text("原期限 ${customDue.monthValue}月${customDue.dayOfMonth}日") },
-                    )
                 }
             }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Button(onClick = { onSave(edited) }, enabled = text.isNotBlank()) { Text("保存") }
-                if (task.state == TaskState.OPEN) {
-                    TextButton(onClick = { onDone(edited) }) { Text("办完了") }
-                    TextButton(onClick = { onVoid(edited) }) { Text("作废") }
-                } else {
-                    TextButton(onClick = { onReopen(edited) }) { Text("恢复成没办") }
-                }
-            }
-            Text(
-                text = "作废不是删除，在“历史”里随时能恢复。",
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            if(expiredOpen) items(expired, key = { "expired-${it.id}" }) { TaskCard(it, today, onOpen) }
         }
     }
 }
+@Composable private fun Count(label: String, count: Int, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    Surface(onClick = onClick, modifier = modifier, shape = RoundedCornerShape(16.dp),
+        color = if(selected) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.primaryContainer) {
+        Column(Modifier.padding(12.dp)) {
+            Text(count.toString(), fontSize = 28.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
+        }
+    }
+}
+@Composable private fun Section(title: String, count: Int) {
+    Row(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 2.dp)) {
+        Text(title, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+        Text("$count 件", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+@Composable private fun TaskCard(task: Task, today: LocalDate, onOpen: (Task) -> Unit, onDone: ((Task) -> Unit)? = null) {
+    val urgent = bucketOf(task,today) == Bucket.OVERDUE && !isExpired(task,today) && task.state == TaskState.OPEN
+    val status = when {
+        task.state == TaskState.DONE -> "已办完"; task.state == TaskState.VOID -> "已作废"
+        isExpired(task,today) -> "到期失效"; urgent -> "逾期 ${-daysLeft(task,today)!!} 天"
+        bucketOf(task,today) == Bucket.TODAY -> "今天"; else -> "待办"
+    }
+    Surface(onClick = { onOpen(task) }, shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surface, tonalElevation = 1.dp) {
+        Row(Modifier.fillMaxWidth().padding(start = 16.dp, top = 16.dp, bottom = 16.dp, end = 8.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(task.text, fontSize = 16.sp, lineHeight = 23.sp, maxLines = 3, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Surface(shape = RoundedCornerShape(6.dp), color = if(urgent) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer) {
+                        Text(status, Modifier.padding(horizontal = 7.dp, vertical = 3.dp), style = MaterialTheme.typography.labelSmall,
+                            color = if(urgent) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+                    }
+                    Text(personLabel(task.from), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                }
+                Text(metaLine(task.copy(from = ""),today) + " · " + if(task.expiryPolicy == ExpiryPolicy.MUST_FINISH) "必须办完" else "到期失效",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if(onDone != null && task.state == TaskState.OPEN) IconButton(onClick = { onDone(task) }) {
+                Icon(Icons.Default.Check, "办完：${task.text}", tint = MaterialTheme.colorScheme.primary)
+            } else Icon(Icons.Default.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+@Composable private fun Empty(title: String, subtitle: String, onAdd: (() -> Unit)? = null) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 36.dp, horizontal = 12.dp), horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primaryContainer) {
+            Icon(Icons.Default.Check, null, Modifier.padding(18.dp).size(28.dp), tint = MaterialTheme.colorScheme.primary)
+        }
+        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if(onAdd != null) TextButton(onClick = onAdd) { Text("记下第一件事") }
+    }
+}
+@Composable private fun RecordList(tasks: List<Task>, today: LocalDate, padding: PaddingValues, empty: String,
+                                   subtitle: String = "记录还会留在这里", onOpen: (Task) -> Unit) {
+    LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        if(tasks.isEmpty()) item { Empty(empty,subtitle) }
+        else {
+            item { Text("共 ${tasks.size} 件", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            items(tasks, key = { it.id }) { TaskCard(it,today,onOpen) }
+        }
+    }
+}
+@Composable private fun History(tasks: List<Task>, today: LocalDate, padding: PaddingValues, onOpen: (Task) -> Unit) {
+    var state by rememberSaveable { mutableStateOf<TaskState?>(null) }
+    Column(Modifier.fillMaxSize().padding(padding)) {
+        Row(Modifier.padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(null to "全部", TaskState.DONE to "已办完", TaskState.VOID to "已作废").forEach { (key,label) ->
+                FilterChip(state == key, { state = key }, label = { Text(label) })
+            }
+        }
+        RecordList(sortForHistory(tasks).filter { state == null || it.state == state },today,PaddingValues(0.dp),
+            "还没有历史记录","办完和作废的事情会留在这里，随时可以恢复",onOpen)
+    }
+}
+@Composable private fun People(tasks: List<Task>, today: LocalDate, padding: PaddingValues, selected: String?,
+                               onSelect: (String?) -> Unit, onOpen: (Task) -> Unit) {
+    if(selected != null) Column(Modifier.fillMaxSize().padding(padding)) {
+        TextButton(onClick = { onSelect(null) }, modifier = Modifier.padding(horizontal = 12.dp)) {
+            Icon(Icons.Default.ArrowBack,null,Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("全部交代人")
+        }
+        Text(personLabel(selected),Modifier.padding(horizontal = 20.dp),fontWeight = FontWeight.Bold,style = MaterialTheme.typography.headlineSmall)
+        RecordList(sortForPerson(tasks,selected),today,PaddingValues(0.dp),"这个人还没有记录",onOpen = onOpen)
+    } else LazyColumn(Modifier.fillMaxSize().padding(padding),contentPadding = PaddingValues(20.dp),verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        val stats = peopleStats(tasks,today)
+        if(stats.isEmpty()) item { Empty("还没有交代人","记事时写上名字，会自动整理到这里") }
+        else {
+            item { Text("谁交代的，一眼找回",color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            items(stats,key = { it.name }) { stat ->
+                val mine = tasks.filter { it.from.trim() == stat.name }
+                val overdue = followUpOverdue(mine,today).size
+                Surface(onClick = { onSelect(stat.name) },shape = RoundedCornerShape(20.dp)) {
+                    Row(Modifier.fillMaxWidth().padding(16.dp),verticalAlignment = Alignment.CenterVertically,horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        Surface(shape = CircleShape,color = MaterialTheme.colorScheme.primaryContainer) {
+                            Text(personLabel(stat.name).take(1),Modifier.padding(14.dp),fontWeight = FontWeight.Bold,color = MaterialTheme.colorScheme.primary)
+                        }
+                        Column(Modifier.weight(1f),verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(personLabel(stat.name),fontWeight = FontWeight.SemiBold,fontSize = 17.sp)
+                            Text("待办 ${activeTasks(mine,today).size} 件" + if(overdue > 0) " · 逾期 $overdue 件" else " · 共 ${stat.total} 件",
+                                style = MaterialTheme.typography.bodySmall,color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Icon(Icons.Default.KeyboardArrowRight,null)
+                    }
+                }
+            }
+        }
+    }
+}
+@Composable private fun Settings(padding: PaddingValues,onUpdate: () -> Unit) {
+    val context = LocalContext.current
+    val version = remember { context.packageManager.getPackageInfo(context.packageName,0).versionName }
+    Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        Surface(shape = RoundedCornerShape(24.dp),color = MaterialTheme.colorScheme.primaryContainer) {
+            Column(Modifier.fillMaxWidth().padding(22.dp),verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("交办",fontSize = 24.sp,fontWeight = FontWeight.Bold)
+                Text("别人交代的，记得住、办得好。",color = MaterialTheme.colorScheme.onPrimaryContainer)
+                Text("当前版本 $version",style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        Surface(onClick = onUpdate,shape = RoundedCornerShape(20.dp)) {
+            Row(Modifier.fillMaxWidth().padding(20.dp),verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("检查更新",fontWeight = FontWeight.SemiBold)
+                    Text("查看中文更新说明，下载后由系统安装",style = MaterialTheme.typography.bodySmall,color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Icon(Icons.Default.KeyboardArrowRight,null)
+            }
+        }
+        Text("两种事情，两种处理方式",style = MaterialTheme.typography.titleMedium,fontWeight = FontWeight.SemiBold)
+        Text("必须办完：到了期限还没办完，继续留在首页，标成逾期。\n\n到期失效：期限过后自动收起，记录仍可查看和恢复。",
+            style = MaterialTheme.typography.bodyMedium,color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("记录保存在手机上。办完、作废和到期都不会删除记录。系统备份行为取决于手机设置。",
+            style = MaterialTheme.typography.bodySmall,color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
 
-private fun dotColor(task: Task, today: LocalDate): Color = when (bucketOf(task, today)) {
-    Bucket.TODAY -> Color(0xFFC2410C)
-    Bucket.OVERDUE -> Color(0xFF9A3412)
-    Bucket.LATER -> Color(0xFF27705F)
-    Bucket.NO_DUE -> Color(0xFFB9AE9C)
-    Bucket.CLOSED -> Color(0xFFB9AE9C)
+@OptIn(ExperimentalMaterial3Api::class,ExperimentalLayoutApi::class)
+@Composable private fun Editor(task: Task?,initial: String,today: LocalDate,known: List<String>,
+    onDismiss: () -> Unit,onSave: (String,String,LocalDate?,ExpiryPolicy) -> Unit,onState: (Task,TaskState) -> Unit) {
+    val focus = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+    var text by rememberSaveable(task?.id,initial) { mutableStateOf(task?.text ?: initial) }
+    var fromManual by rememberSaveable(task?.id,initial) { mutableStateOf(task != null) }
+    var fromDraft by rememberSaveable(task?.id,initial) { mutableStateOf(task?.from ?: "") }
+    var dueManual by rememberSaveable(task?.id,initial) { mutableStateOf(task != null) }
+    var dueDraft by rememberSaveable(task?.id,initial) { mutableStateOf(task?.due?.toString()) }
+    var policy by rememberSaveable(task?.id,initial) { mutableStateOf(task?.expiryPolicy ?: ExpiryPolicy.MUST_FINISH) }
+    var calendar by remember { mutableStateOf(false) }
+    var discard by remember { mutableStateOf(false) }
+    var voidConfirm by remember { mutableStateOf(false) }
+    val parsedFrom = remember(text,known) { PersonParser.parse(text,known) }
+    val parsedDue = remember(text,today) { DueParser.parse(text,today) }
+    val from = if(fromManual) fromDraft else parsedFrom
+    val due = if(dueManual) dueDraft?.let { LocalDate.parse(it) } else parsedDue ?: today.plusDays(DueParser.DEFAULT_DAYS)
+    val dirty = if(task == null) text.isNotBlank() else text != task.text || from != task.from || due != task.due || policy != task.expiryPolicy
+    fun dismiss() { if(dirty) discard = true else onDismiss() }
+    fun setDue(value: LocalDate?) { dueManual = true; dueDraft = value?.toString() }
+    fun edited() = task!!.copy(text = text.trim(),from = from.trim(),due = due,expiryPolicy = policy)
+    LaunchedEffect(Unit) { if(task == null && initial.isEmpty()) focus.requestFocus() }
+    ModalBottomSheet(onDismissRequest = { dismiss() },sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = { target ->
+            if(target == SheetValue.Hidden && dirty) { discard = true; false } else true
+        }),
+        containerColor = MaterialTheme.colorScheme.surface) {
+        Column(Modifier.fillMaxWidth().imePadding().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(Modifier.fillMaxWidth(),verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(if(task == null) "记一件交办" else "交办详情",fontSize = 22.sp,fontWeight = FontWeight.Bold)
+                    Text(if(task == null) "写一句话，人和日期会自动识别" else "全文、交代人和期限都在这里",
+                        style = MaterialTheme.typography.bodySmall,color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                IconButton(onClick = { dismiss() }) { Icon(Icons.Default.Close,"关闭详情") }
+            }
+            OutlinedTextField(text,{ text = it },label = { Text("交代了什么") },placeholder = { Text("例如：王总让周五交活动表") },
+                minLines = 3,maxLines = 7,modifier = Modifier.fillMaxWidth().focusRequester(focus),shape = RoundedCornerShape(16.dp),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default))
+            OutlinedTextField(from,{ fromManual = true; fromDraft = it },label = { Text("谁交代的（可不填）") },
+                singleLine = true,modifier = Modifier.fillMaxWidth(),shape = RoundedCornerShape(16.dp))
+            if(task == null && !fromManual && parsedFrom.isNotEmpty())
+                Text("已识别交代人：$parsedFrom，可直接修改",style = MaterialTheme.typography.bodySmall,color = MaterialTheme.colorScheme.primary)
+            Row(Modifier.fillMaxWidth(),verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("期限",fontWeight = FontWeight.SemiBold)
+                    Text(due?.let { "${it.year}年${it.monthValue}月${it.dayOfMonth}日" } ?: "没有期限",color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                TextButton(onClick = { focusManager.clearFocus(); calendar = true }) {
+                    Icon(Icons.Default.DateRange,null,Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("选择日期")
+                }
+            }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(0L to "今天",1L to "明天",3L to "三天后",7L to "一周后").forEach { (days,label) ->
+                    FilterChip(due == today.plusDays(days),{ setDue(today.plusDays(days)) },label = { Text(label) })
+                }
+                FilterChip(due == null,{ setDue(null) },label = { Text("无期限") })
+            }
+            if(task == null && !dueManual) Text(if(parsedDue != null) "已识别期限，可点日历修改"
+                else "未提期限，暂按三天后；可改日期或选无期限",style = MaterialTheme.typography.bodySmall,color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("到了期限之后",fontWeight = FontWeight.SemiBold)
+            Row(Modifier.fillMaxWidth(),horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Policy("必须办完","逾期继续跟进",policy == ExpiryPolicy.MUST_FINISH,Modifier.weight(1f)) { policy = ExpiryPolicy.MUST_FINISH }
+                Policy("到期失效","到期自动收起",policy == ExpiryPolicy.EXPIRES,Modifier.weight(1f)) { policy = ExpiryPolicy.EXPIRES }
+            }
+            Button(onClick = { onSave(text,from,due,policy) },enabled = text.isNotBlank(),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),shape = RoundedCornerShape(16.dp)) {
+                Text(if(task == null) "记下" else "保存修改")
+            }
+            if(task != null) {
+                if(task.state == TaskState.OPEN) Row(Modifier.fillMaxWidth(),horizontalArrangement = Arrangement.SpaceBetween) {
+                    TextButton(onClick = { onState(edited(),TaskState.DONE) },enabled = text.isNotBlank()) { Text("办完了") }
+                    TextButton(onClick = { voidConfirm = true },enabled = text.isNotBlank()) { Text("作废这件事",color = MaterialTheme.colorScheme.error) }
+                } else OutlinedButton(onClick = { onState(edited(),TaskState.OPEN) },enabled = text.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth()) { Text("恢复为待办") }
+                Text("记录于 ${task.createdAt.atZone(ZoneId.systemDefault()).toLocalDate()} · 记录不会被删除",
+                    style = MaterialTheme.typography.bodySmall,color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+    if(calendar) {
+        val picker = rememberDatePickerState(initialSelectedDateMillis = (due ?: today).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli())
+        DatePickerDialog(onDismissRequest = { calendar = false },confirmButton = {
+            TextButton(onClick = {
+                picker.selectedDateMillis?.let { setDue(Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate()) }; calendar = false
+            },enabled = picker.selectedDateMillis != null) { Text("确定日期") }
+        },dismissButton = { TextButton(onClick = { calendar = false }) { Text("取消") } }) {
+            DatePicker(picker,title = { Text("选择期限",Modifier.padding(24.dp)) })
+        }
+    }
+    if(discard) AlertDialog(onDismissRequest = { discard = false },title = { Text("还有未保存的内容") },
+        text = { Text("继续编辑，或放弃这次改动。") },
+        confirmButton = { TextButton(onClick = { discard = false }) { Text("继续编辑") } },
+        dismissButton = { TextButton(onClick = { discard = false; onDismiss() }) { Text("放弃改动") } })
+    if(voidConfirm) AlertDialog(onDismissRequest = { voidConfirm = false },title = { Text("作废这件事？") },
+        text = { Text("会收进历史，不删除记录，之后仍可恢复。") },
+        confirmButton = { TextButton(onClick = { voidConfirm = false; onState(edited(),TaskState.VOID) }) { Text("确认作废") } },
+        dismissButton = { TextButton(onClick = { voidConfirm = false }) { Text("继续保留") } })
+}
+@Composable private fun Policy(title: String,subtitle: String,selected: Boolean,modifier: Modifier,onClick: () -> Unit) {
+    Surface(onClick = onClick,modifier = modifier,shape = RoundedCornerShape(16.dp),
+        color = if(selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+        border = if(selected) BorderStroke(1.dp,MaterialTheme.colorScheme.primary) else null) {
+        Column(Modifier.padding(14.dp),verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Text(title,fontWeight = FontWeight.SemiBold,color = if(selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+            Text(subtitle,style = MaterialTheme.typography.bodySmall,color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
 }

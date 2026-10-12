@@ -79,8 +79,11 @@ def main():
         check("Install test APK", "Success" in adb("install", "-r", str(args.apk)))
     adb("shell", "am", "force-stop", PKG)
     adb("shell", "am", "start", "-n", PKG + "/.MainActivity")
-    root = wait("home", lambda s: any("谁交代了什么" in t for t in s))
-    tap(root, "更多")
+    root = wait("home", lambda s: "记一件" in s or any("谁交代了什么" in t for t in s))
+    if "设置" in texts(root):
+        tap(root, "设置")
+    else:
+        tap(root, "更多")
     root = wait("menu", lambda s: "检查更新" in s)
     tap(root, "检查更新")
     root = wait("update", lambda s: any("当前版本" in t for t in s))
