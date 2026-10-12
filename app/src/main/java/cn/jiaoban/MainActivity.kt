@@ -1,6 +1,10 @@
 package cn.jiaoban
 
 import android.content.Intent
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.IntentFilter
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -11,11 +15,44 @@ import cn.jiaoban.data.TaskStore
 import cn.jiaoban.ui.App
 import cn.jiaoban.ui.JiaobanTheme
 import java.io.File
+import java.time.LocalDate
 
 class MainActivity : ComponentActivity() {
 
     /** 从别处（微信、浏览器）分享进来的一句话，交给界面去解析并存下来。 */
     private val shared = mutableStateOf<String?>(null)
+    private val today = mutableStateOf(LocalDate.now())
+    private val dateChanges = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            today.value = LocalDate.now()
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_DATE_CHANGED)
+            addAction(Intent.ACTION_TIME_CHANGED)
+            addAction(Intent.ACTION_TIMEZONE_CHANGED)
+        }
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(dateChanges, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("DEPRECATION")
+            registerReceiver(dateChanges, filter)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // 后台过夜后刷新同一份日期状态，不重建列表、不重新读盘。
+        today.value = LocalDate.now()
+    }
+
+    override fun onStop() {
+        unregisterReceiver(dateChanges)
+        super.onStop()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -26,6 +63,7 @@ class MainActivity : ComponentActivity() {
                 val store = remember { TaskStore(File(filesDir, "tasks.json")) }
                 App(
                     store = store,
+                    today = today.value,
                     sharedText = shared.value,
                     onSharedHandled = { shared.value = null },
                 )

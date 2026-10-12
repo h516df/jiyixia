@@ -40,12 +40,12 @@ import java.time.LocalDate
 @Composable
 fun PeopleScreen(
     holder: TasksHolder,
+    today: LocalDate,
     contentPadding: PaddingValues,
     selected: String?,
     onSelect: (String?) -> Unit,
     onOpen: (Task) -> Unit,
 ) {
-    val today = LocalDate.now()
     if (selected == null) {
         PersonList(holder, contentPadding, today, onSelect)
     } else {

@@ -107,11 +107,10 @@ private data class Preview(val from: String, val due: LocalDate?)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun App(store: TaskStore, sharedText: String? = null, onSharedHandled: () -> Unit = {}) {
+fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onSharedHandled: () -> Unit = {}) {
     val holder = remember { TasksHolder(store).also { it.start() } }
     val context = LocalContext.current
     val updater = remember { Updater(context) }
-    val today = LocalDate.now()
     var screen by remember { mutableStateOf(AppScreen.MAIN) }
     var searching by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
@@ -221,13 +220,14 @@ fun App(store: TaskStore, sharedText: String? = null, onSharedHandled: () -> Uni
             screen == AppScreen.UPDATE -> UpdateScreen(updater, inner)
             screen == AppScreen.PEOPLE -> PeopleScreen(
                 holder = holder,
+                today = today,
                 contentPadding = inner,
                 selected = selectedPerson,
                 onSelect = { selectedPerson = it },
                 onOpen = { editing = it },
             )
-            screen == AppScreen.HISTORY -> HistoryScreen(holder, inner, onOpen = { editing = it })
-            searching -> SearchScreen(holder, query, inner, onOpen = { editing = it })
+            screen == AppScreen.HISTORY -> HistoryScreen(holder, today, inner, onOpen = { editing = it })
+            searching -> SearchScreen(holder, today, query, inner, onOpen = { editing = it })
             else -> Column(
                 // 注意：Scaffold 的 safeDrawing 已经含 IME 内边距，这里再加 imePadding 会双份挤压
                 modifier = Modifier
@@ -308,7 +308,7 @@ private fun InputBox(
 
     var preview by remember { mutableStateOf<Preview?>(null) }
     // 打字的间隙才去解析，不跟输入抢主线程
-    LaunchedEffect(draft) {
+    LaunchedEffect(draft, today, known) {
         if (draft.isBlank()) {
             preview = null
             return@LaunchedEffect
@@ -402,7 +402,7 @@ private fun TimelineList(
                     onToggle = {
                         onToggleOverdue()
                         // 点开之后把折叠区滚进视野，否则新展开的内容在屏幕外面，看着像没反应
-                        if (!overdueOpen) scope.launch { listState.animateScrollToItem(Int.MAX_VALUE) }
+                        if (!overdueOpen) scope.launch { listState.animateScrollToItem(pinned.size + rest.size + if (pinned.isNotEmpty()) 1 else 0) }
                     },
                 )
             }
@@ -418,11 +418,11 @@ private fun TimelineList(
 @Composable
 private fun SearchScreen(
     holder: TasksHolder,
+    today: LocalDate,
     query: String,
     contentPadding: PaddingValues,
     onOpen: (Task) -> Unit,
 ) {
-    val today = LocalDate.now()
     val hits = searchAll(holder.tasks, query)
     if (hits.isEmpty()) {
         CenteredHint(
@@ -453,10 +453,10 @@ private fun SearchScreen(
 @Composable
 private fun HistoryScreen(
     holder: TasksHolder,
+    today: LocalDate,
     contentPadding: PaddingValues,
     onOpen: (Task) -> Unit,
 ) {
-    val today = LocalDate.now()
     val closed = sortForHistory(holder.tasks)
     if (closed.isEmpty()) {
         CenteredHint(contentPadding = contentPadding, text = "还没有办完或作废的事")
