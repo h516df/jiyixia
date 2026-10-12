@@ -1,0 +1,30 @@
+{
+  "serial": "127.0.0.1:5591",
+  "processUnchanged": true,
+  "results": [
+    {
+      "name": "Current version and offline notes are visible",
+      "passed": true
+    },
+    {
+      "name": "First check reaches real GitHub device authorization",
+      "passed": true
+    },
+    {
+      "name": "Cancel returns to check button",
+      "passed": true
+    },
+    {
+      "name": "Retry reaches device authorization again",
+      "passed": true
+    },
+    {
+      "name": "Retry uses the same live app process",
+      "passed": true
+    },
+    {
+      "name": "Repeated cancel and retry still work",
+      "passed": true
+    }
+  ]
+}

@@ -1,0 +1,318 @@
+package cn.jiaoban;
+
+import android.app.Instrumentation;
+import android.content.Intent;
+import android.os.*;
+import android.accessibilityservice.AccessibilityServiceInfo;
+import android.view.accessibility.*;
+import android.graphics.*;
+import org.json.*;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.time.*;
+import java.time.format.*;
+import java.util.*;
+import java.util.function.Predicate;
+
+/** Only in androidTest; verifies real Compose controls and persisted results on the task AVD. */
+public class RedesignRegressionProbe extends Instrumentation {
+    private final JSONArray checks = new JSONArray();
+    private Bundle args;
+    private File out;
+    private long originalTime, began;
+    private String autoTime = "1";
+    @Override public void onCreate(Bundle arguments) { super.onCreate(arguments); args = arguments; start(); }
+    private String shell(String cmd) throws Exception {
+        try(InputStream in = new ParcelFileDescriptor.AutoCloseInputStream(getUiAutomation().executeShellCommand(cmd));
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream()) {
+            in.transferTo(bytes); return bytes.toString("UTF-8").trim();
+        }
+    }
+    private AccessibilityNodeInfo root() {
+        getUiAutomation().clearCache();
+        for(AccessibilityWindowInfo w : getUiAutomation().getWindows()) {
+            AccessibilityNodeInfo n = w.getRoot();
+            if(n != null && "cn.jiaoban".contentEquals(n.getPackageName())) return n;
+        }
+        return getUiAutomation().getRootInActiveWindow();
+    }
+    private List<AccessibilityNodeInfo> nodes() {
+        List<AccessibilityNodeInfo> all = new ArrayList<>(); collect(root(),all); return all;
+    }
+    private void collect(AccessibilityNodeInfo n,List<AccessibilityNodeInfo> all) {
+        if(n == null) return; all.add(n);
+        for(int i=0;i<n.getChildCount();i++) collect(n.getChild(i),all);
+    }
+    private Set<String> labels() {
+        Set<String> all = new HashSet<>();
+        for(AccessibilityNodeInfo n:nodes()) {
+            if(n.getText()!=null) all.add(n.getText().toString());
+            if(n.getContentDescription()!=null) all.add(n.getContentDescription().toString());
+        }
+        return all;
+    }
+    private void waitFor(Predicate<Set<String>> test) throws Exception {
+        long end = SystemClock.elapsedRealtime()+18000;
+        do { if(test.test(labels())) return; SystemClock.sleep(150); } while(SystemClock.elapsedRealtime()<end);
+        throw new AssertionError("UI timeout: "+labels());
+    }
+    private boolean hasPart(Set<String> all,String part) { return all.stream().anyMatch(s->s.contains(part)); }
+    private void check(String name,boolean pass) throws Exception {
+        checks.put(new JSONObject().put("name",name).put("passed",pass));
+        Bundle b = new Bundle(); b.putString("stream",(pass?"PASS ":"FAIL ")+name+"\n"); sendStatus(0,b);
+        if(!pass) throw new AssertionError(name+" | "+labels());
+    }
+    private void tap(String text) throws Exception {
+        for(int attempt=0;attempt<18;attempt++) {
+            for(AccessibilityNodeInfo n:nodes()) {
+                if(text.contentEquals(n.getText()==null?"":n.getText()) ||
+                    text.contentEquals(n.getContentDescription()==null?"":n.getContentDescription())) {
+                    for(AccessibilityNodeInfo p=n;p!=null;p=p.getParent()) {
+                        if(p.isClickable() && p.performAction(AccessibilityNodeInfo.ACTION_CLICK)) { SystemClock.sleep(250); return; }
+                    }
+                }
+            }
+            boolean moved=false;
+            for(AccessibilityNodeInfo n:nodes()) if(n.isScrollable() && n.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)) { moved=true; break; }
+            if(!moved) SystemClock.sleep(200); else SystemClock.sleep(200);
+        }
+        throw new AssertionError("Missing clickable "+text+" | "+labels());
+    }
+    private void setText(int index,String value) throws Exception {
+        List<AccessibilityNodeInfo> inputs = new ArrayList<>();
+        for(AccessibilityNodeInfo n:nodes()) if(n.isEditable()) inputs.add(n);
+        if(index>=inputs.size()) throw new AssertionError("Missing editable "+index);
+        Bundle b = new Bundle(); b.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,value);
+        check("Set input "+index,inputs.get(index).performAction(AccessibilityNodeInfo.ACTION_SET_TEXT,b));
+        SystemClock.sleep(450);
+    }
+    private void calendarDay(LocalDate date) throws Exception {
+        tap(date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(Locale.getDefault())));
+    }
+    private void shareText(String text) {
+        Intent intent = new Intent(Intent.ACTION_SEND).setType("text/plain")
+            .putExtra(Intent.EXTRA_TEXT,text).setClassName("cn.jiaoban","cn.jiaoban.MainActivity")
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        getTargetContext().startActivity(intent);
+    }
+    private void hideKeyboard() throws Exception {
+        for(AccessibilityWindowInfo w:getUiAutomation().getWindows()) if(w.getType()==AccessibilityWindowInfo.TYPE_INPUT_METHOD) {
+            shell("input keyevent KEYCODE_BACK"); SystemClock.sleep(250); return;
+        }
+    }
+    private void shot(String name) throws Exception {
+        Bitmap bitmap = getUiAutomation().takeScreenshot();
+        if(bitmap==null) throw new AssertionError("No screenshot");
+        try(FileOutputStream stream = new FileOutputStream(new File(out,name+".png"))) { bitmap.compress(Bitmap.CompressFormat.PNG,100,stream); }
+    }
+    private boolean lightStatusIcons() {
+        Bitmap image=getUiAutomation().takeScreenshot();
+        if(image==null) return false;
+        int bright=0;
+        for(int y=(int)(image.getHeight()*.01);y<(int)(image.getHeight()*.045);y++)
+            for(int x=(int)(image.getWidth()*.04);x<(int)(image.getWidth()*.24);x++) {
+                int pixel=image.getPixel(x,y);
+                if(Color.red(pixel)>200 && Color.green(pixel)>200 && Color.blue(pixel)>200) bright++;
+            }
+        image.recycle(); return bright>50;
+    }
+    private JSONArray data() throws Exception {
+        File file = new File(getTargetContext().getFilesDir(),"tasks.json");
+        return file.isFile()?new JSONArray(new String(Files.readAllBytes(file.toPath()),StandardCharsets.UTF_8)):new JSONArray();
+    }
+    private JSONObject byText(String text) throws Exception {
+        long end = SystemClock.elapsedRealtime()+4000;
+        do {
+            JSONArray all=data();
+            for(int i=0;i<all.length();i++) if(text.equals(all.getJSONObject(i).getString("text"))) return all.getJSONObject(i);
+            SystemClock.sleep(100);
+        } while(SystemClock.elapsedRealtime()<end);
+        throw new AssertionError("Not persisted: "+text);
+    }
+    private JSONObject byId(String id) throws Exception {
+        JSONArray all=data();
+        for(int i=0;i<all.length();i++) if(id.equals(all.getJSONObject(i).getString("id"))) return all.getJSONObject(i);
+        throw new AssertionError("Missing id "+id);
+    }
+    private void persisted(String id,String key,String expected) throws Exception {
+        long end=SystemClock.elapsedRealtime()+5000;
+        do { if(expected.equals(byId(id).optString(key))) { check("Persist "+id+" "+key+"="+expected,true); return; } SystemClock.sleep(100); }
+        while(SystemClock.elapsedRealtime()<end);
+        check("Persist "+id+" "+key+"="+expected,false);
+    }
+    private void search(String text) throws Exception {
+        if(labels().contains("取消")) tap("取消");
+        tap("搜索全部记录"); waitFor(s->hasPart(s,"搜事情或交代人"));
+        setText(0,text); hideKeyboard(); waitFor(s->s.contains(text));
+    }
+    private void open(String text) throws Exception { search(text); tap(text); waitFor(s->s.contains("交办详情")); }
+    private void home() throws Exception {
+        if(labels().contains("取消")) tap("取消");
+        if(!labels().contains("交办")) tap("事情");
+        waitFor(s->s.contains("记一件"));
+        tap("全部");
+    }
+    private void seed(LocalDate today) throws Exception {
+        JSONArray all=new JSONArray();
+        String[] ids={"must","today","later","expires","legacy","done","void"};
+        String[] texts={"逾期活动表","今日周报","未来预算","到期活动名额","旧版到期记录","已完成记录","作废记录"};
+        int[] days={-2,0,1,-1,-3,-1,-1};
+        for(int i=0;i<ids.length;i++) {
+            JSONObject t=new JSONObject().put("id",ids[i]).put("text",texts[i]).put("from",i<3?"王总":i<5?"李姐":"张工")
+                .put("due",today.plusDays(days[i]).toString()).put("state",i==5?"DONE":i==6?"VOID":"OPEN")
+                .put("createdAt","2026-10-01T00:00:00Z").put("closedAt",JSONObject.NULL);
+            if(i!=4) t.put("expiryPolicy",i==3?"EXPIRES":"MUST_FINISH"); all.put(t);
+        }
+        Files.write(new File(getTargetContext().getFilesDir(),"tasks.json").toPath(),all.toString().getBytes(StandardCharsets.UTF_8));
+    }
+    @Override public void onStart() {
+        if(args!=null && "true".equals(args.getString("dataOnly"))) {
+            try {
+                if(!"Jiaoban_Redesign_API36".equals(shell("getprop ro.boot.qemu.avd_name"))) throw new IllegalStateException("Wrong AVD");
+                if("true".equals(args.getString("seedLegacy"))) {
+                    seed(LocalDate.now());
+                    JSONArray legacy=data();
+                    for(int i=0;i<legacy.length();i++) legacy.getJSONObject(i).remove("expiryPolicy");
+                    Files.write(new File(getTargetContext().getFilesDir(),"tasks.json").toPath(),legacy.toString().getBytes(StandardCharsets.UTF_8));
+                }
+                byte[] bytes=Files.readAllBytes(new File(getTargetContext().getFilesDir(),"tasks.json").toPath());
+                StringBuilder hash=new StringBuilder();
+                for(byte b:java.security.MessageDigest.getInstance("SHA-256").digest(bytes)) hash.append(String.format("%02x",b & 255));
+                Bundle end=new Bundle(); end.putString("stream","DATA_SHA256: "+hash+" count="+new JSONArray(new String(bytes,StandardCharsets.UTF_8)).length()+"\\n");
+                finish(-1,end);
+            } catch(Throwable failure) { Bundle end=new Bundle(); end.putString("stream",failure.toString()); finish(0,end); }
+            return;
+        }
+        int result=0; JSONObject report=new JSONObject(); String error="";
+        try {
+            check("Dedicated AVD","Jiaoban_Redesign_API36".equals(shell("getprop ro.boot.qemu.avd_name")));
+            AccessibilityServiceInfo info=getUiAutomation().getServiceInfo();
+            info.flags |= AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS; getUiAutomation().setServiceInfo(info);
+            out=new File(getTargetContext().getExternalFilesDir(null),"redesign-qa"); out.mkdirs();
+            originalTime=Long.parseLong(shell("date +%s"))*1000; began=SystemClock.elapsedRealtime();
+            autoTime=shell("settings get global auto_time");
+            LocalDate today=LocalDate.now();
+            seed(today);
+            shell("am start -W -n cn.jiaoban/.MainActivity");
+            waitFor(s->s.contains("记一件") && s.contains("逾期活动表"));
+            check("Home keeps must-finish overdue visible and folds expiring records",
+                labels().contains("逾期活动表") && !labels().contains("到期活动名额") && !labels().contains("旧版到期记录"));
+            check("Home does not open keyboard",getUiAutomation().getWindows().stream().noneMatch(w->w.getType()==AccessibilityWindowInfo.TYPE_INPUT_METHOD));
+            shot("01-home");
+            search("已完成"); waitFor(s->s.contains("已完成记录") && s.contains("共 1 件"));
+            check("Global search includes closed records and excludes unrelated records",!labels().contains("今日周报") && !labels().contains("逾期活动表"));
+            search("不存在的记录XYZ"); waitFor(s->s.contains("没有找到“不存在的记录XYZ”"));
+            check("Search no-result state shows no unrelated records",!labels().contains("已完成记录") && !labels().contains("今日周报"));
+            home();
+            tap("今天");
+            waitFor(s->s.contains("今日周报"));
+            check("Today filter results exclude overdue and future",!labels().contains("逾期活动表") && !labels().contains("未来预算"));
+            tap("逾期"); waitFor(s->s.contains("逾期活动表"));
+            check("Overdue filter only keeps must-finish records",!labels().contains("今日周报") && !labels().contains("到期活动名额"));
+            tap("接下来"); waitFor(s->s.contains("未来预算"));
+            check("Later filter results",!labels().contains("逾期活动表") && !labels().contains("今日周报"));
+            home();
+            tap("到期失效 · 2 件"); waitFor(s->s.contains("旧版到期记录"));
+            check("Expired section opens real records",labels().contains("到期活动名额")); shot("02-expired");
+            open("到期活动名额"); tap("必须办完"); tap("保存修改"); persisted("expires","expiryPolicy","MUST_FINISH");
+            home(); tap("逾期"); waitFor(s->s.contains("到期活动名额"));
+            check("Policy change returns expired item to overdue list",labels().contains("逾期活动表")); shot("03-overdue");
+
+            home(); tap("记一件"); waitFor(s->s.contains("记一件交办"));
+            String manual="李姐说明天要提交活动表\n第一项：核对价格😀\n第二项：保留尾巴标记";
+            setText(0,manual); hideKeyboard();
+            check("Chinese input parses person and deadline",hasPart(labels(),"已识别交代人：李姐") && hasPart(labels(),"已识别期限"));
+            tap("无期限"); tap("到期失效"); shot("04-new");
+            tap("记下"); waitFor(s->s.contains("记一件"));
+            JSONObject added=byText(manual);
+            check("Multiline Unicode input and manual metadata persisted",added.getString("from").equals("李姐") &&
+                added.isNull("due") && added.getString("expiryPolicy").equals("EXPIRES"));
+            open("今日周报"); tap("选择日期"); waitFor(s->s.contains("确定日期"));
+            calendarDay(today.withDayOfMonth(20)); tap("确定日期"); tap("保存修改");
+            persisted("today","due",today.withDayOfMonth(20).toString());
+            open("今日周报"); tap("选择日期"); calendarDay(today.withDayOfMonth(21)); tap("取消"); tap("关闭详情");
+            persisted("today","due",today.withDayOfMonth(20).toString());
+            check("Calendar cancel preserves chosen date",true);
+
+            open("逾期活动表"); tap("办完了"); tap("撤销"); persisted("must","state","OPEN");
+            open("逾期活动表"); tap("办完了"); persisted("must","state","DONE");
+            if(labels().contains("取消")) tap("取消");
+            tap("历史"); waitFor(s->s.contains("逾期活动表"));
+            tap("已办完"); check("Done history filter excludes void records",!labels().contains("作废记录")); shot("05-history");
+            tap("逾期活动表"); waitFor(s->s.contains("恢复为待办"));
+            tap("恢复为待办"); persisted("must","state","OPEN");
+            open("未来预算"); tap("作废这件事"); waitFor(s->s.contains("确认作废"));
+            check("Void requires explicit confirmation",byId("later").getString("state").equals("OPEN"));
+            tap("确认作废"); persisted("later","state","VOID");
+            open("未来预算"); tap("恢复为待办"); persisted("later","state","OPEN");
+            if(labels().contains("取消")) tap("取消");
+            tap("按人"); tap("李姐"); waitFor(s->s.contains("到期活动名额"));
+            check("Person detail results exclude another person's tasks",!labels().contains("逾期活动表")); shot("06-person");
+
+            home(); tap("记一件"); setText(0,"未保存草稿"); hideKeyboard();
+            shareText("新的分享不能覆盖草稿");
+            waitFor(s->s.contains("收到新的分享")); tap("继续当前编辑");
+            waitFor(s->s.contains("未保存草稿"));
+            check("Incoming share cannot silently replace an unsaved draft",labels().contains("未保存草稿"));
+            tap("关闭详情");
+            waitFor(s->s.contains("继续编辑")); tap("继续编辑");
+            waitFor(s->s.contains("未保存草稿")); check("Continue editing preserves draft and keeps sheet visible",labels().contains("记一件交办"));
+            tap("关闭详情"); tap("放弃改动"); waitFor(s->s.contains("记一件"));
+            check("Discard does not create record",data().length()==8);
+
+            String shared="王总说"+ "活动规则与客户要求，".repeat(45)+"\n尾巴记号ZZZ😀，明天要提交汇总";
+            shareText(shared);
+            waitFor(s->s.contains("记一件交办") && hasPart(s,"尾巴记号ZZZ"));
+            hideKeyboard(); tap("到期失效"); tap("记下"); waitFor(s->s.contains("记一件"));
+            JSONObject share=byText(shared);
+            check("Long real share confirms and saves full tail/person/deadline",share.getString("from").equals("王总") &&
+                share.getString("due").equals(today.plusDays(1).toString()) && share.getString("expiryPolicy").equals("EXPIRES"));
+            shot("07-shared-home");
+
+            shell("settings put global auto_time 0");
+            int pid=android.os.Process.myPid();
+            shell("input keyevent KEYCODE_HOME");
+            shell("cmd alarm set-time "+(originalTime+86400000));
+            shell("am start -W -n cn.jiaoban/.MainActivity");
+            waitFor(s->hasPart(s,(today.plusDays(1).getMonthValue())+"月"+today.plusDays(1).getDayOfMonth()+"日"));
+            home(); tap("今天"); waitFor(s->s.contains("未来预算"));
+            check("Same-process overnight resume refreshes actual today results",android.os.Process.myPid()==pid &&
+                labels().contains("未来预算") && !labels().contains("逾期活动表"));
+            shell("cmd alarm set-time "+(originalTime+172800000));
+            waitFor(s->hasPart(s,today.plusDays(2).getMonthValue()+"月"+today.plusDays(2).getDayOfMonth()+"日"));
+            home(); tap("逾期"); waitFor(s->s.contains("未来预算"));
+            check("Foreground date change keeps must-finish overdue visible",labels().contains("未来预算"));
+            shot("08-next-day");
+
+            shell("cmd alarm set-time "+(originalTime+SystemClock.elapsedRealtime()-began));
+            shell("settings put global auto_time "+autoTime);
+            home(); shell("settings put system font_scale 1.3"); shell("wm size 900x2000");
+            SystemClock.sleep(900); waitFor(s->s.contains("记一件"));
+            check("Large-font narrow-screen navigation available",labels().containsAll(Arrays.asList("事情","按人","历史","设置")));
+            shot("09-large-font");
+            shell("settings put system font_scale 1.0"); shell("wm size reset");
+            shell("cmd uimode night yes"); SystemClock.sleep(600); waitFor(s->s.contains("记一件"));
+            long barEnd=SystemClock.elapsedRealtime()+7000;
+            while(!lightStatusIcons() && SystemClock.elapsedRealtime()<barEnd) SystemClock.sleep(200);
+            check("Dark status bar renders readable light time icons",lightStatusIcons()); shot("10-dark");
+            check("Dark mode main path remains usable",labels().contains("记一件"));
+            shell("cmd uimode night no");
+            report.put("version",getTargetContext().getPackageManager().getPackageInfo("cn.jiaoban",0).versionName);
+            report.put("sdk",Build.VERSION.SDK_INT).put("abi",Build.SUPPORTED_ABIS[0]).put("timezone",ZoneId.systemDefault().toString());
+            report.put("recordCount",data().length()).put("sourceFingerprint",args==null?"":args.getString("sourceFingerprint",""));
+            result=-1;
+        } catch(Throwable failure) {
+            error=failure.toString();
+            try { if(out!=null) shot("failure"); } catch(Throwable ignored) {}
+        } finally {
+            try {
+                if(originalTime>0) { shell("cmd alarm set-time "+(originalTime+SystemClock.elapsedRealtime()-began)); shell("settings put global auto_time "+autoTime); }
+                shell("settings put system font_scale 1.0"); shell("wm size reset"); shell("cmd uimode night no");
+                report.put("passed",result==-1).put("error",error).put("checks",checks);
+                if(out!=null) Files.write(new File(out,"results.json").toPath(),report.toString(2).getBytes(StandardCharsets.UTF_8));
+            } catch(Throwable failure) { error+=" report: "+failure; result=0; }
+            Bundle end=new Bundle(); end.putString("stream",(result==-1?"REDESIGN_PASS":"REDESIGN_FAIL")+" "+error+"\n"); finish(result,end);
+        }
+    }
+}

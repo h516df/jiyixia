@@ -71,6 +71,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--no-build", action="store_true", help="用现成 APK，不重新构建")
     parser.add_argument("--dry-run", action="store_true", help="只准备文件，不发布")
+    parser.add_argument("--target-commit", default="", help="核对过的完整发布目标 SHA")
     args = parser.parse_args()
 
     version, code = version_from_gradle()
@@ -110,22 +111,88 @@ def main():
         print("（dry-run，没有发布）", flush=True)
         return 0
 
-    title = "交办 v%s｜%s" % (version, (notes.get("新增") or ["小改动"])[0][:24])
-    body = markdown(notes, sha)
-    existing = subprocess.run(
-        ["gh", "release", "view", f"v{version}", "--repo", REPO],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    ).returncode == 0
-    if existing:
-        raise SystemExit("这个版本已经发布，停止以免覆盖已有安装包。")
+    # Private-project publication is authorized in this task. All uploads are resumable and verified.
+    private = json.loads(run(["gh", "api", f"repos/{REPO}"]))["private"]
+    if not private:
+        raise SystemExit("仓库不是私有，停止发布。")
+    from android_redesign_acceptance import fingerprint
+    evidence_path = ROOT / "verification" / "redesign-release" / "bound-results.json"
+    if not evidence_path.is_file():
+        raise SystemExit("缺少正式包真实验收证据，停止发布。")
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    if not evidence.get("passed") or evidence["binding"]["apkSha256"] != sha or evidence["binding"]["sourceFingerprint"] != fingerprint():
+        raise SystemExit("正式包、当前源码与已通过证据不一致，停止发布。")
     head = run(["git", "rev-parse", "HEAD"]).strip()
+    tag = f"v{version}"
+    target = args.target_commit or head
+    if not re.fullmatch(r"[0-9a-f]{40}", target):
+        raise SystemExit("发布目标必须是完整提交 SHA。")
+    title = "交办 v%s｜%s" % (version, (notes.get("新增") or ["小改动"])[0][:24])
     body_file = out / "release-body.md"
-    body_file.write_text(body, encoding="utf-8")
-    run(["gh", "release", "create", f"v{version}", str(apk_out), str(notes_out), str(sha_out),
-         "--repo", REPO, "--target", head, "--title", title, "--notes-file", str(body_file)])
-    print(run(["gh", "release", "view", f"v{version}", "--repo", REPO,
-               "--json", "tagName,url,assets", "--jq",
-               '"tag=\\(.tagName) assets=\\([.assets[].name] | join(", ")) \\(.url)"']).strip(), flush=True)
+    body_file.write_text(markdown(notes, sha), encoding="utf-8")
+    endpoint = f"repos/{REPO}/releases/tags/{tag}"
+    query = subprocess.run(["gh", "api", endpoint], capture_output=True, timeout=120)
+    if query.returncode:
+        problem = query.stderr.decode("utf-8", "replace")
+        if "404" not in problem:
+            raise SystemExit("无法核对已有发布，停止而不猜测状态：" + problem[:300])
+        run(["gh", "release", "create", tag, "--repo", REPO, "--target", target,
+             "--draft", "--title", title, "--notes-file", str(body_file)])
+        meta = json.loads(run(["gh", "api", endpoint]))
+    else:
+        meta = json.loads(query.stdout)
+    files = {p.name: p for p in (apk_out, notes_out, sha_out)}
+    if meta["draft"] and meta["target_commitish"] != target:
+        raise SystemExit("原草稿目标提交不一致，保留原草稿并停止。")
+    import uuid
+    readback = out / ("readback-" + uuid.uuid4().hex[:12])
+    readback.mkdir()
+    def verify_uploaded(release):
+        found = {}
+        for asset in release["assets"]:
+            name = asset["name"]
+            if name not in files:
+                raise SystemExit("发布中有未知资产，保留现场并停止：" + name)
+            local = files[name]
+            if asset["size"] != local.stat().st_size:
+                raise SystemExit("已有资产大小不一致，不覆盖：" + name)
+            run(["gh", "release", "download", tag, "--repo", REPO, "--pattern", name, "--dir", str(readback)])
+            actual = hashlib.sha256((readback / name).read_bytes()).hexdigest()
+            expected = hashlib.sha256(local.read_bytes()).hexdigest()
+            if actual != expected:
+                raise SystemExit("已有资产内容不一致，不覆盖：" + name)
+            found[name] = {"id": asset["id"], "name": name, "size": asset["size"], "sha256": actual}
+        return found
+    found = verify_uploaded(meta)
+    if not meta["draft"]:
+        if set(found) != set(files):
+            raise SystemExit("已发布版本资产不完整，只读核对后停止，不修改已有发布。")
+        print("该版本已发布，资产回读一致；未修改已有发布。", flush=True)
+    else:
+        missing = [p for name, p in files.items() if name not in found]
+        for path in missing:
+            run(["gh", "release", "upload", tag, str(path), "--repo", REPO])
+        meta = json.loads(run(["gh", "api", endpoint]))
+        # Only download newly added assets; previously verified files remain bound to their ids/size.
+        for asset in meta["assets"]:
+            if asset["name"] in found:
+                saved = readback / asset["name"]
+                if asset["size"] != saved.stat().st_size or asset["id"] != found[asset["name"]]["id"]:
+                    raise SystemExit("已核对资产在续传中发生变化，停止。")
+            else:
+                single = dict(meta); single["assets"] = [asset]
+                found.update(verify_uploaded(single))
+        if set(found) != set(files):
+            raise SystemExit("发布材料没有完整回读，保留草稿并停止。")
+        run(["gh", "release", "edit", tag, "--repo", REPO, "--draft=false"])
+        meta = json.loads(run(["gh", "api", endpoint]))
+        if meta["draft"]:
+            raise SystemExit("发布仍为草稿，保留现场。")
+    proof = {"privateRepository": True, "tag": tag, "url": meta["html_url"],
+             "targetCommit": meta["target_commitish"], "sourceFingerprint": fingerprint(),
+             "draft": meta["draft"], "readBackVerified": True, "assets": list(found.values())}
+    (out / "published-results.json").write_text(json.dumps(proof, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(json.dumps(proof, ensure_ascii=False, indent=2), flush=True)
     return 0
 
 

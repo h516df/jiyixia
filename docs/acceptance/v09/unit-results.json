@@ -1,0 +1,91 @@
+{
+  "tests": 98,
+  "failures": 0,
+  "errors": 0,
+  "suites": [
+    {
+      "suite": "cn.jiaoban.BucketTest",
+      "tests": 14,
+      "failures": 0,
+      "errors": 0
+    },
+    {
+      "suite": "cn.jiaoban.data.TaskCodecTest",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0
+    },
+    {
+      "suite": "cn.jiaoban.data.TasksHolderTest",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0
+    },
+    {
+      "suite": "cn.jiaoban.data.TaskStoreTest",
+      "tests": 5,
+      "failures": 0,
+      "errors": 0
+    },
+    {
+      "suite": "cn.jiaoban.ExpiryPolicyTest",
+      "tests": 8,
+      "failures": 0,
+      "errors": 0
+    },
+    {
+      "suite": "cn.jiaoban.parse.DueParserTest",
+      "tests": 18,
+      "failures": 0,
+      "errors": 0
+    },
+    {
+      "suite": "cn.jiaoban.parse.PersonParserTest",
+      "tests": 6,
+      "failures": 0,
+      "errors": 0
+    },
+    {
+      "suite": "cn.jiaoban.PeopleTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0
+    },
+    {
+      "suite": "cn.jiaoban.SearchAndSortTest",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0
+    },
+    {
+      "suite": "cn.jiaoban.update.ReleaseNotesTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0
+    },
+    {
+      "suite": "cn.jiaoban.update.UpdateCancellationTest",
+      "tests": 2,
+      "failures": 0,
+      "errors": 0
+    },
+    {
+      "suite": "cn.jiaoban.update.UpdateCatalogRealDataTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0
+    },
+    {
+      "suite": "cn.jiaoban.update.UpdateCatalogTest",
+      "tests": 11,
+      "failures": 0,
+      "errors": 0
+    },
+    {
+      "suite": "cn.jiaoban.update.UpdateVerifyTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0
+    }
+  ]
+}
