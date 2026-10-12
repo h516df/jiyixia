@@ -13,7 +13,10 @@ def fingerprint():
     paths += [ROOT / p for p in ("app/build.gradle.kts", "build.gradle.kts", "settings.gradle.kts", "gradle.properties", "gradle/wrapper/gradle-wrapper.properties")]
     h = hashlib.sha256()
     for p in sorted(p for p in paths if p.is_file()):
-        h.update(p.relative_to(ROOT).as_posix().encode()); h.update(b"\0"); h.update(p.read_bytes()); h.update(b"\0")
+        content=p.read_bytes()
+        if p.suffix in {".kt",".java",".kts",".xml",".json",".properties"}:
+            content=content.replace(b"\r\n",b"\n")
+        h.update(p.relative_to(ROOT).as_posix().encode()); h.update(b"\0"); h.update(content); h.update(b"\0")
     return h.hexdigest()
 
 def main():
@@ -34,13 +37,18 @@ def main():
         return p.stdout if binary else p.stdout.decode("utf-8","replace")
     identity = adb("shell","getprop","ro.boot.qemu.avd_name").strip()
     if identity != "Jiaoban_Redesign_API36": raise SystemExit("Only the task's disposable AVD is allowed.")
+    adb("shell","cmd","alarm","set-timezone","Asia/Shanghai")
     bound = {"sourceFingerprint":fingerprint(), "apkSha256":digest(args.apk), "probeSha256":digest(test_apk),
         "serial":args.serial,"avd":identity,"sdk":adb("shell","getprop","ro.build.version.sdk").strip(),
-        "abi":adb("shell","getprop","ro.product.cpu.abi").strip()}
+        "abi":adb("shell","getprop","ro.product.cpu.abi").strip(),
+        "timezone":adb("shell","getprop","persist.sys.timezone").strip()}
     record_path = out / "bound-results.json"
     if args.reuse_evidence and record_path.is_file():
         old=json.loads(record_path.read_text(encoding="utf-8"))
         if old.get("binding")==bound and old.get("passed"):
+            installed=adb("shell","pm","path","cn.jiaoban").strip().splitlines()[0].removeprefix("package:")
+            if adb("shell","sha256sum",installed).split()[0]!=bound["apkSha256"]:
+                raise SystemExit("Current installed APK differs; evidence cannot be reused.")
             print("Reused matching, passed source/APK/probe/environment evidence."); return 0
         raise SystemExit("Evidence does not match current inputs; rerun without --reuse-evidence.")
     for apk in (args.apk,test_apk):
@@ -49,7 +57,6 @@ def main():
     installed=adb("shell","pm","path","cn.jiaoban").strip().splitlines()[0].removeprefix("package:")
     actual=adb("shell","sha256sum",installed).split()[0]
     if actual!=bound["apkSha256"]: raise SystemExit("Installed package differs from tested APK.")
-    adb("shell","cmd","alarm","set-timezone","Asia/Shanghai")
     adb("shell","am","force-stop","cn.jiaoban")
     print("Testing "+mode+" APK "+actual,flush=True)
     command = [str(ADB),"-P",str(args.adb_port),"-s",args.serial,"shell","am","instrument","-w",
