@@ -10,6 +10,7 @@
 
 用法：python scripts/release_smoke.py
 """
+import datetime as dt
 import re
 import subprocess
 import sys
@@ -155,9 +156,15 @@ def main():
     time.sleep(4)
     xml = dump_ui("release-share")
     screen = texts(xml)
+    # 下周三 = 下周（下周一算起）的那个周三；按当天算，不写死日期
+    today = dt.date.today()
+    next_monday = today + dt.timedelta(days=7 - today.weekday())
+    next_wednesday = next_monday + dt.timedelta(days=2)
+    expected = "%d月%d日" % (next_wednesday.month, next_wednesday.day)
     check("正式版里认出了人（李姐）", any(t.startswith("李姐 · ") for t in screen),
           "，".join(sorted(t for t in screen if "·" in t)))
-    check("正式版里认出了期限（下周三）", any("10月14日" in t for t in screen),
+    check("正式版里认出了期限（下周三 = %s）" % expected,
+          any("李姐" in t and expected in t for t in screen),
           "，".join(sorted(t for t in screen if "·" in t)))
     check("截图 21-正式版认人认期限", shot("21-正式版认人认期限.png"))
 

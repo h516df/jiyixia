@@ -30,9 +30,5 @@ jobs:
 
       - name: 出调试包
         run: bash ./gradlew :app:assembleDebug --console=plain
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: app-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
+        # 不往 Actions 里存 APK 产物：安装包走 Release（发布脚本会挂上去），
+        # 存这里会占账号的 artifact 配额，配额满了会让整个 CI 变红。
