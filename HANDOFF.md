@@ -1,32 +1,15 @@
-# 交办整体改版交接（Issue #12）
+# 交办第二轮改版交接（Issue #15）
 
-## 用户决定与范围
+用户原话“还有不足，我觉得太简陋了”，确认界面与使用流程两者都简单，具体跟进选项回答“我不知道”。已确认主要用途仍是别人交代给我，快速记下、每天看事、办完留记录。开始办→等回复→时间化跟进→办完保留过程是代理推荐的可纠正默认，不能伪装为用户逐项明确指定。
 
-用户要求整体梳理 UI 和功能；主要用来记录别人交代给自己的事，快速记下、每天看该做什么、办完后留记录。每条可选必须办完或到期失效。用户本轮确认手机现版本 0.8。
+范围：紧凑首页、阅读详情与编辑分开、进行中和等回复筛选、带时间的进展/处理记录、按人及真实处理日期历史、保存失败重试、正文和进展草稿保护。保留原到期策略、全部原文、系统分享、搜索、日历与设备授权更新。非目标：步骤/附件/通知/优先级/团队/同步/导出，#2/#3/#5 独立。
 
-新记录默认必须办完，逾期继续留在首页；旧 JSON 无新字段继续原到期收起规则，允许逐条修改。保留本地数据、按人、历史、全局搜索和设备授权更新。非目标：团队分配、同步/账号、后台提醒；#2/#3/#5 仍待独立决定。
+唯一主写手/整合者当前 Codex。工作区 D:/Workspaces/Codex/2026-10-13/jia/work/repos/Jiaoban/codex-ui-workflow-redesign，分支 agent/codex/refined-followup-v010，核对基线 main feed71e68ca1f9ff6a04ecc03aa15a7c8866d33d。canonical D:/Projects/Jiaoban 的未知0.7草稿保留，不清理、不覆盖、不reset。OpenDesign 独立项目两次上游连接中断，无可用设计产物；未切模型或充值，现由主写手原生实现与实际截图迭代。
 
-## 归属与基线
+0.10/versionCode10 候选，114项单测、最终正式包原生回归、0.8及0.9同签名覆盖升级和真实更新取消/连续重试已通过。两组各7条旧记录文件哈希完全一致；保存失败重试、进展草稿保护和重启记录保持通过。新增字段为 workStage/followUps，原状态与期限独立，旧文件缺字段可读取、不主动写迁移。证据见 docs/acceptance/v010/README.md；不将早期失败或过时包当完成。下一步PR/CI/合并与私有发布资产回读。
 
-唯一写手及整合负责人：当前 Codex 会话 01a130e0-bb60-79b0-a8e5-fe954461cebf。
-工作区 D:/Workspaces/Codex/2026-10-13/jia/work/repos/Jiaoban/codex-ui-workflow-redesign。改版分支 agent/codex/ui-workflow-redesign 已经 PR #13 squash 合并；收尾分支 agent/codex/v09-release-record 从核对过的合并提交创建。
-基线 main a623131d1af5cf33d0e8a385078dbb957dbfe59d，已现场核对并快进。canonical D:/Projects/Jiaoban 的 0.7 原草稿仍完整保留，不能覆盖/清理/reset。
+源码指纹1c7feff60732c97d3c2136928863ea69935bb4b77315df25f16d0ca10e5fd4af；APK SHA256 8d3a95861b44cb0273ea416d5314223d457d3eac6e58ae649fb055afc4d14689，1,821,048字节，原签名保持。当前App源码已冻结，后续文档变更须核对指纹一致。
 
-## 当前进度与验收
+专用 AVD Jiaoban_Redesign_API36/API36/x86_64/AsiaShanghai，127.0.0.1:5591，ADB5043；只使用匿名夹具。证据必须匹配 sourceFingerprint/APK/probe和实际环境，探针仅androidTest。用户手机最后确认0.8，未连接；本人授权后的下载及系统安装真机路径未验收。
 
-0.9 / versionCode 9 已实现，98 项单测通过。最终正式包核心回归通过：中文输入与手动期限、两种到期策略、筛选实际结果、完整长文/emoji 原生分享、日历保存和取消、办完撤销、历史恢复、作废确认、按人、未保存编辑保护、已有编辑收到新分享的保护、同进程跨天、窄屏大字体、深色模式、重启后原记录文件哈希一致。
-0.8→0.9 同签名覆盖升级通过，7 条旧记录文件哈希完全一致，升级前后真实 UI 加载通过，未卸载/清数据。正式包更新取消/重试与同进程复试通过。
-业务代码 a9a4ad36dd281f00ce2342d1341850e6e334a3c6；源码指纹 36c99183e43dfc01ef1b99e1e373d9647b962f271e37b5ed85a4d1d73b31af97；正式 APK SHA256 c87080ecf3c7441d8797a76ee3f6c505cdf0f3c1bde50c15566c8c364ea39f57。
-
-专用 AVD Jiaoban_Redesign_API36 / API36 / x86_64，设备 127.0.0.1:5591，ADB5043，时区 Asia/Shanghai。用户手机未连接，未进行用户本人账号授权、私有发布下载或系统安装确认。测试使用匿名夹具；Java 探针只在 androidTest APK。日期/字体/显示测试结束恢复。
-证据在 verification/redesign-debug、redesign-release、redesign-upgrade 与更新取消报告；均须核对 sourceFingerprint、APK/探针 SHA256 和实际设备。不要将早期失败或过时包当完成。
-
-可长期复核的通过证据与截图见 docs/acceptance/v09/README.md。已分别自审 Issue 符合性与工程质量。
-PR #13 最终 head 025707183fb45f3201d3e72a9ea3e7384602167c 的 CI 成功（Actions run 38285653986）；合并提交及 v0.9 发布目标 ebc7743319af36573abaf5fece15195e31d77cf3，App 源码指纹在合并后重新核对一致。私有 Release https://github.com/h516df/Jiaoban/releases/tag/v0.9 已正式发布，APK/更新说明/SHA256 三项资产逐个下载回读一致，见 docs/acceptance/v09/published-results.json。
-发布过程中标签查询未显示原草稿，已按列表与 release ID 恢复同一个草稿，不重复创建、不覆盖资产；恢复逻辑 5 项测试通过。项目稳定索引登记已经 agent-rules PR #36 合并（只加 projects.md 一行）。
-剩余用户步骤：手机仍是用户确认的 0.8，需要由本人授权更新下载并确认系统覆盖安装；真机路径未验收。用户 2026-10-13 新规则已授权本任务内私有仓库推送、PR、经过验证的发布，不再单独确认。
-
-## 回退与限制
-
-不卸载、不清数据。新字段兼容旧文件，旧记录未被强制改变期限策略。正式包沿用原签名。若手机验收出现问题，保留记录并发布更高 versionCode 的修复包；不要安装低版本或换签名覆盖。
-解析仍基于规则，识别结果允许手动修改；无导出、同步和后台通知。手机真实授权/下载/系统安装尚未验收，模拟器不能替代。
+已发布0.9与原交付证据见 docs/acceptance/v09/README.md，Release https://github.com/h516df/Jiaoban/releases/tag/v0.9。不得覆盖该发布。0.10未完成发布前不得称手机已更新。回退保持同签名，保留数据，必要时发更高versionCode修复，不卸载或安装低版本。

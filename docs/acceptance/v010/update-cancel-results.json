@@ -1,0 +1,40 @@
+{
+  "serial": "127.0.0.1:5591",
+  "processUnchanged": true,
+  "results": [
+    {
+      "name": "Current version and offline notes are visible",
+      "passed": true
+    },
+    {
+      "name": "First check reaches real GitHub device authorization",
+      "passed": true
+    },
+    {
+      "name": "Cancel returns to check button",
+      "passed": true
+    },
+    {
+      "name": "Retry reaches device authorization again",
+      "passed": true
+    },
+    {
+      "name": "Retry uses the same live app process",
+      "passed": true
+    },
+    {
+      "name": "Repeated cancel and retry still work",
+      "passed": true
+    }
+  ],
+  "binding": {
+    "sourceFingerprint": "1c7feff60732c97d3c2136928863ea69935bb4b77315df25f16d0ca10e5fd4af",
+    "apkSha256": "8d3a95861b44cb0273ea416d5314223d457d3eac6e58ae649fb055afc4d14689",
+    "probeSha256": "c3d48d1244aab756cc87f12aeecd9f36d2098d4b02bcdb6c67c34b1b6951342a",
+    "serial": "127.0.0.1:5591",
+    "avd": "Jiaoban_Redesign_API36",
+    "sdk": "36",
+    "abi": "x86_64",
+    "timezone": "Asia/Shanghai"
+  }
+}
