@@ -1,0 +1,29 @@
+{
+  "privateRepository": true,
+  "tag": "v0.10",
+  "url": "https://github.com/h516df/Jiaoban/releases/tag/v0.10",
+  "targetCommit": "d93f773e82bf86f871390520997d168355b82437",
+  "sourceFingerprint": "2a9780d0e59fb9fc1d2ee01759131ab0bcad1d46e0144355f61bae4c6ffdcde9",
+  "draft": false,
+  "readBackVerified": true,
+  "assets": [
+    {
+      "id": 635707552,
+      "name": "Jiaoban-v0.10-release-notes.json",
+      "size": 1113,
+      "sha256": "7ffb0fca0e39288d2b24269a7f9a9bb0f5f06fa2e75afc81f7f5ca26cc073dc6"
+    },
+    {
+      "id": 635707609,
+      "name": "Jiaoban-v0.10-SHA256.txt",
+      "size": 95,
+      "sha256": "d8f8a0d4ce0912baf631492295a5d2c197dfd2a36d7176242008913eec66e273"
+    },
+    {
+      "id": 635707447,
+      "name": "Jiaoban-v0.10-universal.apk",
+      "size": 1821048,
+      "sha256": "483464515604f22bf73418cc4006c308d4b69eaf4596819fb9d12158c4377038"
+    }
+  ]
+}

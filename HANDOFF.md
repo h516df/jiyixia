@@ -6,10 +6,13 @@
 
 唯一主写手/整合者当前 Codex。工作区 D:/Workspaces/Codex/2026-10-13/jia/work/repos/Jiaoban/codex-ui-workflow-redesign，分支 agent/codex/refined-followup-v010，核对基线 main feed71e68ca1f9ff6a04ecc03aa15a7c8866d33d。canonical D:/Projects/Jiaoban 的未知0.7草稿保留，不清理、不覆盖、不reset。OpenDesign 独立项目两次上游连接中断，无可用设计产物；未切模型或充值，现由主写手原生实现与实际截图迭代。
 
-0.10/versionCode10 候选，114项单测、最终正式包原生回归、0.8及0.9同签名覆盖升级和真实更新取消/连续重试已通过。两组各7条旧记录文件哈希完全一致；保存失败重试、进展草稿保护和重启记录保持通过。新增字段为 workStage/followUps，原状态与期限独立，旧文件缺字段可读取、不主动写迁移。证据见 docs/acceptance/v010/README.md；不将早期失败或过时包当完成。下一步PR/CI/合并与私有发布资产回读。
+0.10/versionCode10 已正式发布，114项单测、最终正式包原生回归、0.8及0.9同签名覆盖升级和真实更新取消/连续重试已通过。两组各7条旧记录文件哈希完全一致；保存失败重试、进展草稿保护和重启记录保持通过。新增字段为 workStage/followUps，原状态与期限独立，旧文件缺字段可读取、不主动写迁移。证据见 docs/acceptance/v010/README.md；不将早期失败或过时包当完成。PR #16最终提交CI通过并squash合并；私有Release三项资产逐项回读一致。
 
 源码指纹2a9780d0e59fb9fc1d2ee01759131ab0bcad1d46e0144355f61bae4c6ffdcde9；APK SHA256 483464515604f22bf73418cc4006c308d4b69eaf4596819fb9d12158c4377038，1,821,048字节，原签名保持。当前App源码已冻结，后续文档变更须核对指纹一致。
 
 专用 AVD Jiaoban_Redesign_API36/API36/x86_64/AsiaShanghai，127.0.0.1:5591，ADB5043；只使用匿名夹具。证据必须匹配 sourceFingerprint/APK/probe和实际环境，探针仅androidTest。用户手机最后确认0.8，未连接；本人授权后的下载及系统安装真机路径未验收。
 
 已发布0.9与原交付证据见 docs/acceptance/v09/README.md，Release https://github.com/h516df/Jiaoban/releases/tag/v0.9。不得覆盖该发布。0.10未完成发布前不得称手机已更新。回退保持同签名，保留数据，必要时发更高versionCode修复，不卸载或安装低版本。
+
+
+0.10已正式发布：https://github.com/h516df/Jiaoban/releases/tag/v0.10。PR #16最终head 728c59e088390f00f4aec671f7a18bf01a0e6874 的[CI](https://github.com/h516df/Jiaoban/actions/runs/38339552268)通过；合并/发布目标 `d93f773e82bf86f871390520997d168355b82437`。APK、中文说明、SHA256三项资产逐项下载回读一致，见published-results.json。用户手机本人授权下载及系统安装仍未验收。

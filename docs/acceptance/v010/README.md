@@ -13,6 +13,9 @@
 
 Issue符合性：范围内的阅读详情、进展、按人/历史、原到期行为与兼容回归已通过。工程质量：不新增依赖或服务，原状态/期限不变，旧字段默认兼容，撤销守护预期快照，写盘单队列并可恢复。原canonical未知草稿保留。设计助手两次上游断连未生成产物，实际界面由主写手原生实现并看截图迭代。
 
-用户手机最后确认0.8，未连接；本人授权后的下载与系统安装尚未验收。CI、合并与发布状态后续以PR和published-results.json为准。升级不卸载；问题修复以同签名更高versionCode交付，不降级覆盖或换签名。
+用户手机最后确认0.8，未连接；本人授权后的下载与系统安装尚未验收。CI、合并和发布已完成，三项资产回读一致。升级不卸载；问题修复以同签名更高versionCode交付，不降级覆盖或换签名。
 
 对应实际截图：[首页](01-home.png)、[进展详情](11-detail-followup.png)、[历史](05-history.png)、[按人](06-person.png)、[窄屏大字体](09-large-font.png)、[深色](10-dark.png)、[保存失败](12-save-error.png)。
+
+
+0.10已正式发布：https://github.com/h516df/Jiaoban/releases/tag/v0.10。PR #16最终head 728c59e088390f00f4aec671f7a18bf01a0e6874 的[CI](https://github.com/h516df/Jiaoban/actions/runs/38339552268)通过；合并/发布目标 `d93f773e82bf86f871390520997d168355b82437`。APK、中文说明、SHA256三项资产逐项下载回读一致，见published-results.json。用户手机本人授权下载及系统安装仍未验收。
