@@ -1,0 +1,23 @@
+{
+  "passed": true,
+  "sourceFingerprint": "2a9780d0e59fb9fc1d2ee01759131ab0bcad1d46e0144355f61bae4c6ffdcde9",
+  "serial": "127.0.0.1:5591",
+  "avd": "Jiaoban_Redesign_API36",
+  "old": {
+    "package": "cn.jiaoban",
+    "versionCode": 9,
+    "versionName": "0.9",
+    "sha256": "c87080ecf3c7441d8797a76ee3f6c505cdf0f3c1bde50c15566c8c364ea39f57"
+  },
+  "new": {
+    "package": "cn.jiaoban",
+    "versionCode": 10,
+    "versionName": "0.10",
+    "sha256": "483464515604f22bf73418cc4006c308d4b69eaf4596819fb9d12158c4377038"
+  },
+  "certificateSha256": "21b74e3e2a10e12da8284d4e6bd7d99e55b00a385215902e94d7896f7a46c967",
+  "recordsBefore": "DATA_SHA256: ca3ffde200803f42a77bb653bc0b2880f9d7b77aeacda787485b81702ec7f612 count=7\\n",
+  "recordsAfter": "DATA_SHA256: ca3ffde200803f42a77bb653bc0b2880f9d7b77aeacda787485b81702ec7f612 count=7\\n",
+  "loadedBeforeAndAfter": true,
+  "noUninstallOrDataClear": true
+}

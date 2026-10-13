@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify same-signature 0.8 -> 0.9 upgrade, exact record preservation and real loaded UI on the owned AVD."""
+"""Verify same-signature cover upgrade, exact record preservation and real loaded UI on the owned AVD."""
 import argparse, hashlib, json, os, re, subprocess, sys, time
 from pathlib import Path
 from android_redesign_acceptance import fingerprint
@@ -21,8 +21,6 @@ def main():
     args=parser.parse_args()
     new=ROOT/"app/build/outputs/apk/release/app-release.apk"
     test=ROOT/"app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk"
-    out=ROOT/"verification/redesign-upgrade"
-    out.mkdir(parents=True,exist_ok=True)
     def adb(*parts): return run([ADB,"-P",args.adb_port,"-s",args.serial,*parts])
     if adb("shell","getprop","ro.boot.qemu.avd_name").strip()!="Jiaoban_Redesign_API36": raise SystemExit("Wrong AVD.")
     def signing(path):
@@ -33,6 +31,8 @@ def main():
         m=re.search(r"package: name='([^']+)' versionCode='(\d+)' versionName='([^']+)'",raw)
         return {"package":m.group(1),"versionCode":int(m.group(2)),"versionName":m.group(3)}
     old_meta,new_meta=package(args.old_apk),package(new)
+    out=ROOT/("verification/upgrade-"+old_meta["versionName"]+"-to-"+new_meta["versionName"])
+    out.mkdir(parents=True,exist_ok=True)
     old_cert,new_cert=signing(args.old_apk),signing(new)
     if old_cert!=new_cert or old_meta["package"]!=new_meta["package"] or old_meta["versionCode"]>=new_meta["versionCode"]:
         raise SystemExit("Upgrade identity/signature/version gate failed.")
@@ -42,7 +42,8 @@ def main():
     for apk in (args.old_apk,test):
         if "Success" not in adb("install","-r","-d",apk): raise SystemExit("Fixture install failed.")
     adb("shell","am","force-stop","cn.jiaoban")
-    first=adb("shell","am","instrument","-w","-e","dataOnly","true","-e","seedLegacy","true","cn.jiaoban.test/cn.jiaoban.RedesignRegressionProbe")
+    fixture="seedLegacy" if old_meta["versionCode"] <= 8 else "seedFixture"
+    first=adb("shell","am","instrument","-w","-e","dataOnly","true","-e",fixture,"true","cn.jiaoban.test/cn.jiaoban.RedesignRegressionProbe")
     before=next((s.strip() for s in first.splitlines() if "DATA_SHA256:" in s),"")
     if not before: raise SystemExit("Legacy fixture creation failed.")
     adb("shell","am","start","-W","-n","cn.jiaoban/.MainActivity")

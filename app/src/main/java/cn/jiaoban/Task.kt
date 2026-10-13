@@ -20,6 +20,8 @@ data class Task(
     val createdAt: Instant,
     val closedAt: Instant? = null,
     val expiryPolicy: ExpiryPolicy = ExpiryPolicy.EXPIRES,
+    val workStage: WorkStage = WorkStage.RECEIVED,
+    val followUps: List<FollowUp> = emptyList(),
 )
 
 /**
@@ -90,7 +92,8 @@ fun sortForHistory(tasks: List<Task>): List<Task> =
 fun matches(task: Task, query: String): Boolean {
     val q = query.trim()
     if (q.isEmpty()) return true
-    return task.text.contains(q, ignoreCase = true) || task.from.contains(q, ignoreCase = true)
+    return task.text.contains(q, ignoreCase = true) || task.from.contains(q, ignoreCase = true) ||
+        task.followUps.any { it.text.contains(q, ignoreCase = true) }
 }
 
 /** 搜索是全局的：过期、办完、作废的都能翻出来。 */

@@ -3,6 +3,9 @@ package cn.jiaoban.data
 import cn.jiaoban.Task
 import cn.jiaoban.TaskState
 import cn.jiaoban.ExpiryPolicy
+import cn.jiaoban.WorkStage
+import cn.jiaoban.FollowUp
+import cn.jiaoban.FollowUpKind
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.Instant
@@ -23,6 +26,11 @@ object TaskCodec {
             o.put("due", if (t.due == null) JSONObject.NULL else t.due.toString())
             o.put("state", t.state.name)
             o.put("expiryPolicy", t.expiryPolicy.name)
+            o.put("workStage", t.workStage.name)
+            val events = JSONArray()
+            for(event in t.followUps) events.put(JSONObject().put("id",event.id).put("text",event.text)
+                .put("createdAt",event.createdAt.toString()).put("kind",event.kind.name))
+            o.put("followUps",events)
             o.put("createdAt", t.createdAt.toString())
             o.put("closedAt", if (t.closedAt == null) JSONObject.NULL else t.closedAt.toString())
             arr.put(o)
@@ -53,7 +61,25 @@ object TaskCodec {
                 // 旧记录无字段时，保留原来的到期收起行为，不能替用户改决定。
                 expiryPolicy = runCatching { ExpiryPolicy.valueOf(o.optString("expiryPolicy", "EXPIRES")) }
                     .getOrDefault(ExpiryPolicy.EXPIRES),
+                workStage = runCatching { WorkStage.valueOf(o.optString("workStage", "RECEIVED")) }
+                    .getOrDefault(WorkStage.RECEIVED),
+                followUps = decodeEvents(o.optJSONArray("followUps")),
             )
+        }
+        return out
+    }
+
+    private fun decodeEvents(array: JSONArray?): List<FollowUp> {
+        if(array == null) return emptyList()
+        val out = ArrayList<FollowUp>()
+        for(i in 0 until array.length()) {
+            val event = array.optJSONObject(i) ?: continue
+            val id = event.optString("id")
+            val text = event.optString("text")
+            val at = runCatching { Instant.parse(event.optString("createdAt")) }.getOrNull() ?: continue
+            if(id.isBlank() || text.isBlank()) continue
+            val kind = runCatching { FollowUpKind.valueOf(event.optString("kind","NOTE")) }.getOrDefault(FollowUpKind.NOTE)
+            out += FollowUp(id,text,at,kind)
         }
         return out
     }

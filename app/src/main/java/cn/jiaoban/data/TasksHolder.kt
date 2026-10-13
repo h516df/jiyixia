@@ -5,9 +5,7 @@ import android.os.Looper
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import cn.jiaoban.Task
-import cn.jiaoban.TaskState
-import cn.jiaoban.ExpiryPolicy
+import cn.jiaoban.*
 import cn.jiaoban.parse.DueParser
 import cn.jiaoban.parse.PersonParser
 import java.time.Instant
@@ -34,6 +32,9 @@ class TasksHolder(private val store: TaskStore) {
 
     /** 读盘还没回来时用户就动过数据了，这时不能再拿读到的旧快照覆盖内存。 */
     private var dirty = false
+    private var revision = 0L
+    var saveError by mutableStateOf<String?>(null)
+        private set
 
     fun start() {
         io.execute {
@@ -83,15 +84,23 @@ class TasksHolder(private val store: TaskStore) {
 
     fun update(task: Task) = commit(tasks.map { if (it.id == task.id) task else it })
 
-    fun setState(id: String, state: TaskState) = commit(
-        tasks.map {
-            if (it.id != id) {
-                it
-            } else {
-                it.copy(state = state, closedAt = if (state == TaskState.OPEN) null else Instant.now())
-            }
-        }
-    )
+    private fun change(id: String, transform: (Task) -> Task): Task? {
+        val before = tasks.firstOrNull { it.id == id } ?: return null
+        val after = transform(before)
+        if(after != before) commit(tasks.map { if(it.id == id) after else it })
+        return after
+    }
+    fun setState(id: String, state: TaskState) = change(id) { it.withState(state) }
+    fun setWorkStage(id: String, stage: WorkStage) = change(id) { it.withWorkStage(stage) }
+    fun addFollowUp(id: String, text: String) = change(id) { it.withFollowUp(text) }
+
+    /** 只撤销对应快照；后续新进展或编辑不能被一个旧“撤销”按钮覆盖。 */
+    fun undoChange(before: Task, expected: Task): Boolean {
+        if(tasks.firstOrNull { it.id == before.id } != expected) return false
+        update(before)
+        return true
+    }
+    fun retrySave() = commit(tasks)
 
     /** 最近交代过事的人，用来少打字。 */
     fun recentFroms(): List<String> =
@@ -100,6 +109,13 @@ class TasksHolder(private val store: TaskStore) {
     private fun commit(next: List<Task>) {
         dirty = true
         tasks = next
-        io.execute { store.save(next) }
+        val currentRevision = ++revision
+        io.execute {
+            val result = runCatching { store.save(next) }
+            main.post {
+                if(currentRevision == revision) saveError =
+                    if(result.isFailure) "改动暂未保存到手机，请重试" else null
+            }
+        }
     }
 }

@@ -73,11 +73,21 @@ public class RedesignRegressionProbe extends Instrumentation {
                     }
                 }
             }
-            boolean moved=false;
-            for(AccessibilityNodeInfo n:nodes()) if(n.isScrollable() && n.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)) { moved=true; break; }
+            boolean moved=scrollForward(Arrays.asList("全部","今天","逾期","接下来","进行中","等回复").contains(text));
             if(!moved) SystemClock.sleep(200); else SystemClock.sleep(200);
         }
         throw new AssertionError("Missing clickable "+text+" | "+labels());
+    }
+    private boolean scrollForward(boolean horizontal) {
+        for(AccessibilityNodeInfo n:nodes()) if(n.isScrollable()) {
+            Rect bounds=new Rect();n.getBoundsInScreen(bounds);
+            if((bounds.height()<bounds.width()/2)==horizontal && n.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)) return true;
+        }
+        return false;
+    }
+    private void reveal(String text) throws Exception {
+        for(int i=0;i<15 && !labels().contains(text);i++) { scrollForward(false);SystemClock.sleep(200); }
+        waitFor(s->s.contains(text));
     }
     private void setText(int index,String value) throws Exception {
         List<AccessibilityNodeInfo> inputs = new ArrayList<>();
@@ -142,12 +152,15 @@ public class RedesignRegressionProbe extends Instrumentation {
         check("Persist "+id+" "+key+"="+expected,false);
     }
     private void search(String text) throws Exception {
+        if(labels().contains("返回记录")) tap("返回记录");
         if(labels().contains("取消")) tap("取消");
         tap("搜索全部记录"); waitFor(s->hasPart(s,"搜事情或交代人"));
         setText(0,text); hideKeyboard(); waitFor(s->s.contains(text));
     }
-    private void open(String text) throws Exception { search(text); tap(text); waitFor(s->s.contains("交办详情")); }
+    private void reader(String text) throws Exception { search(text); tap(text); waitFor(s->s.contains("事项详情")); }
+    private void open(String text) throws Exception { reader(text); tap("编辑"); waitFor(s->s.contains("编辑交办")); }
     private void home() throws Exception {
+        if(labels().contains("返回记录")) tap("返回记录");
         if(labels().contains("取消")) tap("取消");
         if(!labels().contains("交办")) tap("事情");
         waitFor(s->s.contains("记一件"));
@@ -170,10 +183,10 @@ public class RedesignRegressionProbe extends Instrumentation {
         if(args!=null && "true".equals(args.getString("dataOnly"))) {
             try {
                 if(!"Jiaoban_Redesign_API36".equals(shell("getprop ro.boot.qemu.avd_name"))) throw new IllegalStateException("Wrong AVD");
-                if("true".equals(args.getString("seedLegacy"))) {
+                if("true".equals(args.getString("seedLegacy")) || "true".equals(args.getString("seedFixture"))) {
                     seed(LocalDate.now());
                     JSONArray legacy=data();
-                    for(int i=0;i<legacy.length();i++) legacy.getJSONObject(i).remove("expiryPolicy");
+                    if("true".equals(args.getString("seedLegacy"))) for(int i=0;i<legacy.length();i++) legacy.getJSONObject(i).remove("expiryPolicy");
                     Files.write(new File(getTargetContext().getFilesDir(),"tasks.json").toPath(),legacy.toString().getBytes(StandardCharsets.UTF_8));
                 }
                 byte[] bytes=Files.readAllBytes(new File(getTargetContext().getFilesDir(),"tasks.json").toPath());
@@ -200,6 +213,10 @@ public class RedesignRegressionProbe extends Instrumentation {
                 labels().contains("逾期活动表") && !labels().contains("到期活动名额") && !labels().contains("旧版到期记录"));
             check("Home does not open keyboard",getUiAutomation().getWindows().stream().noneMatch(w->w.getType()==AccessibilityWindowInfo.TYPE_INPUT_METHOD));
             shot("01-home");
+            tap("进行中"); waitFor(s->s.contains("还没有进行中的事"));
+            check("Working empty state does not show unrelated tasks",!labels().contains("今日周报"));
+            tap("等回复"); waitFor(s->s.contains("没有等回复的事"));
+            check("Waiting empty state does not imply future arrangements",!labels().contains("暂时没有后续安排"));
             search("已完成"); waitFor(s->s.contains("已完成记录") && s.contains("共 1 件"));
             check("Global search includes closed records and excludes unrelated records",!labels().contains("今日周报") && !labels().contains("逾期活动表"));
             search("不存在的记录XYZ"); waitFor(s->s.contains("没有找到“不存在的记录XYZ”"));
@@ -213,7 +230,7 @@ public class RedesignRegressionProbe extends Instrumentation {
             tap("接下来"); waitFor(s->s.contains("未来预算"));
             check("Later filter results",!labels().contains("逾期活动表") && !labels().contains("今日周报"));
             home();
-            tap("到期失效 · 2 件"); waitFor(s->s.contains("旧版到期记录"));
+            tap("到期失效 · 2 件"); reveal("旧版到期记录");
             check("Expired section opens real records",labels().contains("到期活动名额")); shot("02-expired");
             open("到期活动名额"); tap("必须办完"); tap("保存修改"); persisted("expires","expiryPolicy","MUST_FINISH");
             home(); tap("逾期"); waitFor(s->s.contains("到期活动名额"));
@@ -235,17 +252,42 @@ public class RedesignRegressionProbe extends Instrumentation {
             persisted("today","due",today.withDayOfMonth(20).toString());
             check("Calendar cancel preserves chosen date",true);
 
+            reader("逾期活动表");
+            check("Detail opens reader rather than editable form",nodes().stream().noneMatch(n->n.isEditable()));
+            tap("开始办"); persisted("must","workStage","WORKING");
+            tap("等回复"); persisted("must","workStage","WAITING");
+            tap("记进展"); waitFor(s->s.contains("记一条进展"));
+            String note="活动表已发给王总，等确认\n价格已核对😀，编号ABC123";
+            setText(0,note); hideKeyboard();
+            shareText("新的分享不能覆盖进展"); waitFor(s->s.contains("收到新的分享")); tap("继续当前编辑");
+            waitFor(s->s.contains(note)); check("Incoming share preserves unsaved follow-up",labels().contains("记一条进展"));
+            tap("保存进展"); waitFor(s->s.contains(note));
+            JSONArray events=byId("must").getJSONArray("followUps");
+            check("Full note and progress events persist",events.length()==3 && events.getJSONObject(2).getString("text").equals(note));
+            shot("11-detail-followup");
+            home(); tap("等回复"); waitFor(s->s.contains("逾期活动表"));
+            check("Waiting filter excludes received records",!labels().contains("未来预算") && !labels().contains("到期活动名额"));
+            search("ABC123"); waitFor(s->s.contains("逾期活动表") && s.contains("共 1 件"));
+            check("Search finds follow-up content",!labels().contains("今日周报"));
+            reader("逾期活动表"); tap("继续办理"); persisted("must","workStage","WORKING");
+            home(); tap("进行中"); waitFor(s->s.contains("逾期活动表"));
+            check("Working filter shows actual stage",!labels().contains("未来预算"));
+
             open("逾期活动表"); tap("办完了"); tap("撤销"); persisted("must","state","OPEN");
             open("逾期活动表"); tap("办完了"); persisted("must","state","DONE");
+            if(labels().contains("返回记录")) tap("返回记录");
             if(labels().contains("取消")) tap("取消");
             tap("历史"); waitFor(s->s.contains("逾期活动表"));
             tap("已办完"); check("Done history filter excludes void records",!labels().contains("作废记录")); shot("05-history");
             tap("逾期活动表"); waitFor(s->s.contains("恢复为待办"));
             tap("恢复为待办"); persisted("must","state","OPEN");
+            check("Restore retains follow-up and working stage",byId("must").getString("workStage").equals("WORKING") &&
+                byId("must").getJSONArray("followUps").toString().contains("ABC123"));
             open("未来预算"); tap("作废这件事"); waitFor(s->s.contains("确认作废"));
             check("Void requires explicit confirmation",byId("later").getString("state").equals("OPEN"));
             tap("确认作废"); persisted("later","state","VOID");
             open("未来预算"); tap("恢复为待办"); persisted("later","state","OPEN");
+            if(labels().contains("返回记录")) tap("返回记录");
             if(labels().contains("取消")) tap("取消");
             tap("按人"); tap("李姐"); waitFor(s->s.contains("到期活动名额"));
             check("Person detail results exclude another person's tasks",!labels().contains("逾期活动表")); shot("06-person");
@@ -298,6 +340,18 @@ public class RedesignRegressionProbe extends Instrumentation {
             check("Dark status bar renders readable light time icons",lightStatusIcons()); shot("10-dark");
             check("Dark mode main path remains usable",labels().contains("记一件"));
             shell("cmd uimode night no");
+            home();
+            File blocked=new File(getTargetContext().getFilesDir(),"tasks.json.tmp");
+            check("Inject recoverable save failure on owned fixture",!blocked.exists() && blocked.mkdir());
+            try {
+                tap("记一件"); setText(0,"保存失败后重试保留这件事"); hideKeyboard(); tap("无期限"); tap("记下");
+                waitFor(s->s.contains("重试保存"));
+                check("Save failure is visible and keeps prior disk data",!data().toString().contains("保存失败后重试保留这件事"));
+                shot("12-save-error");
+            } finally { if(blocked.isDirectory()) blocked.delete(); }
+            tap("重试保存");
+            check("Retry writes the same pending record",byText("保存失败后重试保留这件事").isNull("due"));
+            waitFor(s->!s.contains("重试保存"));
             report.put("version",getTargetContext().getPackageManager().getPackageInfo("cn.jiaoban",0).versionName);
             report.put("sdk",Build.VERSION.SDK_INT).put("abi",Build.SUPPORTED_ABIS[0]).put("timezone",ZoneId.systemDefault().toString());
             report.put("recordCount",data().length()).put("sourceFingerprint",args==null?"":args.getString("sourceFingerprint",""));
