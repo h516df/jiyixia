@@ -213,6 +213,10 @@ public class RedesignRegressionProbe extends Instrumentation {
                 labels().contains("逾期活动表") && !labels().contains("到期活动名额") && !labels().contains("旧版到期记录"));
             check("Home does not open keyboard",getUiAutomation().getWindows().stream().noneMatch(w->w.getType()==AccessibilityWindowInfo.TYPE_INPUT_METHOD));
             shot("01-home");
+            tap("进行中"); waitFor(s->s.contains("还没有进行中的事"));
+            check("Working empty state does not show unrelated tasks",!labels().contains("今日周报"));
+            tap("等回复"); waitFor(s->s.contains("没有等回复的事"));
+            check("Waiting empty state does not imply future arrangements",!labels().contains("暂时没有后续安排"));
             search("已完成"); waitFor(s->s.contains("已完成记录") && s.contains("共 1 件"));
             check("Global search includes closed records and excludes unrelated records",!labels().contains("今日周报") && !labels().contains("逾期活动表"));
             search("不存在的记录XYZ"); waitFor(s->s.contains("没有找到“不存在的记录XYZ”"));

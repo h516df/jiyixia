@@ -8,7 +8,7 @@
 
 0.10/versionCode10 候选，114项单测、最终正式包原生回归、0.8及0.9同签名覆盖升级和真实更新取消/连续重试已通过。两组各7条旧记录文件哈希完全一致；保存失败重试、进展草稿保护和重启记录保持通过。新增字段为 workStage/followUps，原状态与期限独立，旧文件缺字段可读取、不主动写迁移。证据见 docs/acceptance/v010/README.md；不将早期失败或过时包当完成。下一步PR/CI/合并与私有发布资产回读。
 
-源码指纹1c7feff60732c97d3c2136928863ea69935bb4b77315df25f16d0ca10e5fd4af；APK SHA256 8d3a95861b44cb0273ea416d5314223d457d3eac6e58ae649fb055afc4d14689，1,821,048字节，原签名保持。当前App源码已冻结，后续文档变更须核对指纹一致。
+源码指纹2a9780d0e59fb9fc1d2ee01759131ab0bcad1d46e0144355f61bae4c6ffdcde9；APK SHA256 483464515604f22bf73418cc4006c308d4b69eaf4596819fb9d12158c4377038，1,821,048字节，原签名保持。当前App源码已冻结，后续文档变更须核对指纹一致。
 
 专用 AVD Jiaoban_Redesign_API36/API36/x86_64/AsiaShanghai，127.0.0.1:5591，ADB5043；只使用匿名夹具。证据必须匹配 sourceFingerprint/APK/probe和实际环境，探针仅androidTest。用户手机最后确认0.8，未连接；本人授权后的下载及系统安装真机路径未验收。
 

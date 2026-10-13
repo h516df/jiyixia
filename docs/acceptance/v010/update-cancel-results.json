@@ -28,9 +28,9 @@
     }
   ],
   "binding": {
-    "sourceFingerprint": "1c7feff60732c97d3c2136928863ea69935bb4b77315df25f16d0ca10e5fd4af",
-    "apkSha256": "8d3a95861b44cb0273ea416d5314223d457d3eac6e58ae649fb055afc4d14689",
-    "probeSha256": "c3d48d1244aab756cc87f12aeecd9f36d2098d4b02bcdb6c67c34b1b6951342a",
+    "sourceFingerprint": "2a9780d0e59fb9fc1d2ee01759131ab0bcad1d46e0144355f61bae4c6ffdcde9",
+    "apkSha256": "483464515604f22bf73418cc4006c308d4b69eaf4596819fb9d12158c4377038",
+    "probeSha256": "1d399a7edf4e57d202f9f983ab2d4129bd48d4f4d7c9cd036c65f06f7587fc41",
     "serial": "127.0.0.1:5591",
     "avd": "Jiaoban_Redesign_API36",
     "sdk": "36",

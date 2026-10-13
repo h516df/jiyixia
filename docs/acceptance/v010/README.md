@@ -6,8 +6,8 @@
 
 0.8及0.9同签名覆盖升级均通过，各7条匿名记录的文件哈希升级前后完全一致；升级前后实际UI加载，不卸载/不清数据。正式包更新入口到真实GitHub设备授权、取消/重复重试与同一进程通过；未代用户登录。
 
-- 源码指纹：`1c7feff60732c97d3c2136928863ea69935bb4b77315df25f16d0ca10e5fd4af`
-- APK SHA256：`8d3a95861b44cb0273ea416d5314223d457d3eac6e58ae649fb055afc4d14689`
+- 源码指纹：`2a9780d0e59fb9fc1d2ee01759131ab0bcad1d46e0144355f61bae4c6ffdcde9`
+- APK SHA256：`483464515604f22bf73418cc4006c308d4b69eaf4596819fb9d12158c4377038`
 - 包名 cn.jiaoban，0.10/versionCode10；原签名证书SHA256 `21b74e3e2a10e12da8284d4e6bd7d99e55b00a385215902e94d7896f7a46c967`
 - 本轮环境 Jiaoban_Redesign_API36/API36/x86_64/AsiaShanghai，127.0.0.1:5591，ADB5043；匿名夹具、无用户账号。
 

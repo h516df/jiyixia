@@ -220,7 +220,9 @@ private fun Home(tasks: List<Task>, today: LocalDate, padding: PaddingValues,
         }
         if(groups.all { it.second.isEmpty() }) item {
             Empty(if(filter == Filter.ALL) "暂时没有要办的事" else when(filter) {
-                Filter.TODAY -> "今天没有到期的事"; Filter.OVERDUE -> "没有逾期待办"; else -> "暂时没有后续安排"
+                Filter.TODAY -> "今天没有到期的事"; Filter.OVERDUE -> "没有逾期待办"
+                Filter.WORKING -> "还没有进行中的事"; Filter.WAITING -> "没有等回复的事"
+                else -> "暂时没有后续安排"
             }, if(filter == Filter.ALL) "领导交代、微信消息，都可以记在这里" else "切到“全部”查看其他事情",
                 if(filter == Filter.ALL) onAdd else null)
         }
