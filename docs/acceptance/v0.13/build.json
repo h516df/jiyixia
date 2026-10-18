@@ -1,0 +1,9 @@
+{
+  "version": "0.13",
+  "apkSha256": "a519ef0d07e194fce3aaabbb9510842d4c33ce6a36959489bb97f63b5ae9ad35",
+  "bytes": 1870248,
+  "unitTests": 116,
+  "failures": 0,
+  "device": "Android 16 / API36 task-owned emulator",
+  "realPhoneAccepted": false
+}
