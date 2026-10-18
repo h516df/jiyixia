@@ -12,5 +12,5 @@ fun actionGrowth(tasks:List<Task>,today:LocalDate):GrowthStats {
         GrowthMetric("notes","保存笔记",tasks.count{it.kind==EntryKind.NOTE}.toLong(),listOf(1,10,30),listOf("灵感落纸","随手记作者","自己的小书"),"篇"),
         GrowthMetric("followup","主动跟进",tasks.sumOf{it.followUps.count{f->f.kind in listOf(FollowUpKind.NOTE,FollowUpKind.PROGRESS)}}.toLong(),listOf(3,10,30),listOf("有始有终","跟进有方","可靠的伙伴"),"次"),
         GrowthMetric("personal","完成个人待办",done.count{it.kind==EntryKind.TODO}.toLong(),listOf(3,10,30),listOf("为自己行动","计划践行者","日常掌舵人"),"件")
-    ),week.toLong(),"件完成",listOf(3,7,15))
+    ),week.toLong(),"件完成",listOf(3,7,15),done.filter{it.closedAt!=null}.sortedByDescending{it.closedAt}.take(3).map{it.text})
 }

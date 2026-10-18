@@ -7,12 +7,12 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-private val Paper = Color(0xFFF5F6F8)
-private val PaperNight = Color(0xFF111621)
-private val Ink = Color(0xFF182334)
-private val InkSoft = Color(0xFF596678)
-private val Indigo = Color(0xFF3856A6)
-private val Green = Color(0xFF247563)
+private val Paper = Color(0xFFFAFAF9)
+private val PaperNight = Color(0xFF151719)
+private val Ink = Color(0xFF20252B)
+private val InkSoft = Color(0xFF667078)
+private val Indigo = Color(0xFF2868CB)
+private val Green = Color(0xFF2868CB)
 
 private val LightColors = lightColorScheme(
     primary = Indigo,
@@ -23,12 +23,12 @@ private val LightColors = lightColorScheme(
     onBackground = Ink,
     surface = Color.White,
     onSurface = Ink,
-    surfaceVariant = Color(0xFFE9EDF4),
+    surfaceVariant = Color(0xFFF0F1F3),
     onSurfaceVariant = InkSoft,
     primaryContainer = Color(0xFFE4EDFF),
     onPrimaryContainer = Color(0xFF183665),
-    secondaryContainer = Color(0xFFE1F1EC),
-    onSecondaryContainer = Color(0xFF194B3D),
+    secondaryContainer = Color(0xFFEAF0FA),
+    onSecondaryContainer = Color(0xFF204E8F),
     outline = Color(0xFFADB7C7),
     outlineVariant = Color(0xFFDDE3ED),
 )
@@ -42,12 +42,12 @@ private val DarkColors = darkColorScheme(
     onSecondary = Color(0xFF07231C),
     background = PaperNight,
     onBackground = Color(0xFFF2EBE0),
-    surface = Color(0xFF1B2332),
+    surface = Color(0xFF202428),
     onSurface = Color(0xFFF2EBE0),
-    surfaceVariant = Color(0xFF293448),
+    surfaceVariant = Color(0xFF2B3035),
     onSurfaceVariant = Color(0xFFC1CBDD),
-    secondaryContainer = Color(0xFF193F35),
-    onSecondaryContainer = Color(0xFFC7EFE2),
+    secondaryContainer = Color(0xFF233953),
+    onSecondaryContainer = Color(0xFFC7DAF4),
     outline = Color(0xFF8491A8),
     outlineVariant = Color(0xFF384457),
 )

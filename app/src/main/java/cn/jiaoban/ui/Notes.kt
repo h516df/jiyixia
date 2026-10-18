@@ -21,14 +21,14 @@ import java.time.format.DateTimeFormatter
 @Composable internal fun NotesPage(notes:List<Task>,open:(Task)->Unit) {
     val colors=MaterialTheme.colorScheme
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=24.dp,end=24.dp,bottom=100.dp)) {
-        item {Text("${notes.size} 篇笔记 · 只保存在本机",Modifier.padding(vertical=16.dp),style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)}
+        item {Text("${notes.size} 篇笔记",Modifier.padding(vertical=16.dp),style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)}
         if(notes.isEmpty()) item {Column(Modifier.padding(vertical=60.dp)) {Text("给想法留个位置",style=MaterialTheme.typography.headlineSmall);Text("灵感、素材、复盘，都可以从第一行开始。",Modifier.padding(top=12.dp),color=colors.onSurfaceVariant)}}
         items(notes.sortedWith(compareByDescending<Task>{it.pinned}.thenByDescending{it.createdAt}),key={it.id}) {note->
             Column(Modifier.fillMaxWidth().animateItem().clickable{open(note)}.padding(vertical=20.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                 if(note.pinned) Text("置顶",style=MaterialTheme.typography.labelSmall,color=colors.primary)
                 Text(note.text.lineSequence().first(),style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.SemiBold,maxLines=2,overflow=TextOverflow.Ellipsis)
                 val body=note.text.substringAfter('\n',"")
-                if(body.isNotBlank())Text(body,style=MaterialTheme.typography.bodyMedium,color=colors.onSurfaceVariant,maxLines=3,overflow=TextOverflow.Ellipsis)
+                if(body.isNotBlank())Text(body,style=MaterialTheme.typography.bodyMedium,color=colors.onSurfaceVariant,maxLines=2,overflow=TextOverflow.Ellipsis)
                 Text(note.createdAt.atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("M月d日"))+" · ${note.text.length} 字",style=MaterialTheme.typography.labelSmall,color=colors.onSurfaceVariant)
             }
             HorizontalDivider(color=colors.outlineVariant)
@@ -50,7 +50,7 @@ import java.time.format.DateTimeFormatter
             val body=note.text.substringAfter('\n',"")
             if(body.isNotBlank())Text(body,style=MaterialTheme.typography.bodyLarge)
         }}}
-        item {Text("${note.text.length} 字 · 长按文字可选择复制",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}
+        item {Text("${note.text.length} 字",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}
     }
     if(confirm)AlertDialog(onDismissRequest={confirm=false},title={Text(if(note.state==TaskState.OPEN)"归档这篇笔记？" else "恢复这篇笔记？")},text={Text("内容会完整保留，可在历史与归档中找回。")},confirmButton={TextButton(onClick={confirm=false;archive()}){Text("确定")}},dismissButton={TextButton(onClick={confirm=false}){Text("取消")}})
 }

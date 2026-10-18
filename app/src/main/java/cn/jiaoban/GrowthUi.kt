@@ -9,6 +9,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -132,7 +134,6 @@ import java.time.ZoneId
     var information by remember{mutableStateOf(false)}
     var selected by remember{mutableStateOf<GrowthBadge?>(null)}
     val won=badges.filter{it.id in earned}
-    val featured=won.lastOrNull() ?: badges.firstOrNull()
     val dark=isSystemInDarkTheme()
     val paper=if(dark)Color(0xFF1B2027) else Color(0xFFFAF9F6)
     val ink=if(dark)Color(0xFFEDECE8) else Color(0xFF273545)
@@ -147,18 +148,17 @@ import java.time.ZoneId
         }
         LazyColumn(Modifier.weight(1f),contentPadding=PaddingValues(horizontal=28.dp,vertical=20.dp),verticalArrangement=Arrangement.spacedBy(28.dp)) {
             item {Column(verticalArrangement=Arrangement.spacedBy(6.dp)) {
-                Text("我的收获",fontSize=28.sp,fontWeight=FontWeight.SemiBold,color=ink)
-                Text(if(won.isEmpty())"从一件小事开始" else "${won.size} 枚纪念，慢慢积攒",fontSize=14.sp,color=secondary)
+                Text("日常积累",fontSize=28.sp,fontWeight=FontWeight.SemiBold,color=ink)
+                Text(if(won.isEmpty())"从一件小事开始" else "每件做过的小事，都在这里",fontSize=14.sp,color=secondary)
             }}
-            if(featured!=null)item {
-                Column(Modifier.fillMaxWidth().padding(top=8.dp,bottom=8.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                    Surface(onClick={selected=featured},color=Color.Transparent,shape=RoundedCornerShape(16.dp),modifier=Modifier.semantics{contentDescription="查看${featured.title}"}) {
-                        MedalMark(featured.id in earned,Modifier.padding(8.dp).size(112.dp),featured.id)
-                    }
-                    Text(featured.title,fontSize=21.sp,fontWeight=FontWeight.Medium,color=ink)
-                    Text(if(featured.id in earned)"${Instant.ofEpochMilli(earned.getValue(featured.id)).atZone(ZoneId.systemDefault()).toLocalDate()} 获得" else featured.detail,fontSize=12.sp,color=secondary)
-                }
-            }
+            item {Column(verticalArrangement=Arrangement.spacedBy(18.dp)) {
+                Text("最近完成",fontSize=16.sp,fontWeight=FontWeight.Medium,color=ink)
+                if(stats.recent.isEmpty())Text("办完一件事，就会留下一笔。",fontSize=14.sp,color=secondary)
+                stats.recent.forEach {title->Row(horizontalArrangement=Arrangement.spacedBy(12.dp),verticalAlignment=Alignment.Top) {
+                    Icon(Icons.Rounded.Check,null,Modifier.size(20.dp),tint=gold)
+                    Text(title,fontSize=15.sp,lineHeight=22.sp,color=ink,maxLines=2,overflow=TextOverflow.Ellipsis)
+                }}
+            }}
             item {Column {
                 Surface(onClick={allBadges=!allBadges},color=Color.Transparent) {
                     Row(Modifier.fillMaxWidth().heightIn(min=48.dp),verticalAlignment=Alignment.CenterVertically) {
@@ -169,7 +169,7 @@ import java.time.ZoneId
                 }
                 AnimatedVisibility(!allBadges) {
                     Row(Modifier.fillMaxWidth().padding(top=8.dp),horizontalArrangement=Arrangement.spacedBy(16.dp)) {
-                        (won.filter{it.id!=featured?.id}.takeLast(3) + badges.filter{it.id !in earned}).distinctBy{it.id}.take(3).forEach{badge->
+                        (won.takeLast(3) + badges.filter{it.id !in earned}).distinctBy{it.id}.take(3).forEach{badge->
                             Surface(onClick={selected=badge},color=Color.Transparent,modifier=Modifier.weight(1f),shape=RoundedCornerShape(12.dp)) {
                                 Column(Modifier.padding(vertical=8.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(10.dp)) {
                                     MedalMark(badge.id in earned,Modifier.size(52.dp),badge.id)

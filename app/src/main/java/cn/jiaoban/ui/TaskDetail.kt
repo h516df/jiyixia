@@ -1,5 +1,6 @@
 package cn.jiaoban.ui
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -26,12 +27,13 @@ internal fun TaskDetail(task: Task, today: LocalDate, onStage: (WorkStage) -> Un
     var draft by rememberSaveable(task.id) { mutableStateOf("") }
     var discard by remember { mutableStateOf(false) }
     var voidConfirm by remember { mutableStateOf(false) }
+    var metadata by rememberSaveable(task.id){mutableStateOf(false)}
     LaunchedEffect(addingNote) { onNoteEditing(addingNote) }
     DisposableEffect(task.id) { onDispose { onNoteEditing(false) } }
     val colors = MaterialTheme.colorScheme
     val open = task.state == TaskState.OPEN
     val status = if(open) task.workStage.label else if(task.state == TaskState.DONE) "已办完" else "已作废"
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp),
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(24.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)) {
         item {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -42,16 +44,14 @@ internal fun TaskDetail(task: Task, today: LocalDate, onStage: (WorkStage) -> Un
                     if(isExpired(task,today)) Text("到期失效",Modifier.padding(vertical = 6.dp),style = MaterialTheme.typography.labelMedium,color = colors.onSurfaceVariant)
                 }
                 Text(task.text, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
-                Surface(shape = RoundedCornerShape(16.dp), color = colors.surface,
-                    border = BorderStroke(1.dp, colors.outlineVariant)) {
-                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        if(task.kind==EntryKind.DELEGATED) DetailField("交代人",personLabel(task.from), Icons.Default.Person)
-                        DetailField("期限", task.due?.let { "${it.year}年${it.monthValue}月${it.dayOfMonth}日" } ?: "没有期限", Icons.Default.DateRange)
-                        DetailField("到期规则",if(task.expiryPolicy == ExpiryPolicy.MUST_FINISH) "必须办完 · 逾期继续跟进" else "到期失效 · 到期自动收起", Icons.Default.Info)
-                        if(!open || task.due != null) Text(recordMeta(task,today),style = MaterialTheme.typography.bodySmall,
-                            color = if(open && bucketOf(task,today) == Bucket.OVERDUE) colors.error else colors.onSurfaceVariant)
-                    }
-                }
+                Text((if(task.kind==EntryKind.DELEGATED)personLabel(task.from)+" · " else "")+recordMeta(task,today),style=MaterialTheme.typography.bodyMedium,color=if(open && bucketOf(task,today)==Bucket.OVERDUE)colors.error else colors.onSurfaceVariant)
+                TextButton(onClick={metadata=!metadata},contentPadding=PaddingValues(0.dp)){Text(if(metadata)"收起详情" else "期限与规则")}
+                AnimatedVisibility(metadata) {Column(verticalArrangement=Arrangement.spacedBy(14.dp)) {
+                    if(task.kind==EntryKind.DELEGATED)DetailField("交代人",personLabel(task.from),Icons.Default.Person)
+                    DetailField("期限",task.due?.let{"${it.year}年${it.monthValue}月${it.dayOfMonth}日"} ?: "没有期限",Icons.Default.DateRange)
+                    DetailField("到期规则",if(task.expiryPolicy==ExpiryPolicy.MUST_FINISH)"逾期继续跟进" else "到期自动收起",Icons.Default.Info)
+                }}
+                HorizontalDivider(color=colors.outlineVariant)
             }
         }
         item {
@@ -65,9 +65,7 @@ internal fun TaskDetail(task: Task, today: LocalDate, onStage: (WorkStage) -> Un
                         if(task.workStage != WorkStage.WAITING) OutlinedButton(onClick = { onStage(WorkStage.WAITING) }) { Text("等回复") }
                         Button(onClick = { onState(TaskState.DONE) }) { Text("办完了") }
                     }
-                    if(task.workStage == WorkStage.WAITING) Text(if(task.expiryPolicy == ExpiryPolicy.MUST_FINISH)
-                        "正在等回复；过了期限仍会留在首页跟进。" else "正在等回复；到期后按原规则收起，记录仍保留。",
-                        style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+
                 } else OutlinedButton(onClick = { onState(TaskState.OPEN) }, modifier = Modifier.fillMaxWidth()) { Text("恢复为待办") }
             }
         }
@@ -76,7 +74,7 @@ internal fun TaskDetail(task: Task, today: LocalDate, onStage: (WorkStage) -> Un
                 Text("跟进记录", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 TextButton(onClick = { addingNote = true }) { Icon(Icons.Default.Add,null,Modifier.size(18.dp)); Text("记进展") }
             }
-            if(task.followUps.none { it.kind == FollowUpKind.NOTE }) Text("补记已做的事或等谁回复，回头就能说清过程。",
+            if(task.followUps.none { it.kind == FollowUpKind.NOTE }) Text("还没有跟进记录",
                 style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
         }
         items(task.followUps.asReversed(),key = { it.id }) { event ->
