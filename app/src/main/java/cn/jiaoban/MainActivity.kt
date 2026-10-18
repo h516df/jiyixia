@@ -66,10 +66,10 @@ class MainActivity : ComponentActivity() {
             val dark = isSystemInDarkTheme()
             SideEffect {
                 // 系统主题切换后同步状态栏/手势条图标，避免深色页面上仍显示黑字。
-                WindowInsetsControllerCompat(window, window.decorView).apply {
+                window.decorView.post { WindowInsetsControllerCompat(window, window.decorView).apply {
                     isAppearanceLightStatusBars = !dark
                     isAppearanceLightNavigationBars = !dark
-                }
+                } }
             }
             JiaobanTheme {
                 val store = remember { TaskStore(File(filesDir, "tasks.json")) }

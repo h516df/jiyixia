@@ -2,6 +2,7 @@ package cn.jiaoban.data
 
 import cn.jiaoban.EntryKind
 import cn.jiaoban.Task
+import cn.jiaoban.TaskStep
 import cn.jiaoban.TaskState
 import cn.jiaoban.ExpiryPolicy
 import cn.jiaoban.WorkStage
@@ -29,6 +30,10 @@ object TaskCodec {
             o.put("expiryPolicy", t.expiryPolicy.name)
             o.put("kind",t.kind.name)
             o.put("pinned",t.pinned)
+            o.put("important", t.important)
+            o.put("steps", JSONArray().apply { t.steps.forEach { step ->
+                put(JSONObject().put("id",step.id).put("text",step.text).put("done",step.done))
+            } })
             o.put("workStage", t.workStage.name)
             val events = JSONArray()
             for(event in t.followUps) events.put(JSONObject().put("id",event.id).put("text",event.text)
@@ -68,10 +73,22 @@ object TaskCodec {
                     .getOrDefault(WorkStage.RECEIVED),
                 kind = runCatching { EntryKind.valueOf(o.optString("kind","DELEGATED")) }.getOrDefault(EntryKind.DELEGATED),
                 pinned = o.optBoolean("pinned",false),
+                important = o.optBoolean("important",false),
+                steps = decodeSteps(o.optJSONArray("steps")),
                 followUps = decodeEvents(o.optJSONArray("followUps")),
             )
         }
         return out
+    }
+
+    private fun decodeSteps(array: JSONArray?): List<TaskStep> = buildList {
+        if(array != null) for(i in 0 until array.length()) {
+            val step = array.optJSONObject(i) ?: continue
+            val id = step.optString("id")
+            val text = step.optString("text")
+            if(id.isNotBlank() && text.isNotBlank() && none { it.id == id })
+                add(TaskStep(id,text,step.optBoolean("done",false)))
+        }
     }
 
     private fun decodeEvents(array: JSONArray?): List<FollowUp> {
