@@ -386,12 +386,24 @@ public class RedesignRegressionProbe extends Instrumentation {
             try {
                 LocalDate growthToday=LocalDate.now();
                 progress.edit().putStringSet("days",new HashSet<>(Arrays.asList(growthToday.toString(),growthToday.minusDays(1).toString(),growthToday.minusDays(2).toString()))).putInt("goal",7).commit();
-                tap("行动成长");reveal("本周小目标");tap("3 件完成");
+                tap("行动成长");reveal("本周小目标");tap("本周小目标");tap("3 件完成");
                 check("Weekly growth goal is saved",progress.getInt("goal",0)==3);
                 long until=SystemClock.elapsedRealtime()+5000;
                 while(progress.getLong("badge_visit_3",0)==0 && SystemClock.elapsedRealtime()<until)SystemClock.sleep(100);
                 long awarded=progress.getLong("badge_visit_3",0);
                 check("Real usage days unlock a badge",awarded>0);shot("14-growth-dashboard");
+                tap("徽章收藏");reveal("十事有成");tap("十事有成");
+                waitFor(s->s.contains("完成事项 10 件"));
+                check("Badge opens its own requirement",labels().contains("完成事项 10 件"));
+                tap("知道了");reveal("收起徽章");tap("收起徽章");
+                reveal("查看成长记录");tap("查看成长记录");reveal("最近 28 天");
+                check("History opens on request",labels().contains("最近 28 天"));
+                shot("15-growth-history");reveal("收起成长记录");tap("收起成长记录");
+                shell("cmd uimode night yes");SystemClock.sleep(700);shot("16-growth-dark");
+                shell("cmd uimode night no");shell("wm size 720x1280");shell("settings put system font_scale 1.3");SystemClock.sleep(700);
+                reveal("本周小目标");tap("本周小目标");waitFor(s->s.contains("7 件完成"));
+                check("Small screen large text keeps goal choices reachable",labels().contains("7 件完成"));shot("17-growth-large-font");tap("取消");
+                shell("settings put system font_scale 1.0");shell("wm size reset");SystemClock.sleep(500);
                 tap("返回");tap("行动成长");reveal("本周小目标");
                 check("Growth goal and badge survive reopening",progress.getInt("goal",0)==3 && progress.getLong("badge_visit_3",0)==awarded);
                 tap("返回");

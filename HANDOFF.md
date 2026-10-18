@@ -41,3 +41,9 @@
 本轮正式包原生80检查、122 JVM以及重启记录摘要通过。证据 docs/verification/v0.14 与 ignored verification/redesign-release/bound-results.json，发布门禁绑定当前源码/APK/探针。此后仅文档变化，不改业务源。
 
 v0.15减少成长页文字和重复统计，详细记录按需展开。122 JVM及完整原生回归/重启资料保持通过，见docs/acceptance/v0.15。
+
+
+## 2026-10-18 审美纠正：v0.15候选，未发布
+用户否定“苹果/原神审美已实现”的判断。当前先重做完整成长收藏页，见docs/acceptance/v0.15：有分类型徽章、详情、收藏展开、目标选择与日历；移除等级主视觉/重复进度条。原0.15 APK67362bed证据失效，使用最新绑定。当前PR22继续更新，暂不合并发布，不能声称全App或用户审美已通过。
+
+首页仍有成排数字、厚卡片、重复操作，待办/交办/笔记的整体视觉需要后续复查；不机械复制成长页皮肤。工作区D:/Worktrees/Jiaoban/codex-ui-quality-20261018；AVD home D:/Temp/app-research-20261018/work/avdhome，Jiaoban_Redesign_API36，5590/5037。所有数据为匿名夹具，手机未接入。
