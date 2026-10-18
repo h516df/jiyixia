@@ -73,7 +73,13 @@ public class RedesignRegressionProbe extends Instrumentation {
                     }
                 }
             }
-            boolean moved=scrollForward(Arrays.asList("全部","今天","逾期","接下来","进行中","等回复").contains(text));
+            boolean moved=false;
+            if(text.equals("全部")) {
+                for(AccessibilityNodeInfo n:nodes()) if(n.isScrollable()) {
+                    Rect bounds=new Rect();n.getBoundsInScreen(bounds);
+                    if(bounds.height()<bounds.width()/2) moved=n.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD) || moved;
+                }
+            } else moved=scrollForward(Arrays.asList("今天","逾期","接下来","进行中","等回复").contains(text));
             if(!moved) SystemClock.sleep(200); else SystemClock.sleep(200);
         }
         throw new AssertionError("Missing clickable "+text+" | "+labels());
@@ -274,6 +280,12 @@ public class RedesignRegressionProbe extends Instrumentation {
             reader("逾期活动表"); tap("继续办理"); persisted("must","workStage","WORKING");
             home(); tap("进行中"); waitFor(s->s.contains("逾期活动表"));
             check("Working filter shows actual stage",!labels().contains("未来预算"));
+            tap("等回复：逾期活动表"); persisted("must","workStage","WAITING");
+            waitFor(s->s.contains("还没有进行中的事"));
+            check("Home quick action immediately updates filtered results",!labels().contains("逾期活动表"));
+            tap("等回复"); waitFor(s->s.contains("逾期活动表"));
+            tap("继续办理：逾期活动表"); persisted("must","workStage","WORKING");
+            home(); tap("进行中"); waitFor(s->s.contains("逾期活动表")); shot("12-home-quick-progress");
 
             open("逾期活动表"); tap("办完了"); tap("撤销"); persisted("must","state","OPEN");
             open("逾期活动表"); tap("办完了"); persisted("must","state","DONE");

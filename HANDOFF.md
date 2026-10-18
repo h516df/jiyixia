@@ -16,3 +16,8 @@
 
 
 0.10已正式发布：https://github.com/h516df/Jiaoban/releases/tag/v0.10。PR #16最终head 728c59e088390f00f4aec671f7a18bf01a0e6874 的[CI](https://github.com/h516df/Jiaoban/actions/runs/38339552268)通过；合并/发布目标 `d93f773e82bf86f871390520997d168355b82437`。APK、中文说明、SHA256三项资产逐项下载回读一致，见published-results.json。用户手机本人授权下载及系统安装仍未验收。
+
+
+## 2026-10-18 v0.12 首页直接办理
+
+当前 Codex 单写手，工作区 D:/Worktrees/Jiaoban/codex-ui-quality-20261018，分支 agent/codex/usability-20261018；基线 b4cd15a。最新验收见 docs/acceptance/v012/README.md。新增首页直接办理，旧数据与更新权限边界保留；目标手机未连接。发布以最终 PR/Release 回读为准。

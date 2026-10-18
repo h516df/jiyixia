@@ -155,7 +155,8 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
                 if(query.isBlank()) "输入关键词，找回所有记录" else "没有找到“$query”",
                 "正文、交代人和跟进记录都能搜到", { detailId = it.id })
             screen == Screen.MAIN -> Home(holder.tasks, today, innerPadding, { detailId = it.id },
-                { changeState(it, TaskState.DONE) }, { sharedDraft = ""; creating = true })
+                { changeState(it, TaskState.DONE) }, { sharedDraft = ""; creating = true },
+                { task, stage -> holder.setWorkStage(task.id,stage) })
             screen == Screen.PEOPLE -> People(holder.tasks, today, innerPadding, person, { person = it }, { detailId = it.id })
             screen == Screen.HISTORY -> History(holder.tasks, today, innerPadding, { detailId = it.id })
             screen == Screen.UPDATE -> UpdateScreen(updater, innerPadding)
@@ -188,7 +189,7 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Home(tasks: List<Task>, today: LocalDate, padding: PaddingValues,
-                 onOpen: (Task) -> Unit, onDone: (Task) -> Unit, onAdd: () -> Unit) {
+                 onOpen: (Task) -> Unit, onDone: (Task) -> Unit, onAdd: () -> Unit, onStage: (Task, WorkStage) -> Unit) {
     var filter by rememberSaveable { mutableStateOf(Filter.ALL) }
     var expiredOpen by rememberSaveable { mutableStateOf(false) }
     val active = activeTasks(tasks, today)
@@ -233,7 +234,7 @@ private fun Home(tasks: List<Task>, today: LocalDate, padding: PaddingValues,
         groups.forEach { (title, records) ->
             if(records.isNotEmpty()) {
                 item(key = "section-$title") { Section(title, records.size) }
-                items(records, key = { it.id }) { TaskCard(it, today, onOpen, onDone) }
+                items(records, key = { it.id }) { TaskCard(it, today, onOpen, onDone, onStage) }
             }
         }
         if(expired.isNotEmpty() && filter == Filter.ALL) {
@@ -272,7 +273,7 @@ private fun Home(tasks: List<Task>, today: LocalDate, padding: PaddingValues,
         Text("$count 件", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
-@Composable private fun TaskCard(task: Task, today: LocalDate, onOpen: (Task) -> Unit, onDone: ((Task) -> Unit)? = null) {
+@Composable private fun TaskCard(task: Task, today: LocalDate, onOpen: (Task) -> Unit, onDone: ((Task) -> Unit)? = null, onStage: ((Task, WorkStage) -> Unit)? = null) {
     val urgent = bucketOf(task,today) == Bucket.OVERDUE && !isExpired(task,today) && task.state == TaskState.OPEN
     val status = when {
         task.state == TaskState.DONE -> "已办完"; task.state == TaskState.VOID -> "已作废"
@@ -293,8 +294,19 @@ private fun Home(tasks: List<Task>, today: LocalDate, padding: PaddingValues,
                 Text(recordMeta(task,today) + if(task.state == TaskState.OPEN) " · " + if(task.expiryPolicy == ExpiryPolicy.MUST_FINISH) "必须办完" else "到期失效" else "",
                     style = MaterialTheme.typography.bodySmall, color = if(urgent) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
                 task.followUps.lastOrNull { it.kind == FollowUpKind.NOTE }?.let { note ->
-                    Text("最近：${note.text}",maxLines = 1,overflow = TextOverflow.Ellipsis,
+                    Text("最近：${note.text}",maxLines = 2,overflow = TextOverflow.Ellipsis,
                         style = MaterialTheme.typography.bodySmall,color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                if(onStage != null && task.state == TaskState.OPEN && !isExpired(task,today)) {
+                    val stageAction=when(task.workStage){WorkStage.WORKING->"等回复";WorkStage.WAITING->"继续办理";else->"开始办"}
+                    Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick={onStage(task,if(task.workStage==WorkStage.WORKING) WorkStage.WAITING else WorkStage.WORKING)},
+                            modifier=Modifier.semantics { contentDescription="$stageAction：${task.text}" },
+                            contentPadding=PaddingValues(horizontal=8.dp)) {
+                            Text(stageAction)
+                        }
+                        TextButton(onClick={onOpen(task)},contentPadding=PaddingValues(horizontal=8.dp)){Text("查看 / 记进展")}
+                    }
                 }
             }
             if(onDone != null && task.state == TaskState.OPEN) IconButton(onClick = { onDone(task) }) {
