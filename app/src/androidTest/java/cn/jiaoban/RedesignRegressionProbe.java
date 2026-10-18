@@ -393,6 +393,9 @@ public class RedesignRegressionProbe extends Instrumentation {
             tap("写笔记");setText(0,"独立笔记草稿😀");hideKeyboard();
             shareText("另一份分享");waitFor(x->x.contains("收到新的分享"));tap("继续当前编辑");
             check("Incoming share retains full screen note draft",labels().contains("独立笔记草稿😀") && labels().contains("保存笔记"));
+            shell("cmd uimode night yes");SystemClock.sleep(700);
+            check("Configuration recreation preserves draft without replaying handled share",labels().contains("独立笔记草稿😀") && labels().contains("保存笔记") && !labels().contains("收到新的分享"));
+            shell("cmd uimode night no");SystemClock.sleep(700);
             check("Note editor has no task deadline or completion",!labels().contains("期限") && !labels().contains("办完了"));shot("18-note-editor");
             tap("关闭笔记");tap("继续编辑");check("Continue preserves full screen draft",labels().contains("独立笔记草稿😀"));
             tap("关闭笔记");tap("放弃改动");
@@ -400,6 +403,7 @@ public class RedesignRegressionProbe extends Instrumentation {
             tap("清单第2行：核对");
             SystemClock.sleep(350);
             check("Note checklist updates only one duplicate row",byText("素材清单\n- [x] 核对\n- [ ] 核对\n尾巴😀").getString("kind").equals("NOTE"));
+            shot("20-note-checklist");
             home();search("素材清单");waitFor(x->hasPart(x,"没有找到"));check("Todo search excludes notes",hasPart(labels(),"没有找到“素材清单”") && !hasPart(labels(),"尾巴😀"));
             home();reader("自己的采购清单");tap("办完了");
             home();tap("设置");tap("最近做成的事");waitFor(x->x.contains("自己的采购清单"));
@@ -414,7 +418,8 @@ public class RedesignRegressionProbe extends Instrumentation {
             check("Reopening never duplicates keepsake",progress.getLong("badge_done_1",0)==earnedAt);
             tap("自己的采购清单");tap("恢复为待办");home();tap("设置");tap("最近做成的事");
             check("Restored task leaves completed review",!labels().contains("自己的采购清单"));
-            shell("cmd uimode night yes");SystemClock.sleep(650);shot("16-review-dark");
+            shell("cmd uimode night yes");SystemClock.sleep(650);
+            check("Theme recreation does not reopen consumed share",!labels().contains("收到新的分享"));shot("16-review-dark");
             shell("wm size 720x1600");shell("wm density 320");shell("settings put system font_scale 1.3");SystemClock.sleep(700);
             tap("日常纪念");waitFor(x->x.contains("第一步完成"));
             check("Small dark large text keeps actual keepsakes reachable",labels().contains("第一步完成"));shot("17-review-large-font");

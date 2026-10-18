@@ -61,7 +61,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        shared.value = extractShared(intent)
+        shared.value = if (savedInstanceState == null) extractShared(intent)
+            else savedInstanceState.getString("pendingSharedText")
         setContent {
             val dark = isSystemInDarkTheme()
             SideEffect {
@@ -77,10 +78,19 @@ class MainActivity : ComponentActivity() {
                     store = store,
                     today = today.value,
                     sharedText = shared.value,
-                    onSharedHandled = { shared.value = null },
+                    onSharedHandled = {
+                        shared.value = null
+                        // 已交给可恢复的界面草稿；系统重建不能再派发同一份分享。
+                        intent?.removeExtra(Intent.EXTRA_TEXT)
+                    },
                 )
             }
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString("pendingSharedText", shared.value)
+        super.onSaveInstanceState(outState)
     }
 
     override fun onNewIntent(intent: Intent) {
