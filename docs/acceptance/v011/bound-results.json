@@ -1,0 +1,287 @@
+{
+  "binding": {
+    "sourceFingerprint": "ed2f81efabcb3bc20d68addfa44d5d9a4d043ede1188810f8ae88475496580b5",
+    "apkSha256": "0766831b9f4e0eeb78b7f6d08adedd9d4d2588868f9b7e488aa0d8a3e2e7c849",
+    "probeSha256": "e6ee24277c8fe8587cd033a54e6037a6a02cc1378fc36707cfa3769b471f8945",
+    "serial": "emulator-5590",
+    "avd": "Jiaoban_Redesign_API36",
+    "sdk": "36",
+    "abi": "x86_64",
+    "timezone": "Asia/Shanghai"
+  },
+  "passed": true,
+  "probe": {
+    "version": "0.11",
+    "sdk": 36,
+    "abi": "x86_64",
+    "timezone": "Asia/Shanghai",
+    "recordCount": 10,
+    "sourceFingerprint": "ed2f81efabcb3bc20d68addfa44d5d9a4d043ede1188810f8ae88475496580b5",
+    "passed": true,
+    "error": "",
+    "checks": [
+      {
+        "name": "Dedicated AVD",
+        "passed": true
+      },
+      {
+        "name": "Home keeps must-finish overdue visible and folds expiring records",
+        "passed": true
+      },
+      {
+        "name": "Home does not open keyboard",
+        "passed": true
+      },
+      {
+        "name": "Working empty state does not show unrelated tasks",
+        "passed": true
+      },
+      {
+        "name": "Waiting empty state does not imply future arrangements",
+        "passed": true
+      },
+      {
+        "name": "Set input 0",
+        "passed": true
+      },
+      {
+        "name": "Global search includes closed records and excludes unrelated records",
+        "passed": true
+      },
+      {
+        "name": "Set input 0",
+        "passed": true
+      },
+      {
+        "name": "Search no-result state shows no unrelated records",
+        "passed": true
+      },
+      {
+        "name": "Today filter results exclude overdue and future",
+        "passed": true
+      },
+      {
+        "name": "Overdue filter only keeps must-finish records",
+        "passed": true
+      },
+      {
+        "name": "Later filter results",
+        "passed": true
+      },
+      {
+        "name": "Expired section retains legacy record",
+        "passed": true
+      },
+      {
+        "name": "Expired section opens real records",
+        "passed": true
+      },
+      {
+        "name": "Set input 0",
+        "passed": true
+      },
+      {
+        "name": "Persist expires expiryPolicy=MUST_FINISH",
+        "passed": true
+      },
+      {
+        "name": "Policy change returns expired item to overdue list",
+        "passed": true
+      },
+      {
+        "name": "Set input 0",
+        "passed": true
+      },
+      {
+        "name": "Chinese input parses person and deadline",
+        "passed": true
+      },
+      {
+        "name": "Multiline Unicode input and manual metadata persisted",
+        "passed": true
+      },
+      {
+        "name": "Set input 0",
+        "passed": true
+      },
+      {
+        "name": "Persist today due=2026-10-20",
+        "passed": true
+      },
+      {
+        "name": "Set input 0",
+        "passed": true
+      },
+      {
+        "name": "Persist today due=2026-10-20",
+        "passed": true
+      },
+      {
+        "name": "Calendar cancel preserves chosen date",
+        "passed": true
+      },
+      {
+        "name": "Set input 0",
+        "passed": true
+      },
+      {
+        "name": "Detail opens reader rather than editable form",
+        "passed": true
+      },
+      {
+        "name": "Persist must workStage=WORKING",
+        "passed": true
+      },
+      {
+        "name": "Persist must workStage=WAITING",
+        "passed": true
+      },
+      {
+        "name": "Set input 0",
+        "passed": true
+      },
+      {
+        "name": "Incoming share preserves unsaved follow-up",
+        "passed": true
+      },
+      {
+        "name": "Full note and progress events persist",
+        "passed": true
+      },
+      {
+        "name": "Waiting filter excludes received records",
+        "passed": true
+      },
+      {
+        "name": "Set input 0",
+        "passed": true
+      },
+      {
+        "name": "Search finds follow-up content",
+        "passed": true
+      },
+      {
+        "name": "Set input 0",
+        "passed": true
+      },
+      {
+        "name": "Persist must workStage=WORKING",
+        "passed": true
+      },
+      {
+        "name": "Working filter shows actual stage",
+        "passed": true
+      },
+      {
+        "name": "Set input 0",
+        "passed": true
+      },
+      {
+        "name": "Persist must state=OPEN",
+        "passed": true
+      },
+      {
+        "name": "Set input 0",
+        "passed": true
+      },
+      {
+        "name": "Persist must state=DONE",
+        "passed": true
+      },
+      {
+        "name": "Done history filter excludes void records",
+        "passed": true
+      },
+      {
+        "name": "Persist must state=OPEN",
+        "passed": true
+      },
+      {
+        "name": "Restore retains follow-up and working stage",
+        "passed": true
+      },
+      {
+        "name": "Set input 0",
+        "passed": true
+      },
+      {
+        "name": "Void requires explicit confirmation",
+        "passed": true
+      },
+      {
+        "name": "Persist later state=VOID",
+        "passed": true
+      },
+      {
+        "name": "Set input 0",
+        "passed": true
+      },
+      {
+        "name": "Persist later state=OPEN",
+        "passed": true
+      },
+      {
+        "name": "Person detail results exclude another person's tasks",
+        "passed": true
+      },
+      {
+        "name": "Set input 0",
+        "passed": true
+      },
+      {
+        "name": "Incoming share cannot silently replace an unsaved draft",
+        "passed": true
+      },
+      {
+        "name": "Continue editing preserves draft and keeps sheet visible",
+        "passed": true
+      },
+      {
+        "name": "Discard does not create record",
+        "passed": true
+      },
+      {
+        "name": "Long real share confirms and saves full tail/person/deadline",
+        "passed": true
+      },
+      {
+        "name": "Same-process overnight resume refreshes actual today results",
+        "passed": true
+      },
+      {
+        "name": "Foreground date change keeps must-finish overdue visible",
+        "passed": true
+      },
+      {
+        "name": "Large-font narrow-screen navigation available",
+        "passed": true
+      },
+      {
+        "name": "Dark status bar renders readable light time icons",
+        "passed": true
+      },
+      {
+        "name": "Dark mode main path remains usable",
+        "passed": true
+      },
+      {
+        "name": "Inject recoverable save failure on owned fixture",
+        "passed": true
+      },
+      {
+        "name": "Set input 0",
+        "passed": true
+      },
+      {
+        "name": "Save failure is visible and keeps prior disk data",
+        "passed": true
+      },
+      {
+        "name": "Retry writes the same pending record",
+        "passed": true
+      }
+    ],
+    "restartPreservedRecords": true,
+    "recordsSnapshot": "DATA_SHA256: 3e16fd69b36f7903c2612d9c2b72447cb830d9812c14951efd97b4c122f11910 count=10\\n"
+  }
+}

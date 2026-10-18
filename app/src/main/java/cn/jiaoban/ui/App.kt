@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.*
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import cn.jiaoban.*
 import cn.jiaoban.data.*
 import cn.jiaoban.parse.*
@@ -199,10 +200,13 @@ private fun Home(tasks: List<Task>, today: LocalDate, padding: PaddingValues,
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 100.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item {
-            Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Surface(Modifier.fillMaxWidth().padding(vertical = 8.dp),shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surface) {
+            Row(Modifier.fillMaxWidth().padding(4.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                 Count("今天到期", current.size, filter == Filter.TODAY, Modifier.weight(1f)) { filter = Filter.TODAY }
                 Count("逾期待办", overdue.size, filter == Filter.OVERDUE, Modifier.weight(1f)) { filter = Filter.OVERDUE }
                 Count("手上待办", active.size, filter == Filter.ALL, Modifier.weight(1f)) { filter = Filter.ALL }
+            }
             }
         }
         item {
@@ -252,13 +256,13 @@ private fun Home(tasks: List<Task>, today: LocalDate, padding: PaddingValues,
     }
 }
 @Composable private fun Count(label: String, count: Int, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    Surface(onClick = onClick, modifier = modifier, shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp,if(selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
-        color = MaterialTheme.colorScheme.surface) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+    Surface(onClick = onClick, modifier = modifier.semantics { this.selected = selected }, shape = RoundedCornerShape(16.dp),
+        color = if(selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface) {
+        Column(Modifier.heightIn(min = 64.dp).padding(horizontal = 12.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(count.toString(), fontSize = 23.sp, fontWeight = FontWeight.SemiBold,
                 color = if(label == "逾期待办" && count > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
-            Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(label, style = MaterialTheme.typography.labelMedium,
+                color = if(selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -275,9 +279,8 @@ private fun Home(tasks: List<Task>, today: LocalDate, padding: PaddingValues,
         isExpired(task,today) -> "到期失效"; urgent -> "逾期 ${-daysLeft(task,today)!!} 天"
         bucketOf(task,today) == Bucket.TODAY -> "今天"; else -> "待办"
     }
-    Surface(onClick = { onOpen(task) }, shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), color = MaterialTheme.colorScheme.surface) {
-        Row(Modifier.fillMaxWidth().padding(start = 16.dp, top = 16.dp, bottom = 16.dp, end = 8.dp),
+    Surface(onClick = { onOpen(task) }, shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surface) {
+        Row(Modifier.fillMaxWidth().padding(start = 16.dp, top = 14.dp, bottom = 14.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(task.text, fontSize = 16.sp, lineHeight = 23.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)

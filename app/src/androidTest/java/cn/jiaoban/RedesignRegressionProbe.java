@@ -231,6 +231,8 @@ public class RedesignRegressionProbe extends Instrumentation {
             check("Later filter results",!labels().contains("逾期活动表") && !labels().contains("今日周报"));
             home();
             tap("到期失效 · 2 件"); reveal("旧版到期记录");
+            check("Expired section retains legacy record",labels().contains("旧版到期记录"));
+            reveal("到期活动名额");
             check("Expired section opens real records",labels().contains("到期活动名额")); shot("02-expired");
             open("到期活动名额"); tap("必须办完"); tap("保存修改"); persisted("expires","expiryPolicy","MUST_FINISH");
             home(); tap("逾期"); waitFor(s->s.contains("到期活动名额"));
