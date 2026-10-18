@@ -1,5 +1,6 @@
 package cn.jiaoban.data
 
+import cn.jiaoban.EntryKind
 import cn.jiaoban.Task
 import cn.jiaoban.TaskState
 import cn.jiaoban.ExpiryPolicy
@@ -26,6 +27,8 @@ object TaskCodec {
             o.put("due", if (t.due == null) JSONObject.NULL else t.due.toString())
             o.put("state", t.state.name)
             o.put("expiryPolicy", t.expiryPolicy.name)
+            o.put("kind",t.kind.name)
+            o.put("pinned",t.pinned)
             o.put("workStage", t.workStage.name)
             val events = JSONArray()
             for(event in t.followUps) events.put(JSONObject().put("id",event.id).put("text",event.text)
@@ -63,6 +66,8 @@ object TaskCodec {
                     .getOrDefault(ExpiryPolicy.EXPIRES),
                 workStage = runCatching { WorkStage.valueOf(o.optString("workStage", "RECEIVED")) }
                     .getOrDefault(WorkStage.RECEIVED),
+                kind = runCatching { EntryKind.valueOf(o.optString("kind","DELEGATED")) }.getOrDefault(EntryKind.DELEGATED),
+                pinned = o.optBoolean("pinned",false),
                 followUps = decodeEvents(o.optJSONArray("followUps")),
             )
         }

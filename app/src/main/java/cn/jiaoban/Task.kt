@@ -10,7 +10,9 @@ enum class TaskState { OPEN, DONE, VOID }
 /** 必须办完的事逾期后继续跟进；有时效的事到期后收起。 */
 enum class ExpiryPolicy { MUST_FINISH, EXPIRES }
 
-/** 别人交代的一件事。 */
+enum class EntryKind(val label:String) { TODO("待办"), DELEGATED("交办"), NOTE("笔记") }
+
+/** 文字记录；旧记录始终保留交办类型。 */
 data class Task(
     val id: String,
     val text: String,
@@ -22,6 +24,8 @@ data class Task(
     val expiryPolicy: ExpiryPolicy = ExpiryPolicy.EXPIRES,
     val workStage: WorkStage = WorkStage.RECEIVED,
     val followUps: List<FollowUp> = emptyList(),
+    val kind: EntryKind = EntryKind.DELEGATED,
+    val pinned: Boolean = false,
 )
 
 /**

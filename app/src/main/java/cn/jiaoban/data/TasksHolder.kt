@@ -58,15 +58,16 @@ class TasksHolder(private val store: TaskStore) {
         dueOverride: LocalDate? = null,
         overrideDue: Boolean = false,
         expiryPolicy: ExpiryPolicy = ExpiryPolicy.MUST_FINISH,
+        kind: EntryKind = EntryKind.DELEGATED,
     ) {
         val clean = text.trim()
         if (clean.isEmpty()) return
-        val from = fromOverride ?: PersonParser.parse(clean, recentFroms())
-        val due = if (overrideDue) dueOverride else DueParser.withDefault(clean, today)
-        add(clean, from, due, expiryPolicy)
+        val from = if(kind==EntryKind.DELEGATED) fromOverride ?: PersonParser.parse(clean, recentFroms()) else ""
+        val due = if(kind==EntryKind.NOTE) null else if (overrideDue) dueOverride else if(kind==EntryKind.TODO) DueParser.parse(clean,today) else DueParser.withDefault(clean, today)
+        add(clean, from, due, expiryPolicy,kind)
     }
 
-    fun add(text: String, from: String, due: LocalDate?, expiryPolicy: ExpiryPolicy = ExpiryPolicy.MUST_FINISH) {
+    fun add(text: String, from: String, due: LocalDate?, expiryPolicy: ExpiryPolicy = ExpiryPolicy.MUST_FINISH,kind:EntryKind = EntryKind.DELEGATED) {
         val trimmed = text.trim()
         if (trimmed.isEmpty()) return
         commit(
@@ -78,6 +79,7 @@ class TasksHolder(private val store: TaskStore) {
                 state = TaskState.OPEN,
                 createdAt = Instant.now(),
                 expiryPolicy = expiryPolicy,
+                kind = kind,
             )
         )
     }

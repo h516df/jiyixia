@@ -32,7 +32,7 @@ import kotlinx.coroutines.launch
 import java.time.*
 
 private enum class Screen(val label: String, val icon: ImageVector) {
-    MAIN("事情", Icons.Default.Home), PEOPLE("按人", Icons.Default.Person),
+    MAIN("待办", Icons.Default.Check), DELEGATED("交办",Icons.Default.Person), NOTES("笔记",Icons.Default.Edit), PEOPLE("按人", Icons.Default.Person),
     HISTORY("历史", Icons.Default.Check), SETTINGS("设置", Icons.Default.Settings), UPDATE("检查更新", Icons.Default.Refresh)
 }
 private enum class Filter(val label: String) { ALL("全部"), TODAY("今天"), OVERDUE("逾期"), LATER("接下来"), WORKING("进行中"), WAITING("等回复") }
@@ -50,6 +50,7 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
     var editId by rememberSaveable { mutableStateOf<String?>(null) }
     var detailId by rememberSaveable { mutableStateOf<String?>(null) }
     var noteEditing by remember { mutableStateOf(false) }
+    var createKind by rememberSaveable {mutableStateOf(EntryKind.TODO)}
     var creating by rememberSaveable { mutableStateOf(false) }
     var sharedDraft by rememberSaveable { mutableStateOf("") }
     var incomingShare by rememberSaveable { mutableStateOf<String?>(null) }
@@ -75,7 +76,7 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
             if(creating || editId != null || noteEditing) {
                 incomingShare = sharedText.trim()
             } else {
-                sharedDraft = sharedText.trim(); creating = true; searching = false; screen = Screen.MAIN
+                createKind=EntryKind.DELEGATED;sharedDraft = sharedText.trim(); creating = true; searching = false; screen = Screen.DELEGATED
             }
             onSharedHandled()
         }
@@ -94,12 +95,12 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
         snackbarHost = { SnackbarHost(snack) },
         topBar = {
             TopAppBar(title = {
-                if(detailId != null) Text("事项详情", fontWeight = FontWeight.SemiBold)
+                if(detailId != null) Text(if(holder.tasks.firstOrNull{it.id==detailId}?.kind==EntryKind.NOTE) "笔记" else "事项详情", fontWeight = FontWeight.SemiBold)
                 else if(searching) OutlinedTextField(query, { query = it }, singleLine = true,
-                    placeholder = { Text("搜事情或交代人") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp))
+                    placeholder = { Text("搜索待办、交办和笔记") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp))
                 else Column {
                     Text(if(screen == Screen.MAIN) "交办" else screen.label, fontWeight = FontWeight.Bold, fontSize = 26.sp)
-                    if(screen == Screen.MAIN) Text("${today.monthValue}月${today.dayOfMonth}日 · 星期${listOf("一","二","三","四","五","六","日")[today.dayOfWeek.value-1]}",
+                    if(screen in listOf(Screen.MAIN,Screen.DELEGATED)) Text("${today.monthValue}月${today.dayOfMonth}日 · 星期${listOf("一","二","三","四","五","六","日")[today.dayOfWeek.value-1]}",
                         style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }, navigationIcon = {
@@ -117,7 +118,7 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
         },
         bottomBar = {
             if(detailId == null && !searching && screen != Screen.UPDATE) NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                Screen.entries.filter { it != Screen.UPDATE }.forEach { item ->
+                listOf(Screen.MAIN,Screen.DELEGATED,Screen.NOTES,Screen.SETTINGS).forEach { item ->
                     NavigationBarItem(selected = screen == item,
                         onClick = { screen = item; person = null; focus.clearFocus() },
                         icon = { Icon(item.icon, null) }, label = { Text(item.label) },
@@ -127,10 +128,10 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
             }
         },
         floatingActionButton = {
-            if(holder.loaded && detailId == null && !searching && screen == Screen.MAIN) ExtendedFloatingActionButton(
-                onClick = { sharedDraft = ""; creating = true }, icon = { Icon(Icons.Default.Add, null) },
-                text = { Text("记一件") },
-                modifier = Modifier.zIndex(2f).semantics(mergeDescendants = true) { contentDescription = "记一件" },
+            if(holder.loaded && detailId == null && !searching && screen in listOf(Screen.MAIN,Screen.DELEGATED,Screen.NOTES)) ExtendedFloatingActionButton(
+                onClick = { createKind=when(screen){Screen.NOTES->EntryKind.NOTE;Screen.DELEGATED->EntryKind.DELEGATED;else->EntryKind.TODO};sharedDraft = ""; creating = true }, icon = { Icon(Icons.Default.Add, null) },
+                text = { Text(if(screen==Screen.NOTES) "写笔记" else "记一件") },
+                modifier = Modifier.zIndex(2f).semantics(mergeDescendants = true) { contentDescription = if(screen==Screen.NOTES) "写笔记" else "记一件" },
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary)
         }
@@ -147,6 +148,7 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
         val innerPadding = PaddingValues(0.dp)
         val detail = holder.tasks.firstOrNull { it.id == detailId }
         when {
+            detail?.kind == EntryKind.NOTE -> NoteDetail(detail,{holder.update(detail.copy(pinned=!detail.pinned))},{changeState(detail,if(detail.state==TaskState.OPEN)TaskState.VOID else TaskState.OPEN)})
             detail != null -> TaskDetail(detail, today, onStage = { holder.setWorkStage(detail.id,it) },
                 onNote = { holder.addFollowUp(detail.id,it) }, onState = { changeState(detail,it) },
                 onNoteEditing = { noteEditing = it })
@@ -154,24 +156,25 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
             searching -> RecordList(searchAll(holder.tasks, query), today, innerPadding,
                 if(query.isBlank()) "输入关键词，找回所有记录" else "没有找到“$query”",
                 "正文、交代人和跟进记录都能搜到", { detailId = it.id })
-            screen == Screen.MAIN -> Home(holder.tasks, today, innerPadding, { detailId = it.id },
-                { changeState(it, TaskState.DONE) }, { sharedDraft = ""; creating = true },
+            screen in listOf(Screen.MAIN,Screen.DELEGATED) -> Home(holder.tasks.filter{it.kind==if(screen==Screen.MAIN)EntryKind.TODO else EntryKind.DELEGATED}, today, innerPadding, { detailId = it.id },
+                { changeState(it, TaskState.DONE) }, { createKind=if(screen==Screen.MAIN)EntryKind.TODO else EntryKind.DELEGATED;sharedDraft = ""; creating = true },
                 { task, stage -> holder.setWorkStage(task.id,stage) })
-            screen == Screen.PEOPLE -> People(holder.tasks, today, innerPadding, person, { person = it }, { detailId = it.id })
+            screen == Screen.NOTES -> NotesPage(holder.tasks.filter{it.kind==EntryKind.NOTE && it.state==TaskState.OPEN},{detailId=it.id})
+            screen == Screen.PEOPLE -> People(holder.tasks.filter{it.kind==EntryKind.DELEGATED}, today, innerPadding, person, { person = it }, { detailId = it.id })
             screen == Screen.HISTORY -> History(holder.tasks, today, innerPadding, { detailId = it.id })
             screen == Screen.UPDATE -> UpdateScreen(updater, innerPadding)
-            else -> Settings(innerPadding) { screen = Screen.UPDATE }
+            else -> Settings(innerPadding,{screen=Screen.HISTORY},{screen=Screen.PEOPLE}) { screen = Screen.UPDATE }
         }
         }
     }
     if(holder.loaded && (creating || editId != null)) {
         val task = holder.tasks.firstOrNull { it.id == editId }
-        Editor(task, if(creating) sharedDraft else "", today, holder.recentFroms(),
+        Editor(task, if(creating) sharedDraft else "", today, holder.recentFroms(),createKind,
             onDismiss = { creating = false; editId = null; sharedDraft = "" },
-            onSave = { text, from, due, policy ->
+            onSave = { text, from, due, policy,kind ->
                 if(task == null) holder.addFromText(text, today, fromOverride = from, dueOverride = due,
-                    overrideDue = true, expiryPolicy = policy)
-                else holder.update(task.copy(text = text.trim(), from = from.trim(), due = due, expiryPolicy = policy))
+                    overrideDue = true, expiryPolicy = policy,kind=kind)
+                else holder.update(task.copy(text = text.trim(), from = from.trim(), due = due, expiryPolicy = policy,kind=kind))
                 creating = false; editId = null; sharedDraft = ""; focus.clearFocus()
                 notify(if(task == null) "已记下" else "已保存")
             }, onState = { updated, state -> changeState(updated, state) })
@@ -286,12 +289,12 @@ private fun Home(tasks: List<Task>, today: LocalDate, padding: PaddingValues,
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(task.text, fontSize = 16.sp, lineHeight = 23.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(personLabel(task.from), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    Text(if(task.kind==EntryKind.DELEGATED) personLabel(task.from) else task.kind.label, maxLines = 1, overflow = TextOverflow.Ellipsis,
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-                    Text(if(task.state != TaskState.OPEN || isExpired(task,today)) status else task.workStage.label,
+                    Text(if(task.kind==EntryKind.NOTE) "笔记" else if(task.state != TaskState.OPEN || isExpired(task,today)) status else task.workStage.label,
                         style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                 }
-                Text(recordMeta(task,today) + if(task.state == TaskState.OPEN) " · " + if(task.expiryPolicy == ExpiryPolicy.MUST_FINISH) "必须办完" else "到期失效" else "",
+                Text(if(task.kind==EntryKind.NOTE) "文字笔记 · ${task.text.length} 字" else recordMeta(task,today) + if(task.state == TaskState.OPEN) " · " + if(task.expiryPolicy == ExpiryPolicy.MUST_FINISH) "必须办完" else "到期失效" else "",
                     style = MaterialTheme.typography.bodySmall, color = if(urgent) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
                 task.followUps.lastOrNull { it.kind == FollowUpKind.NOTE }?.let { note ->
                     Text("最近：${note.text}",maxLines = 2,overflow = TextOverflow.Ellipsis,
@@ -390,7 +393,7 @@ private fun Home(tasks: List<Task>, today: LocalDate, padding: PaddingValues,
         }
     }
 }
-@Composable private fun Settings(padding: PaddingValues,onUpdate: () -> Unit) {
+@Composable private fun Settings(padding: PaddingValues,onHistory:()->Unit,onPeople:()->Unit,onUpdate: () -> Unit) {
     val context = LocalContext.current
     val version = remember { context.packageManager.getPackageInfo(context.packageName,0).versionName }
     Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(20.dp),
@@ -398,7 +401,7 @@ private fun Home(tasks: List<Task>, today: LocalDate, padding: PaddingValues,
         Surface(shape = RoundedCornerShape(24.dp),color = MaterialTheme.colorScheme.primaryContainer) {
             Column(Modifier.fillMaxWidth().padding(22.dp),verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("交办",fontSize = 24.sp,fontWeight = FontWeight.Bold)
-                Text("别人交代的，记得住、办得好。",color = MaterialTheme.colorScheme.onPrimaryContainer)
+                Text("待办有条理，交办有跟进，想法随手记。",color = MaterialTheme.colorScheme.onPrimaryContainer)
                 Text("当前版本 $version",style = MaterialTheme.typography.bodySmall)
             }
         }
@@ -411,6 +414,7 @@ private fun Home(tasks: List<Task>, today: LocalDate, padding: PaddingValues,
                 Icon(Icons.Default.KeyboardArrowRight,null)
             }
         }
+        Row(horizontalArrangement=Arrangement.spacedBy(12.dp)){OutlinedButton(onClick=onHistory){Text("历史与归档")};OutlinedButton(onClick=onPeople){Text("按交代人查看")}}
         Text("两种事情，两种处理方式",style = MaterialTheme.typography.titleMedium,fontWeight = FontWeight.SemiBold)
         Text("必须办完：到了期限还没办完，继续留在首页，标成逾期。\n\n到期失效：期限过后自动收起，记录仍可查看和恢复。",
             style = MaterialTheme.typography.bodyMedium,color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -420,8 +424,9 @@ private fun Home(tasks: List<Task>, today: LocalDate, padding: PaddingValues,
 }
 
 @OptIn(ExperimentalMaterial3Api::class,ExperimentalLayoutApi::class)
-@Composable private fun Editor(task: Task?,initial: String,today: LocalDate,known: List<String>,
-    onDismiss: () -> Unit,onSave: (String,String,LocalDate?,ExpiryPolicy) -> Unit,onState: (Task,TaskState) -> Unit) {
+@Composable private fun Editor(task: Task?,initial: String,today: LocalDate,known: List<String>,defaultKind:EntryKind,
+    onDismiss: () -> Unit,onSave: (String,String,LocalDate?,ExpiryPolicy,EntryKind) -> Unit,onState: (Task,TaskState) -> Unit) {
+    var kind by rememberSaveable(task?.id,initial){mutableStateOf(task?.kind ?: defaultKind)}
     val focus = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
     var text by rememberSaveable(task?.id,initial) { mutableStateOf(task?.text ?: initial) }
@@ -435,12 +440,12 @@ private fun Home(tasks: List<Task>, today: LocalDate, padding: PaddingValues,
     var voidConfirm by remember { mutableStateOf(false) }
     val parsedFrom = remember(text,known) { PersonParser.parse(text,known) }
     val parsedDue = remember(text,today) { DueParser.parse(text,today) }
-    val from = if(fromManual) fromDraft else parsedFrom
-    val due = if(dueManual) dueDraft?.let { LocalDate.parse(it) } else parsedDue ?: today.plusDays(DueParser.DEFAULT_DAYS)
-    val dirty = if(task == null) text.isNotBlank() else text != task.text || from != task.from || due != task.due || policy != task.expiryPolicy
+    val from = if(kind!=EntryKind.DELEGATED) "" else if(fromManual) fromDraft else parsedFrom
+    val due = if(kind==EntryKind.NOTE) null else if(dueManual) dueDraft?.let { LocalDate.parse(it) } else parsedDue ?: if(kind==EntryKind.DELEGATED) today.plusDays(DueParser.DEFAULT_DAYS) else null
+    val dirty = if(task == null) text.isNotBlank() else kind!=task.kind || text != task.text || from != task.from || due != task.due || policy != task.expiryPolicy
     fun dismiss() { if(dirty) discard = true else onDismiss() }
     fun setDue(value: LocalDate?) { dueManual = true; dueDraft = value?.toString() }
-    fun edited() = task!!.copy(text = text.trim(),from = from.trim(),due = due,expiryPolicy = policy)
+    fun edited() = task!!.copy(text = text.trim(),from = from.trim(),due = due,expiryPolicy = policy,kind=kind)
     LaunchedEffect(Unit) { if(task == null && initial.isEmpty()) focus.requestFocus() }
     ModalBottomSheet(onDismissRequest = { dismiss() },sheetState = rememberModalBottomSheetState(
         skipPartiallyExpanded = true,
@@ -452,19 +457,23 @@ private fun Home(tasks: List<Task>, today: LocalDate, padding: PaddingValues,
             verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(Modifier.fillMaxWidth(),verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text(if(task == null) "记一件交办" else "编辑交办",fontSize = 22.sp,fontWeight = FontWeight.Bold)
-                    Text(if(task == null) "写一句话，人和日期会自动识别" else "全文、交代人和期限都在这里",
+                    Text(if(task == null) "新建${kind.label}" else "编辑${kind.label}",fontSize = 22.sp,fontWeight = FontWeight.Bold)
+                    Text(if(kind==EntryKind.NOTE) "写下想法、素材和日常记录" else if(task == null) "写一句话，日期会自动识别" else "全文和安排都在这里",
                         style = MaterialTheme.typography.bodySmall,color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 IconButton(onClick = { dismiss() }) { Icon(Icons.Default.Close,"关闭详情") }
             }
-            OutlinedTextField(text,{ text = it },label = { Text("交代了什么") },placeholder = { Text("例如：王总让周五交活动表") },
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()){EntryKind.entries.forEachIndexed{index,value->SegmentedButton(selected=kind==value,onClick={kind=value},shape=SegmentedButtonDefaults.itemShape(index,3)){Text(value.label)}}}
+            OutlinedTextField(text,{ text = it },label = { Text(if(kind==EntryKind.NOTE) "标题与正文" else if(kind==EntryKind.TODO) "要做什么" else "交代了什么") },placeholder = { Text(if(kind==EntryKind.NOTE) "第一行写标题，下面自由记录…" else "例如：周五整理活动表") },
                 minLines = 3,maxLines = 7,modifier = Modifier.fillMaxWidth().focusRequester(focus),shape = RoundedCornerShape(16.dp),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default))
+            if(kind==EntryKind.DELEGATED) {
             OutlinedTextField(from,{ fromManual = true; fromDraft = it },label = { Text("谁交代的（可不填）") },
                 singleLine = true,modifier = Modifier.fillMaxWidth(),shape = RoundedCornerShape(16.dp))
             if(task == null && !fromManual && parsedFrom.isNotEmpty())
                 Text("已识别交代人：$parsedFrom，可直接修改",style = MaterialTheme.typography.bodySmall,color = MaterialTheme.colorScheme.primary)
+            }
+            if(kind!=EntryKind.NOTE) {
             Row(Modifier.fillMaxWidth(),verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("期限",fontWeight = FontWeight.SemiBold)
@@ -481,17 +490,18 @@ private fun Home(tasks: List<Task>, today: LocalDate, padding: PaddingValues,
                 FilterChip(due == null,{ setDue(null) },label = { Text("无期限") })
             }
             if(task == null && !dueManual) Text(if(parsedDue != null) "已识别期限，可点日历修改"
-                else "未提期限，暂按三天后；可改日期或选无期限",style = MaterialTheme.typography.bodySmall,color = MaterialTheme.colorScheme.onSurfaceVariant)
+                else if(kind==EntryKind.TODO) "未提日期，默认无期限" else "未提期限，暂按三天后；可改日期或选无期限",style = MaterialTheme.typography.bodySmall,color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text("到了期限之后",fontWeight = FontWeight.SemiBold)
             Row(Modifier.fillMaxWidth(),horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Policy("必须办完","逾期继续跟进",policy == ExpiryPolicy.MUST_FINISH,Modifier.weight(1f)) { policy = ExpiryPolicy.MUST_FINISH }
                 Policy("到期失效","到期自动收起",policy == ExpiryPolicy.EXPIRES,Modifier.weight(1f)) { policy = ExpiryPolicy.EXPIRES }
             }
-            Button(onClick = { onSave(text,from,due,policy) },enabled = text.isNotBlank(),
+            }
+            Button(onClick = { onSave(text,from,due,policy,kind) },enabled = text.isNotBlank(),
                 modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),shape = RoundedCornerShape(16.dp)) {
                 Text(if(task == null) "记下" else "保存修改")
             }
-            if(task != null) {
+            if(task != null && kind!=EntryKind.NOTE) {
                 if(task.state == TaskState.OPEN) Row(Modifier.fillMaxWidth(),horizontalArrangement = Arrangement.SpaceBetween) {
                     TextButton(onClick = { onState(edited(),TaskState.DONE) },enabled = text.isNotBlank()) { Text("办完了") }
                     TextButton(onClick = { voidConfirm = true },enabled = text.isNotBlank()) { Text("作废这件事",color = MaterialTheme.colorScheme.error) }

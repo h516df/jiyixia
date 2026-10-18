@@ -69,6 +69,7 @@ public class RedesignRegressionProbe extends Instrumentation {
                 if(text.contentEquals(n.getText()==null?"":n.getText()) ||
                     text.contentEquals(n.getContentDescription()==null?"":n.getContentDescription())) {
                     for(AccessibilityNodeInfo p=n;p!=null;p=p.getParent()) {
+                        if(p.isSelected() && java.util.Arrays.asList("交办","待办","笔记","设置").contains(text)) return;
                         if(p.isClickable() && p.performAction(AccessibilityNodeInfo.ACTION_CLICK)) { SystemClock.sleep(250); return; }
                     }
                 }
@@ -160,7 +161,7 @@ public class RedesignRegressionProbe extends Instrumentation {
     private void search(String text) throws Exception {
         if(labels().contains("返回记录")) tap("返回记录");
         if(labels().contains("取消")) tap("取消");
-        tap("搜索全部记录"); waitFor(s->hasPart(s,"搜事情或交代人"));
+        tap("搜索全部记录"); waitFor(s->hasPart(s,"搜索待办、交办和笔记"));
         setText(0,text); hideKeyboard(); waitFor(s->s.contains(text));
     }
     private void reader(String text) throws Exception { search(text); tap(text); waitFor(s->s.contains("事项详情")); }
@@ -168,7 +169,7 @@ public class RedesignRegressionProbe extends Instrumentation {
     private void home() throws Exception {
         if(labels().contains("返回记录")) tap("返回记录");
         if(labels().contains("取消")) tap("取消");
-        if(!labels().contains("交办")) tap("事情");
+        tap("交办");
         waitFor(s->s.contains("记一件"));
         tap("全部");
     }
@@ -214,7 +215,7 @@ public class RedesignRegressionProbe extends Instrumentation {
             LocalDate today=LocalDate.now();
             seed(today);
             shell("am start -W -n cn.jiaoban/.MainActivity");
-            waitFor(s->s.contains("记一件") && s.contains("逾期活动表"));
+            waitFor(s->s.contains("记一件"));tap("交办");waitFor(s->s.contains("逾期活动表"));
             check("Home keeps must-finish overdue visible and folds expiring records",
                 labels().contains("逾期活动表") && !labels().contains("到期活动名额") && !labels().contains("旧版到期记录"));
             check("Home does not open keyboard",getUiAutomation().getWindows().stream().noneMatch(w->w.getType()==AccessibilityWindowInfo.TYPE_INPUT_METHOD));
@@ -244,7 +245,7 @@ public class RedesignRegressionProbe extends Instrumentation {
             home(); tap("逾期"); waitFor(s->s.contains("到期活动名额"));
             check("Policy change returns expired item to overdue list",labels().contains("逾期活动表")); shot("03-overdue");
 
-            home(); tap("记一件"); waitFor(s->s.contains("记一件交办"));
+            home(); tap("记一件"); waitFor(s->s.contains("新建交办"));
             String manual="李姐说明天要提交活动表\n第一项：核对价格😀\n第二项：保留尾巴标记";
             setText(0,manual); hideKeyboard();
             check("Chinese input parses person and deadline",hasPart(labels(),"已识别交代人：李姐") && hasPart(labels(),"已识别期限"));
@@ -291,7 +292,7 @@ public class RedesignRegressionProbe extends Instrumentation {
             open("逾期活动表"); tap("办完了"); persisted("must","state","DONE");
             if(labels().contains("返回记录")) tap("返回记录");
             if(labels().contains("取消")) tap("取消");
-            tap("历史"); waitFor(s->s.contains("逾期活动表"));
+            tap("设置");tap("历史与归档"); waitFor(s->s.contains("逾期活动表"));
             tap("已办完"); check("Done history filter excludes void records",!labels().contains("作废记录")); shot("05-history");
             tap("逾期活动表"); waitFor(s->s.contains("恢复为待办"));
             tap("恢复为待办"); persisted("must","state","OPEN");
@@ -303,7 +304,7 @@ public class RedesignRegressionProbe extends Instrumentation {
             open("未来预算"); tap("恢复为待办"); persisted("later","state","OPEN");
             if(labels().contains("返回记录")) tap("返回记录");
             if(labels().contains("取消")) tap("取消");
-            tap("按人"); tap("李姐"); waitFor(s->s.contains("到期活动名额"));
+            tap("设置");tap("按交代人查看"); tap("李姐"); waitFor(s->s.contains("到期活动名额"));
             check("Person detail results exclude another person's tasks",!labels().contains("逾期活动表")); shot("06-person");
 
             home(); tap("记一件"); setText(0,"未保存草稿"); hideKeyboard();
@@ -313,13 +314,13 @@ public class RedesignRegressionProbe extends Instrumentation {
             check("Incoming share cannot silently replace an unsaved draft",labels().contains("未保存草稿"));
             tap("关闭详情");
             waitFor(s->s.contains("继续编辑")); tap("继续编辑");
-            waitFor(s->s.contains("未保存草稿")); check("Continue editing preserves draft and keeps sheet visible",labels().contains("记一件交办"));
+            waitFor(s->s.contains("未保存草稿")); check("Continue editing preserves draft and keeps sheet visible",labels().contains("新建交办"));
             tap("关闭详情"); tap("放弃改动"); waitFor(s->s.contains("记一件"));
             check("Discard does not create record",data().length()==8);
 
             String shared="王总说"+ "活动规则与客户要求，".repeat(45)+"\n尾巴记号ZZZ😀，明天要提交汇总";
             shareText(shared);
-            waitFor(s->s.contains("记一件交办") && hasPart(s,"尾巴记号ZZZ"));
+            waitFor(s->s.contains("新建交办") && hasPart(s,"尾巴记号ZZZ"));
             hideKeyboard(); tap("到期失效"); tap("记下"); waitFor(s->s.contains("记一件"));
             JSONObject share=byText(shared);
             check("Long real share confirms and saves full tail/person/deadline",share.getString("from").equals("王总") &&
@@ -345,7 +346,7 @@ public class RedesignRegressionProbe extends Instrumentation {
             shell("settings put global auto_time "+autoTime);
             home(); shell("settings put system font_scale 1.3"); shell("wm size 900x2000");
             SystemClock.sleep(900); waitFor(s->s.contains("记一件"));
-            check("Large-font narrow-screen navigation available",labels().containsAll(Arrays.asList("事情","按人","历史","设置")));
+            check("Large-font narrow-screen navigation available",labels().containsAll(Arrays.asList("待办","交办","笔记","设置")));
             shot("09-large-font");
             shell("settings put system font_scale 1.0"); shell("wm size reset");
             shell("cmd uimode night yes"); SystemClock.sleep(600); waitFor(s->s.contains("记一件"));
@@ -366,6 +367,15 @@ public class RedesignRegressionProbe extends Instrumentation {
             tap("重试保存");
             check("Retry writes the same pending record",byText("保存失败后重试保留这件事").isNull("due"));
             waitFor(s->!s.contains("重试保存"));
+            home();tap("待办");tap("记一件");waitFor(s->s.contains("新建待办"));setText(0,"自己的采购清单");hideKeyboard();tap("无期限");tap("记下");
+            waitFor(s->s.contains("自己的采购清单"));check("Todo saves own kind without invented owner",byText("自己的采购清单").getString("kind").equals("TODO") && byText("自己的采购清单").getString("from").isEmpty());
+            tap("笔记");tap("写笔记");waitFor(s->s.contains("新建笔记"));setText(0,"复盘标题\n今天完成选品，明天继续。😀");hideKeyboard();tap("记下");
+            waitFor(s->s.contains("复盘标题"));tap("复盘标题");waitFor(s->hasPart(s,"今天完成选品"));tap("置顶");
+            check("Note preserves multiline and pin",byText("复盘标题\n今天完成选品，明天继续。😀").getBoolean("pinned"));shot("13-note-detail");
+            tap("编辑");setText(0,"复盘标题\n补充完整文字与表情😀");hideKeyboard();tap("保存修改");waitFor(s->hasPart(s,"补充完整文字"));
+            tap("归档");tap("确定");tap("返回记录");tap("笔记");check("Archived note leaves active notes",!labels().contains("复盘标题"));
+            tap("设置");tap("历史与归档");tap("复盘标题\n补充完整文字与表情😀");tap("恢复笔记");tap("确定");
+            check("Restore retains note kind and full text",byText("复盘标题\n补充完整文字与表情😀").getString("kind").equals("NOTE"));
             report.put("version",getTargetContext().getPackageManager().getPackageInfo("cn.jiaoban",0).versionName);
             report.put("sdk",Build.VERSION.SDK_INT).put("abi",Build.SUPPORTED_ABIS[0]).put("timezone",ZoneId.systemDefault().toString());
             report.put("recordCount",data().length()).put("sourceFingerprint",args==null?"":args.getString("sourceFingerprint",""));

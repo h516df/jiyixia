@@ -45,7 +45,7 @@ internal fun TaskDetail(task: Task, today: LocalDate, onStage: (WorkStage) -> Un
                 Surface(shape = RoundedCornerShape(16.dp), color = colors.surface,
                     border = BorderStroke(1.dp, colors.outlineVariant)) {
                     Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        DetailField("交代人",personLabel(task.from), Icons.Default.Person)
+                        if(task.kind==EntryKind.DELEGATED) DetailField("交代人",personLabel(task.from), Icons.Default.Person)
                         DetailField("期限", task.due?.let { "${it.year}年${it.monthValue}月${it.dayOfMonth}日" } ?: "没有期限", Icons.Default.DateRange)
                         DetailField("到期规则",if(task.expiryPolicy == ExpiryPolicy.MUST_FINISH) "必须办完 · 逾期继续跟进" else "到期失效 · 到期自动收起", Icons.Default.Info)
                         if(!open || task.due != null) Text(recordMeta(task,today),style = MaterialTheme.typography.bodySmall,
@@ -83,7 +83,7 @@ internal fun TaskDetail(task: Task, today: LocalDate, onStage: (WorkStage) -> Un
             TimelineEntry(event.text, event.createdAt.atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("M月d日 HH:mm")),
                 event.kind == FollowUpKind.NOTE)
         }
-        item { TimelineEntry("收到交代",task.createdAt.atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("yyyy年M月d日 HH:mm")),false) }
+        item { TimelineEntry(if(task.kind==EntryKind.TODO)"创建待办" else "收到交代",task.createdAt.atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("yyyy年M月d日 HH:mm")),false) }
         if(open) item { TextButton(onClick = { voidConfirm = true }) { Text("作废这件事",color = colors.error) } }
     }
     if(addingNote) ModalBottomSheet(onDismissRequest = { if(draft.isNotBlank()) discard = true else addingNote = false },
