@@ -9,5 +9,6 @@ class GrowthMetricsTest {
   val stats=actionGrowth(list,today)
   assertEquals(2L,stats.metrics.first().value);assertEquals(1L,stats.weekValue)
   assertEquals(1L,stats.metrics.first{it.key=="notes"}.value)
+  assertEquals(listOf("完成"),stats.recent)
  }
 }

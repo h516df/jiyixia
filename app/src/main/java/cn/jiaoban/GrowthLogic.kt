@@ -3,7 +3,7 @@ package cn.jiaoban
 import java.time.LocalDate
 
 data class GrowthMetric(val key:String,val label:String,val value:Long,val targets:List<Long>,val names:List<String>,val unit:String)
-data class GrowthStats(val title:String,val subtitle:String,val metrics:List<GrowthMetric>,val weekValue:Long,val weekUnit:String,val weekGoals:List<Int>)
+data class GrowthStats(val title:String,val subtitle:String,val metrics:List<GrowthMetric>,val weekValue:Long,val weekUnit:String,val weekGoals:List<Int>,val recent:List<String> = emptyList())
 data class GrowthBadge(val id:String,val title:String,val detail:String,val current:Long,val target:Long,val points:Int) {
     val reached get()=current>=target
     val progress get()=(current.toFloat()/target).coerceIn(0f,1f)
