@@ -47,7 +47,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onResume() {
-        super.onResume()
+        super.onResume();GrowthSession.resume(this)
         // 后台过夜后刷新同一份日期状态，不重建列表、不重新读盘。
         today.value = LocalDate.now()
     }
@@ -57,6 +57,7 @@ class MainActivity : ComponentActivity() {
         super.onStop()
     }
 
+    override fun onPause(){GrowthSession.pause();super.onPause()}
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
