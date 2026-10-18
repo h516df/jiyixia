@@ -114,6 +114,9 @@ public class RedesignRegressionProbe extends Instrumentation {
         getTargetContext().startActivity(intent);
     }
     private void hideKeyboard() throws Exception {
+        // An accessibility IME window can linger after the keyboard has gone away.
+        // Sending Back then dismisses the editor sheet and loses the test's draft.
+        if(!shell("dumpsys input_method").contains("mInputShown=true")) return;
         for(AccessibilityWindowInfo w:getUiAutomation().getWindows()) if(w.getType()==AccessibilityWindowInfo.TYPE_INPUT_METHOD) {
             shell("input keyevent KEYCODE_BACK"); SystemClock.sleep(250); return;
         }
@@ -376,6 +379,27 @@ public class RedesignRegressionProbe extends Instrumentation {
             tap("归档");tap("确定");tap("返回记录");tap("笔记");check("Archived note leaves active notes",!labels().contains("复盘标题"));
             tap("设置");tap("历史与归档");tap("复盘标题\n补充完整文字与表情😀");tap("恢复笔记");tap("确定");
             check("Restore retains note kind and full text",byText("复盘标题\n补充完整文字与表情😀").getString("kind").equals("NOTE"));
+            home();tap("待办");
+            android.content.SharedPreferences progress=getTargetContext().getSharedPreferences("growth_v1",0);
+            Set<String> savedDays=new HashSet<>(progress.getStringSet("days",Collections.emptySet()));
+            int savedGoal=progress.getInt("goal",7);
+            try {
+                LocalDate growthToday=LocalDate.now();
+                progress.edit().putStringSet("days",new HashSet<>(Arrays.asList(growthToday.toString(),growthToday.minusDays(1).toString(),growthToday.minusDays(2).toString()))).putInt("goal",7).commit();
+                tap("行动成长");reveal("本周小目标");tap("3 件完成");
+                check("Weekly growth goal is saved",progress.getInt("goal",0)==3);
+                long until=SystemClock.elapsedRealtime()+5000;
+                while(progress.getLong("badge_visit_3",0)==0 && SystemClock.elapsedRealtime()<until)SystemClock.sleep(100);
+                long awarded=progress.getLong("badge_visit_3",0);
+                check("Real usage days unlock a badge",awarded>0);shot("14-growth-dashboard");
+                tap("返回");tap("行动成长");reveal("本周小目标");
+                check("Growth goal and badge survive reopening",progress.getInt("goal",0)==3 && progress.getLong("badge_visit_3",0)==awarded);
+                tap("返回");
+                tap("设置");tap("从最近任务中隐藏");
+                check("Hide recents persists and changes task flag",progress.getBoolean("hide_recents",false) && getTargetContext().getSystemService(android.app.ActivityManager.class).getAppTasks().stream().anyMatch(t->(t.getTaskInfo().baseIntent.getFlags() & Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)!=0));
+                tap("从最近任务中隐藏");
+                check("Recent task can be restored",!progress.getBoolean("hide_recents",true));
+            } finally {progress.edit().putStringSet("days",savedDays).putInt("goal",savedGoal).commit();}
             report.put("version",getTargetContext().getPackageManager().getPackageInfo("cn.jiaoban",0).versionName);
             report.put("sdk",Build.VERSION.SDK_INT).put("abi",Build.SUPPORTED_ABIS[0]).put("timezone",ZoneId.systemDefault().toString());
             report.put("recordCount",data().length()).put("sourceFingerprint",args==null?"":args.getString("sourceFingerprint",""));

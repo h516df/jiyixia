@@ -99,7 +99,7 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
                 else if(searching) OutlinedTextField(query, { query = it }, singleLine = true,
                     placeholder = { Text("搜索待办、交办和笔记") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp))
                 else Column {
-                    Text(if(screen == Screen.MAIN) "交办" else screen.label, fontWeight = FontWeight.Bold, fontSize = 26.sp)
+                    Text(screen.label, fontWeight = FontWeight.Bold, fontSize = 26.sp)
                     if(screen in listOf(Screen.MAIN,Screen.DELEGATED)) Text("${today.monthValue}月${today.dayOfMonth}日 · 星期${listOf("一","二","三","四","五","六","日")[today.dayOfWeek.value-1]}",
                         style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -145,6 +145,7 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
                 }
             }
         }
+        if(holder.loaded && detailId==null && !searching && screen in listOf(Screen.MAIN,Screen.SETTINGS)) GrowthEntry(actionGrowth(holder.tasks,today),Modifier.padding(horizontal=20.dp))
         val innerPadding = PaddingValues(0.dp)
         val detail = holder.tasks.firstOrNull { it.id == detailId }
         when {
@@ -400,7 +401,7 @@ private fun Home(tasks: List<Task>, today: LocalDate, padding: PaddingValues,
         verticalArrangement = Arrangement.spacedBy(18.dp)) {
         Surface(shape = RoundedCornerShape(24.dp),color = MaterialTheme.colorScheme.primaryContainer) {
             Column(Modifier.fillMaxWidth().padding(22.dp),verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("交办",fontSize = 24.sp,fontWeight = FontWeight.Bold)
+                Text("有序",fontSize = 24.sp,fontWeight = FontWeight.Bold)
                 Text("待办有条理，交办有跟进，想法随手记。",color = MaterialTheme.colorScheme.onPrimaryContainer)
                 Text("当前版本 $version",style = MaterialTheme.typography.bodySmall)
             }
@@ -415,6 +416,7 @@ private fun Home(tasks: List<Task>, today: LocalDate, padding: PaddingValues,
             }
         }
         Row(horizontalArrangement=Arrangement.spacedBy(12.dp)){OutlinedButton(onClick=onHistory){Text("历史与归档")};OutlinedButton(onClick=onPeople){Text("按交代人查看")}}
+        RecentTasksPreference()
         Text("两种事情，两种处理方式",style = MaterialTheme.typography.titleMedium,fontWeight = FontWeight.SemiBold)
         Text("必须办完：到了期限还没办完，继续留在首页，标成逾期。\n\n到期失效：期限过后自动收起，记录仍可查看和恢复。",
             style = MaterialTheme.typography.bodyMedium,color = MaterialTheme.colorScheme.onSurfaceVariant)
