@@ -1,0 +1,23 @@
+{
+  "passed": true,
+  "sourceFingerprint": "ed2f81efabcb3bc20d68addfa44d5d9a4d043ede1188810f8ae88475496580b5",
+  "serial": "emulator-5590",
+  "avd": "Jiaoban_Redesign_API36",
+  "old": {
+    "package": "cn.jiaoban",
+    "versionCode": 10,
+    "versionName": "0.10",
+    "sha256": "483464515604f22bf73418cc4006c308d4b69eaf4596819fb9d12158c4377038"
+  },
+  "new": {
+    "package": "cn.jiaoban",
+    "versionCode": 11,
+    "versionName": "0.11",
+    "sha256": "0766831b9f4e0eeb78b7f6d08adedd9d4d2588868f9b7e488aa0d8a3e2e7c849"
+  },
+  "certificateSha256": "21b74e3e2a10e12da8284d4e6bd7d99e55b00a385215902e94d7896f7a46c967",
+  "recordsBefore": "DATA_SHA256: 2c83dc7ad2a43f1d95c0f06506882064dc8cb8472b9d7144b358bac8a7e35106 count=7\\n",
+  "recordsAfter": "DATA_SHA256: 2c83dc7ad2a43f1d95c0f06506882064dc8cb8472b9d7144b358bac8a7e35106 count=7\\n",
+  "loadedBeforeAndAfter": true,
+  "noUninstallOrDataClear": true
+}
