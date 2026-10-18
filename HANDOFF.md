@@ -39,3 +39,5 @@
 2026-10-18 用户要求换名称和图标，当前采用「有序」；仅品牌显示与图标变化，包名、仓库、更新前缀及持久化标识不变。足迹涂色保留原名和图标。
 
 本轮正式包原生80检查、122 JVM以及重启记录摘要通过。证据 docs/verification/v0.14 与 ignored verification/redesign-release/bound-results.json，发布门禁绑定当前源码/APK/探针。此后仅文档变化，不改业务源。
+
+v0.15减少成长页文字和重复统计，详细记录按需展开。122 JVM及完整原生回归/重启资料保持通过，见docs/acceptance/v0.15。
