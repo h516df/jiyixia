@@ -66,6 +66,13 @@ fun UpdateScreen(updater: Updater, contentPadding: PaddingValues) {
         )
 
         when (state) {
+            is UpdateState.Restoring -> Text("正在核对本机已下载的安装包…")
+            is UpdateState.Verifying -> Text("安装前再次校验文件、版本与签名…")
+            is UpdateState.NeedInstallPermission -> {
+                Text("系统尚未允许拾页安装更新。请在系统页面允许后返回；安装仍由你确认。")
+                Button(onClick={updater.openInstallPermissionSettings()}){Text("打开系统安装权限")}
+                TextButton(onClick={updater.install()}){Text("已允许，继续安装")}
+            }
             is UpdateState.Idle -> Button(onClick = { updater.check() }) { Text("检查更新") }
 
             is UpdateState.Checking -> Row(verticalAlignment = Alignment.CenterVertically) {
@@ -140,7 +147,7 @@ fun UpdateScreen(updater: Updater, contentPadding: PaddingValues) {
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            TextButton(onClick = { updater.forgetAuthorization() }) { Text("清掉授权") }
+            TextButton(onClick = { updater.forgetAuthorization() },enabled=!updater.busy) { Text("清掉授权") }
         }
     }
 }
@@ -162,7 +169,7 @@ private fun AuthCard(userCode: String, onOpenBrowser: () -> Unit, onCancel: () -
             )
             Text(
                 text = "这一步里 GitHub 会问这个 App 能访问哪些仓库，要选上「${UpdateConfig.REPO_NAME}」" +
-                    "（或者直接选全部仓库），不然检查更新会看不到发布资料。授权完这边会自动继续。",
+                    "，无需选择其他仓库。授权完这边会自动继续。",
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.primary,
             )

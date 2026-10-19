@@ -44,7 +44,7 @@ private enum class Screen(val label: String, val icon: ImageVector) {
 fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onSharedHandled: () -> Unit = {}) {
     val holder = remember { TasksHolder.forStore(store) }
     val context = LocalContext.current
-    val updater = remember { Updater(context) }
+    val updater = remember { Updater.forApplication(context) }
     val focus = LocalFocusManager.current
     var screen by rememberSaveable { mutableStateOf(Screen.NOTES) }
     var searching by rememberSaveable { mutableStateOf(false) }
