@@ -69,7 +69,7 @@ public class RedesignRegressionProbe extends Instrumentation {
                 if(text.contentEquals(n.getText()==null?"":n.getText()) ||
                     text.contentEquals(n.getContentDescription()==null?"":n.getContentDescription())) {
                     for(AccessibilityNodeInfo p=n;p!=null;p=p.getParent()) {
-                        if(p.isSelected() && java.util.Arrays.asList("交办","待办","笔记","设置","全部","今天","逾期","接下来","进行中","等回复").contains(text)) return;
+                        if(p.isSelected() && java.util.Arrays.asList("待办","笔记","设置","全部","今天","以后","完成","全部笔记","已归档").contains(text)) return;
                         if(p.isClickable() && p.performAction(AccessibilityNodeInfo.ACTION_CLICK)) { SystemClock.sleep(250); return; }
                     }
                 }
@@ -80,7 +80,7 @@ public class RedesignRegressionProbe extends Instrumentation {
                     Rect bounds=new Rect();n.getBoundsInScreen(bounds);
                     if(bounds.height()<bounds.width()/2) moved=n.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD) || moved;
                 }
-            } else moved=scrollForward(Arrays.asList("今天","逾期","接下来","进行中","等回复").contains(text));
+            } else moved=scrollForward(Arrays.asList("今天","以后","完成").contains(text));
             if(!moved) SystemClock.sleep(200); else SystemClock.sleep(200);
         }
         throw new AssertionError("Missing clickable "+text+" | "+labels());
@@ -163,17 +163,19 @@ public class RedesignRegressionProbe extends Instrumentation {
         check("Persist "+id+" "+key+"="+expected,false);
     }
     private void search(String text) throws Exception {
+        home();
         if(labels().contains("返回记录")) tap("返回记录");
         if(labels().contains("取消")) tap("取消");
-        tap("搜索全部记录"); waitFor(s->hasPart(s,"搜索待办、交办和笔记"));
+        tap("搜索全部记录"); waitFor(s->hasPart(s,"搜索待办"));
         setText(0,text); hideKeyboard(); waitFor(s->s.contains(text));
     }
     private void reader(String text) throws Exception { search(text); tap(text); waitFor(s->s.contains("事项详情")); }
-    private void open(String text) throws Exception { reader(text); tap("编辑"); waitFor(s->s.contains("编辑交办")); }
+    private void open(String text) throws Exception { reader(text); tap("编辑"); waitFor(s->s.contains("编辑待办")); }
     private void home() throws Exception {
         if(labels().contains("返回记录")) tap("返回记录");
         if(labels().contains("取消")) tap("取消");
-        tap("交办");
+        if(labels().contains("返回设置")) tap("返回设置");
+        tap("待办");
         waitFor(s->s.contains("记一件"));
         tap("全部");
     }
@@ -219,15 +221,15 @@ public class RedesignRegressionProbe extends Instrumentation {
             LocalDate today=LocalDate.now();
             seed(today);
             shell("am start -W -n cn.jiaoban/.MainActivity");
-            waitFor(s->s.contains("记一件"));tap("交办");waitFor(s->s.contains("逾期活动表"));
+            waitFor(s->s.contains("记一件"));tap("待办");waitFor(s->s.contains("逾期活动表"));
             check("Home keeps must-finish overdue visible and folds expiring records",
                 labels().contains("逾期活动表") && !labels().contains("到期活动名额") && !labels().contains("旧版到期记录"));
             check("Home does not open keyboard",getUiAutomation().getWindows().stream().noneMatch(w->w.getType()==AccessibilityWindowInfo.TYPE_INPUT_METHOD));
             shot("01-home");
-            tap("进行中"); waitFor(s->s.contains("还没有进行中的事"));
-            check("Working empty state does not show unrelated tasks",!labels().contains("今日周报"));
-            tap("等回复"); waitFor(s->s.contains("没有等回复的事"));
-            check("Waiting empty state does not imply future arrangements",!labels().contains("暂时没有后续安排"));
+            check("Two primary tools without delegated entry",labels().contains("笔记") && !labels().contains("交办"));
+            tap("完成");waitFor(s->s.contains("已完成记录"));
+            check("Completed tab excludes open tasks",!labels().contains("今日周报") && !labels().contains("逾期活动表"));
+            check("Legacy completion without timestamp is not invented",byId("done").isNull("closedAt"));
             search("已完成"); waitFor(s->s.contains("已完成记录") && s.contains("共 1 件"));
             check("Global search includes closed records and excludes unrelated records",!labels().contains("今日周报") && !labels().contains("逾期活动表"));
             search("不存在的记录XYZ"); waitFor(s->s.contains("没有找到“不存在的记录XYZ”"));
@@ -235,10 +237,10 @@ public class RedesignRegressionProbe extends Instrumentation {
             home();
             tap("今天");
             waitFor(s->s.contains("今日周报"));
-            check("Today filter results exclude overdue and future",!labels().contains("逾期活动表") && !labels().contains("未来预算"));
-            tap("逾期"); waitFor(s->s.contains("逾期活动表"));
-            check("Overdue filter only keeps must-finish records",!labels().contains("今日周报") && !labels().contains("到期活动名额"));
-            tap("接下来"); waitFor(s->s.contains("未来预算"));
+            check("Today keeps unfinished overdue and excludes future",labels().contains("逾期活动表") && !labels().contains("未来预算"));
+            tap("今天"); waitFor(s->s.contains("逾期活动表"));
+            check("Overdue filter only keeps must-finish records",labels().contains("今日周报") && !labels().contains("到期活动名额"));
+            tap("以后"); waitFor(s->s.contains("未来预算"));
             check("Later filter results",!labels().contains("逾期活动表") && !labels().contains("今日周报"));
             home();
             tap("到期失效 · 2 件"); reveal("旧版到期记录");
@@ -246,17 +248,17 @@ public class RedesignRegressionProbe extends Instrumentation {
             reveal("到期活动名额");
             check("Expired section opens real records",labels().contains("到期活动名额")); shot("02-expired");
             open("到期活动名额"); tap("必须办完"); tap("保存修改"); persisted("expires","expiryPolicy","MUST_FINISH");
-            home(); tap("逾期"); waitFor(s->s.contains("到期活动名额"));
+            home(); tap("今天"); waitFor(s->s.contains("到期活动名额"));
             check("Policy change returns expired item to overdue list",labels().contains("逾期活动表")); shot("03-overdue");
 
-            home(); tap("记一件"); waitFor(s->s.contains("新建交办"));
+            home(); tap("记一件"); waitFor(s->s.contains("新建待办"));
             String manual="李姐说明天要提交活动表\n第一项：核对价格😀\n第二项：保留尾巴标记";
             setText(0,manual); hideKeyboard();
-            check("Chinese input parses person and deadline",hasPart(labels(),"已识别交代人：李姐") && hasPart(labels(),"已识别期限"));
-            tap("无期限"); tap("到期失效"); shot("04-new");
+            check("Quick capture parses visible deadline without owner form",!hasPart(labels(),"谁交代的") && hasPart(labels(),"已识别期限"));
+            tap("无期限"); tap("更多选项"); tap("到期失效"); shot("04-new");
             tap("记下"); waitFor(s->s.contains("记一件"));
             JSONObject added=byText(manual);
-            check("Multiline Unicode input and manual metadata persisted",added.getString("from").equals("李姐") &&
+            check("Multiline Unicode input and manual metadata persisted",added.getString("from").isEmpty() && added.getString("kind").equals("TODO") &&
                 added.isNull("due") && added.getString("expiryPolicy").equals("EXPIRES"));
             open("今日周报"); tap("选择日期"); waitFor(s->s.contains("确定日期"));
             calendarDay(today.withDayOfMonth(20)); tap("确定日期"); tap("保存修改");
@@ -267,7 +269,7 @@ public class RedesignRegressionProbe extends Instrumentation {
 
             reader("逾期活动表");
             check("Detail opens reader rather than editable form",nodes().stream().noneMatch(n->n.isEditable()));
-            tap("开始办"); persisted("must","workStage","WORKING");
+            tap("补充记录");tap("开始办"); persisted("must","workStage","WORKING");
             tap("等回复"); persisted("must","workStage","WAITING");
             tap("记进展"); waitFor(s->s.contains("记一条进展"));
             String note="活动表已发给王总，等确认\n价格已核对😀，编号ABC123";
@@ -278,21 +280,26 @@ public class RedesignRegressionProbe extends Instrumentation {
             JSONArray events=byId("must").getJSONArray("followUps");
             check("Full note and progress events persist",events.length()==3 && events.getJSONObject(2).getString("text").equals(note));
             shot("11-detail-followup");
-            home(); tap("等回复"); waitFor(s->s.contains("逾期活动表"));
-            check("Waiting filter excludes received records",!labels().contains("未来预算") && !labels().contains("到期活动名额"));
             search("ABC123"); waitFor(s->s.contains("逾期活动表") && s.contains("共 1 件"));
-            check("Search finds follow-up content",!labels().contains("今日周报"));
-            reader("逾期活动表"); tap("继续办理"); persisted("must","workStage","WORKING");
-            home(); tap("进行中"); waitFor(s->s.contains("逾期活动表"));
-            check("Working filter shows actual stage",!labels().contains("未来预算"));
-            tap("等回复：逾期活动表"); persisted("must","workStage","WAITING");
-            waitFor(s->s.contains("还没有进行中的事"));
-            check("Home quick action immediately updates filtered results",!labels().contains("逾期活动表"));
-            tap("等回复"); waitFor(s->s.contains("逾期活动表"));
-            tap("继续办理：逾期活动表"); persisted("must","workStage","WORKING");
-            home(); tap("进行中"); waitFor(s->s.contains("逾期活动表")); shot("12-home-quick-progress");
-
-            open("逾期活动表"); tap("办完了"); tap("撤销"); persisted("must","state","OPEN");
+            check("Search finds preserved follow-up content",!labels().contains("今日周报"));
+            reader("逾期活动表");tap("补充记录");tap("继续办理");persisted("must","workStage","WORKING");
+            tap("标为重要");persisted("must","important","true");
+            tap("添加步骤");setText(0,"核对价格");hideKeyboard();
+            shareText("分享不能覆盖步骤");waitFor(x->x.contains("收到新的分享"));tap("继续当前编辑");
+            check("Share interruption retains step draft",labels().contains("核对价格"));tap("保存步骤");
+            waitFor(x->x.contains("核对价格"));
+            check("Step text saved",byId("must").getJSONArray("steps").getJSONObject(0).getString("text").equals("核对价格"));
+            tap("步骤：核对价格");
+            SystemClock.sleep(350);
+            check("Step completion saved",byId("must").getJSONArray("steps").getJSONObject(0).getBoolean("done"));
+            reader("逾期活动表");
+            check("Reopen preserves important and steps",labels().contains("已标重要") && labels().contains("核对价格"));
+            check("Legacy source and kind remain intact",byId("must").getString("from").equals("王总") && byId("must").getString("kind").equals("DELEGATED"));
+            shot("12-todo-steps");
+            open("逾期活动表");setText(0,"逾期活动表（已核对）");hideKeyboard();tap("办完了");tap("撤销");persisted("must","state","OPEN");
+            check("Undo completion preserves explicitly submitted edits",byId("must").getString("text").equals("逾期活动表（已核对）"));
+            check("Undo retains steps important and source",byId("must").getBoolean("important") && byId("must").getJSONArray("steps").getJSONObject(0).getBoolean("done") && byId("must").getString("from").equals("王总"));
+            open("逾期活动表（已核对）");setText(0,"逾期活动表");hideKeyboard();tap("保存修改");
             open("逾期活动表"); tap("办完了"); persisted("must","state","DONE");
             if(labels().contains("返回记录")) tap("返回记录");
             if(labels().contains("取消")) tap("取消");
@@ -308,8 +315,9 @@ public class RedesignRegressionProbe extends Instrumentation {
             open("未来预算"); tap("恢复为待办"); persisted("later","state","OPEN");
             if(labels().contains("返回记录")) tap("返回记录");
             if(labels().contains("取消")) tap("取消");
-            tap("设置");tap("按交代人查看"); tap("李姐"); waitFor(s->s.contains("到期活动名额"));
-            check("Person detail results exclude another person's tasks",!labels().contains("逾期活动表")); shot("06-person");
+            home();search("李姐");waitFor(x->x.contains("到期活动名额"));
+            check("Old owner remains searchable without a people entry",!labels().contains("逾期活动表"));
+            home();tap("设置");check("Removed people and delegated entries",!labels().contains("按交代人查看") && !labels().contains("交办"));
 
             home(); tap("记一件"); setText(0,"未保存草稿"); hideKeyboard();
             shareText("新的分享不能覆盖草稿");
@@ -318,16 +326,16 @@ public class RedesignRegressionProbe extends Instrumentation {
             check("Incoming share cannot silently replace an unsaved draft",labels().contains("未保存草稿"));
             tap("关闭详情");
             waitFor(s->s.contains("继续编辑")); tap("继续编辑");
-            waitFor(s->s.contains("未保存草稿")); check("Continue editing preserves draft and keeps sheet visible",labels().contains("新建交办"));
+            waitFor(s->s.contains("未保存草稿")); check("Continue editing preserves draft and keeps sheet visible",labels().contains("新建待办"));
             tap("关闭详情"); tap("放弃改动"); waitFor(s->s.contains("记一件"));
             check("Discard does not create record",data().length()==8);
 
             String shared="王总说"+ "活动规则与客户要求，".repeat(45)+"\n尾巴记号ZZZ😀，明天要提交汇总";
             shareText(shared);
-            waitFor(s->s.contains("新建交办") && hasPart(s,"尾巴记号ZZZ"));
-            hideKeyboard(); tap("到期失效"); tap("记下"); waitFor(s->s.contains("记一件"));
+            waitFor(s->s.contains("新建待办") && hasPart(s,"尾巴记号ZZZ"));
+            hideKeyboard(); tap("更多选项"); tap("到期失效"); tap("记下"); waitFor(s->s.contains("记一件"));
             JSONObject share=byText(shared);
-            check("Long real share confirms and saves full tail/person/deadline",share.getString("from").equals("王总") &&
+            check("Long real share confirms and saves full tail/person/deadline",share.getString("from").isEmpty() && share.getString("kind").equals("TODO") &&
                 share.getString("due").equals(today.plusDays(1).toString()) && share.getString("expiryPolicy").equals("EXPIRES"));
             shot("07-shared-home");
 
@@ -339,10 +347,10 @@ public class RedesignRegressionProbe extends Instrumentation {
             waitFor(s->hasPart(s,(today.plusDays(1).getMonthValue())+"月"+today.plusDays(1).getDayOfMonth()+"日"));
             home(); tap("今天"); waitFor(s->s.contains("未来预算"));
             check("Same-process overnight resume refreshes actual today results",android.os.Process.myPid()==pid &&
-                labels().contains("未来预算") && !labels().contains("逾期活动表"));
+                labels().contains("未来预算") && labels().contains("逾期活动表"));
             shell("cmd alarm set-time "+(originalTime+172800000));
             waitFor(s->hasPart(s,today.plusDays(2).getMonthValue()+"月"+today.plusDays(2).getDayOfMonth()+"日"));
-            home(); tap("逾期"); waitFor(s->s.contains("未来预算"));
+            home(); tap("今天"); waitFor(s->s.contains("未来预算"));
             check("Foreground date change keeps must-finish overdue visible",labels().contains("未来预算"));
             shot("08-next-day");
 
@@ -350,7 +358,7 @@ public class RedesignRegressionProbe extends Instrumentation {
             shell("settings put global auto_time "+autoTime);
             home(); shell("settings put system font_scale 1.3"); shell("wm size 900x2000");
             SystemClock.sleep(900); waitFor(s->s.contains("记一件"));
-            check("Large-font narrow-screen navigation available",labels().containsAll(Arrays.asList("待办","交办","笔记","设置")));
+            check("Large-font narrow-screen navigation available",labels().containsAll(Arrays.asList("待办","笔记","设置")));
             shot("09-large-font");
             shell("settings put system font_scale 1.0"); shell("wm size reset");
             shell("cmd uimode night yes"); SystemClock.sleep(600); waitFor(s->s.contains("记一件"));
@@ -372,47 +380,55 @@ public class RedesignRegressionProbe extends Instrumentation {
             check("Retry writes the same pending record",byText("保存失败后重试保留这件事").isNull("due"));
             waitFor(s->!s.contains("重试保存"));
             home();tap("待办");tap("记一件");waitFor(s->s.contains("新建待办"));setText(0,"自己的采购清单");hideKeyboard();tap("无期限");tap("记下");
-            waitFor(s->s.contains("自己的采购清单"));check("Todo saves own kind without invented owner",byText("自己的采购清单").getString("kind").equals("TODO") && byText("自己的采购清单").getString("from").isEmpty());
-            tap("笔记");tap("写笔记");waitFor(s->s.contains("新建笔记"));setText(0,"复盘标题\n今天完成选品，明天继续。😀");hideKeyboard();tap("记下");
+            home();tap("以后");waitFor(s->s.contains("自己的采购清单"));check("Todo saves own kind without invented owner",byText("自己的采购清单").getString("kind").equals("TODO") && byText("自己的采购清单").getString("from").isEmpty());
+            tap("笔记");tap("写笔记");waitFor(s->s.contains("新建笔记"));setText(0,"复盘标题\n今天完成选品，明天继续。😀");hideKeyboard();tap("保存笔记");
             waitFor(s->s.contains("复盘标题"));tap("复盘标题");waitFor(s->hasPart(s,"今天完成选品"));tap("置顶");
             check("Note preserves multiline and pin",byText("复盘标题\n今天完成选品，明天继续。😀").getBoolean("pinned"));shot("13-note-detail");
-            tap("编辑");setText(0,"复盘标题\n补充完整文字与表情😀");hideKeyboard();tap("保存修改");waitFor(s->hasPart(s,"补充完整文字"));
+            tap("编辑");setText(0,"复盘标题\n补充完整文字与表情😀");hideKeyboard();tap("保存笔记");waitFor(s->hasPart(s,"补充完整文字"));
             tap("归档");tap("确定");tap("返回记录");tap("笔记");check("Archived note leaves active notes",!labels().contains("复盘标题"));
-            tap("设置");tap("历史与归档");tap("复盘标题\n补充完整文字与表情😀");tap("恢复笔记");tap("确定");
+            tap("已归档");tap("复盘标题");tap("恢复笔记");tap("确定");
             check("Restore retains note kind and full text",byText("复盘标题\n补充完整文字与表情😀").getString("kind").equals("NOTE"));
-            home();tap("待办");
+            tap("返回记录");tap("笔记");tap("搜索全部记录");waitFor(x->x.contains("搜索笔记正文"));setText(0,"补充完整文字");hideKeyboard();
+            waitFor(x->x.contains("复盘标题"));check("Notes search matches body and excludes tasks",!labels().contains("逾期活动表"));tap("取消");
+            tap("写笔记");setText(0,"独立笔记草稿😀");hideKeyboard();
+            shareText("另一份分享");waitFor(x->x.contains("收到新的分享"));tap("继续当前编辑");
+            check("Incoming share retains full screen note draft",labels().contains("独立笔记草稿😀") && labels().contains("保存笔记"));
+            shell("cmd uimode night yes");SystemClock.sleep(700);
+            check("Configuration recreation preserves draft without replaying handled share",labels().contains("独立笔记草稿😀") && labels().contains("保存笔记") && !labels().contains("收到新的分享"));
+            shell("cmd uimode night no");SystemClock.sleep(700);
+            check("Note editor has no task deadline or completion",!labels().contains("期限") && !labels().contains("办完了"));shot("18-note-editor");
+            tap("关闭笔记");tap("继续编辑");check("Continue preserves full screen draft",labels().contains("独立笔记草稿😀"));
+            tap("关闭笔记");tap("放弃改动");
+            tap("写笔记");setText(0,"素材清单\n- [ ] 核对\n- [ ] 核对\n尾巴😀");hideKeyboard();tap("保存笔记");tap("素材清单");
+            tap("清单第2行：核对");
+            SystemClock.sleep(350);
+            check("Note checklist updates only one duplicate row",byText("素材清单\n- [x] 核对\n- [ ] 核对\n尾巴😀").getString("kind").equals("NOTE"));
+            shot("20-note-checklist");
+            home();search("素材清单");waitFor(x->hasPart(x,"没有找到"));check("Todo search excludes notes",hasPart(labels(),"没有找到“素材清单”") && !hasPart(labels(),"尾巴😀"));
+            home();reader("自己的采购清单");tap("办完了");
+            home();tap("设置");tap("最近做成的事");waitFor(x->x.contains("自己的采购清单"));
+            check("Review shows actual completed task",labels().contains("自己的采购清单") && !labels().contains("素材清单"));
+            check("Review has no level goal streak pressure",!hasPart(labels(),"等级") && !hasPart(labels(),"本周小目标") && !hasPart(labels(),"连续"));shot("14-review");
+            tap("日常纪念");waitFor(x->x.contains("第一步完成"));
+            check("Completed record earns a secondary keepsake",labels().contains("第一步完成"));
+            tap("第一步完成");waitFor(x->hasPart(x,"完成事项 1 件"));tap("知道了");shot("15-keepsakes");
             android.content.SharedPreferences progress=getTargetContext().getSharedPreferences("growth_v1",0);
-            Set<String> savedDays=new HashSet<>(progress.getStringSet("days",Collections.emptySet()));
-            int savedGoal=progress.getInt("goal",7);
-            try {
-                LocalDate growthToday=LocalDate.now();
-                progress.edit().putStringSet("days",new HashSet<>(Arrays.asList(growthToday.toString(),growthToday.minusDays(1).toString(),growthToday.minusDays(2).toString()))).putInt("goal",7).commit();
-                tap("设置");tap("行动成长");reveal("本周小目标");tap("本周小目标");tap("3 件完成");
-                check("Weekly growth goal is saved",progress.getInt("goal",0)==3);
-                long until=SystemClock.elapsedRealtime()+5000;
-                while(progress.getLong("badge_visit_3",0)==0 && SystemClock.elapsedRealtime()<until)SystemClock.sleep(100);
-                long awarded=progress.getLong("badge_visit_3",0);
-                check("Real usage days unlock a badge",awarded>0);SystemClock.sleep(650);shot("14-growth-dashboard");
-                tap("徽章收藏");reveal("十事有成");tap("十事有成");
-                waitFor(s->s.contains("完成事项 10 件"));
-                check("Badge opens its own requirement",labels().contains("完成事项 10 件"));
-                tap("知道了");reveal("收起徽章");tap("收起徽章");
-                reveal("查看成长记录");tap("查看成长记录");reveal("最近 28 天");
-                check("History opens on request",labels().contains("最近 28 天"));
-                shot("15-growth-history");reveal("收起成长记录");tap("收起成长记录");
-                shell("cmd uimode night yes");SystemClock.sleep(700);shot("16-growth-dark");
-                shell("cmd uimode night no");shell("wm size 720x1280");shell("settings put system font_scale 1.3");SystemClock.sleep(700);
-                reveal("本周小目标");tap("本周小目标");waitFor(s->s.contains("7 件完成"));
-                check("Small screen large text keeps goal choices reachable",labels().contains("7 件完成"));shot("17-growth-large-font");tap("取消");
-                shell("settings put system font_scale 1.0");shell("wm size reset");SystemClock.sleep(500);
-                tap("返回");tap("行动成长");reveal("本周小目标");
-                check("Growth goal and badge survive reopening",progress.getInt("goal",0)==3 && progress.getLong("badge_visit_3",0)==awarded);
-                tap("返回");
-                tap("设置");tap("从最近任务中隐藏");
-                check("Hide recents persists and changes task flag",progress.getBoolean("hide_recents",false) && getTargetContext().getSystemService(android.app.ActivityManager.class).getAppTasks().stream().anyMatch(t->(t.getTaskInfo().baseIntent.getFlags() & Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)!=0));
-                tap("从最近任务中隐藏");
-                check("Recent task can be restored",!progress.getBoolean("hide_recents",true));
-            } finally {progress.edit().putStringSet("days",savedDays).putInt("goal",savedGoal).commit();}
+            long earnedAt=progress.getLong("badge_done_1",0);check("Keepsake is persisted",earnedAt>0);
+            tap("返回");tap("返回");tap("最近做成的事");
+            check("Reopening never duplicates keepsake",progress.getLong("badge_done_1",0)==earnedAt);
+            tap("自己的采购清单");tap("恢复为待办");home();tap("设置");tap("最近做成的事");
+            check("Restored task leaves completed review",!labels().contains("自己的采购清单"));
+            shell("cmd uimode night yes");SystemClock.sleep(650);
+            check("Theme recreation does not reopen consumed share",!labels().contains("收到新的分享"));shot("16-review-dark");
+            shell("wm size 720x1600");shell("wm density 320");shell("settings put system font_scale 1.3");SystemClock.sleep(700);
+            tap("日常纪念");waitFor(x->x.contains("第一步完成"));
+            check("Small dark large text keeps actual keepsakes reachable",labels().contains("第一步完成"));shot("17-review-large-font");
+            tap("返回");tap("返回");home();tap("笔记");tap("写笔记");setText(0,"小屏笔记\n正文末尾必须可编辑😀");hideKeyboard();
+            check("Small dark note editor retains body and save",labels().contains("保存笔记") && hasPart(labels(),"正文末尾必须可编辑"));shot("19-note-small-dark");tap("保存笔记");
+            shell("settings put system font_scale 1.0");shell("wm size reset");shell("wm density reset");shell("cmd uimode night no");SystemClock.sleep(500);
+            home();tap("设置");tap("从最近任务中隐藏");
+            check("Hide recents persists and changes task flag",progress.getBoolean("hide_recents",false) && getTargetContext().getSystemService(android.app.ActivityManager.class).getAppTasks().stream().anyMatch(t->(t.getTaskInfo().baseIntent.getFlags() & Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)!=0));
+            tap("从最近任务中隐藏");check("Recent task can be restored",!progress.getBoolean("hide_recents",true));
             report.put("version",getTargetContext().getPackageManager().getPackageInfo("cn.jiaoban",0).versionName);
             report.put("sdk",Build.VERSION.SDK_INT).put("abi",Build.SUPPORTED_ABIS[0]).put("timezone",ZoneId.systemDefault().toString());
             report.put("recordCount",data().length()).put("sourceFingerprint",args==null?"":args.getString("sourceFingerprint",""));
@@ -423,7 +439,7 @@ public class RedesignRegressionProbe extends Instrumentation {
         } finally {
             try {
                 if(originalTime>0) { shell("cmd alarm set-time "+(originalTime+SystemClock.elapsedRealtime()-began)); shell("settings put global auto_time "+autoTime); }
-                shell("settings put system font_scale 1.0"); shell("wm size reset"); shell("cmd uimode night no");
+                shell("settings put system font_scale 1.0"); shell("wm size reset"); shell("wm density reset"); shell("cmd uimode night no");
                 report.put("passed",result==-1).put("error",error).put("checks",checks);
                 if(out!=null) Files.write(new File(out,"results.json").toPath(),report.toString(2).getBytes(StandardCharsets.UTF_8));
             } catch(Throwable failure) { error+=" report: "+failure; result=0; }

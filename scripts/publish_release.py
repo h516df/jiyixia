@@ -67,7 +67,7 @@ def find_release(tag):
 
 
 def markdown(notes, sha):
-    lines = [f"## 交办 v{notes['versionName']}", "", "**覆盖安装即可，旧记录保留。**", ""]
+    lines = [f"## 有序 v{notes['versionName']}", "", "**覆盖安装即可，旧记录保留。**", ""]
     for heading in HEADINGS:
         items = notes.get(heading) or []
         if not items:
@@ -141,7 +141,7 @@ def main():
     target = args.target_commit or head
     if not re.fullmatch(r"[0-9a-f]{40}", target):
         raise SystemExit("发布目标必须是完整提交 SHA。")
-    title = "交办 v%s｜%s" % (version, (notes.get("新增") or ["小改动"])[0][:24])
+    title = "有序 v%s｜%s" % (version, (notes.get("新增") or ["小改动"])[0][:24])
     body_file = out / "release-body.md"
     body_file.write_text(markdown(notes, sha), encoding="utf-8")
     meta = find_release(tag)
