@@ -43,3 +43,11 @@
     ./gradlew :app:assembleRelease -PunsignedRelease --max-workers=1
 
 产物 app/build/outputs/apk/release/app-release-unsigned.apk 不能直接安装；只在原密钥环境签名，并重新校验包名、版本与证书后进行覆盖升级验收。签名前哈希见 verification.json。
+
+## 附件路径增量（原 b481110 候选之后）
+
+显式 `./`、`../` 附件路径现在只按笔记所在目录解析。缺失或越界时保留原文并警告，不回退到 vault 根目录或猜测同名文件；非显式路径的既有歧义策略不变。新增合成回归覆盖同名根附件、URL 编码路径、缺失/越界、重复导入和完整备份附件字节往返。
+
+    ./gradlew :app:testDebugUnitTest --tests 'cn.jiaoban.importing.ImportParserTest' --tests 'cn.jiaoban.importing.ImportTransactionTest' --max-workers=1
+
+本次针对性结果：35 项通过（Parser 27、Transaction 8），0 failures/errors/skipped。没有 UI 变更；未重新生成安装包或声称完成真实用户 vault 验收。verification.json 及其中未签包哈希仍对应前一候选，不代表本增量的新包。原 Windows 五项失败的完整诊断日志不足，rename 覆盖差异只是与现象相符的修复假设；新旧平台回归通过本身不能证明原失败根因。

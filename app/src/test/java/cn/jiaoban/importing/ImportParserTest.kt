@@ -57,6 +57,32 @@ class ImportParserTest {
         assertFalse(plan.records.single().attachments.any{it.name=="vault.zip"})
         assertTrue(plan.records.single().attachments.any{it.name=="2024-05-22.md" && it.sourceFile})
     }
+    @Test fun explicitRelativeAttachmentKeepsChosenFileAcrossRepeatAndBackup() {
+        val archive=zip("Daily/n.md" to "![图](./a.png)".toByteArray(),
+            "Daily/a.png" to byteArrayOf(1,2,3), "a.png" to byteArrayOf(8,9))
+        val plan=ImportParser.parse(ImportBundle.read("vault.zip",archive.inputStream()),ImportFormat.OBSIDIAN,now=now)
+        val media=plan.records.single().attachments.single{!it.sourceFile}
+        assertArrayEquals(byteArrayOf(1,2,3),plan.assets.getValue(media.relativePath))
+        assertFalse(plan.warnings.any{it.contains("歧义")})
+        assertFalse(plan.assets.values.any{it.contentEquals(byteArrayOf(8,9))})
+        val repeated=ImportParser.parse(ImportBundle.read("vault.zip",archive.inputStream()),ImportFormat.OBSIDIAN,now=now.plusSeconds(10))
+        assertEquals(1,repeated.duplicateCount(plan.records));assertTrue(repeated.additions(plan.records).isEmpty())
+        ImportStorage.install(tmp.root,plan.assets,plan.records.flatMap{it.attachments}.map{it.relativePath}.toSet())
+        val backup=ByteArrayOutputStream().also{BackupPackage.export(plan.records,tmp.root,it)}.toByteArray()
+        val restored=BackupPackage.parse(ImportBundle.read("backup.zip",backup.inputStream()))
+        assertEquals(plan.records,restored.records)
+        assertArrayEquals(byteArrayOf(1,2,3),restored.assets.getValue(media.relativePath))
+    }
+    @Test fun missingExplicitRelativeAttachmentNeverFallsBackToRoot() {
+        for(link in listOf("./a.png","%2E%2Fa.png","../missing/a.png","../../a.png")) {
+            val archive=zip("Daily/n.md" to "![图]($link)".toByteArray(),"a.png" to byteArrayOf(8,9))
+            val plan=ImportParser.parse(ImportBundle.read("vault.zip",archive.inputStream()),ImportFormat.OBSIDIAN,now=now)
+            assertTrue(link,plan.records.single().attachments.all{it.sourceFile})
+            assertTrue(link,plan.warnings.any{it.contains("附件未找到")})
+            assertFalse(link,plan.assets.values.any{it.contentEquals(byteArrayOf(8,9))})
+            assertEquals("![图]($link)",plan.records.single().text)
+        }
+    }
     @Test fun ambiguousAttachmentIsNotSilentlyAssigned(){
         val archive=zip("2024-05-22.md" to "![[a.png]]".toByteArray(),"one/a.png" to byteArrayOf(1),"two/a.png" to byteArrayOf(2))
         val plan=ImportParser.parse(ImportBundle.read("vault.zip",archive.inputStream()),ImportFormat.OBSIDIAN)

@@ -60,8 +60,11 @@ internal class PlanBuilder(val bundle:ImportBundle,val format:ImportFormat,val i
             fun normalize(p:String):String?{val parts=mutableListOf<String>();for(part in p.split('/'))when(part){"","."->Unit;".."->{if(parts.isEmpty())return null;parts.removeAt(parts.lastIndex)};else->parts+=part};return parts.joinToString("/")}
             val relative=normalize(notePath.substringBeforeLast('/',"")+"/"+decoded)
             val rooted=normalize(decoded)
-            val exact=listOfNotNull(relative,rooted).distinct().filter{it in bundle.files}
-            val basename=bundle.files.keys.filter{it.substringAfterLast('/')==decoded}
+            // Explicit dot paths carry a directory choice. Never guess a vault-root
+            // or basename match when that exact relative attachment is absent.
+            val explicitRelative=decoded.startsWith("./") || decoded.startsWith("../")
+            val exact=(if(explicitRelative)listOfNotNull(relative) else listOfNotNull(relative,rooted)).distinct().filter{it in bundle.files}
+            val basename=if(explicitRelative)emptyList() else bundle.files.keys.filter{it.substringAfterLast('/')==decoded}
             val matches=if(exact.isNotEmpty())exact else basename
             when(matches.size){1->matches.single();0->{if(!decoded.endsWith(".md") && decoded.substringAfterLast('/').contains('.'))warnings+="附件未找到：$notePath → $raw";null};else->{warnings+="附件名称有歧义，未自动关联：$notePath → $raw";null}}
         }
