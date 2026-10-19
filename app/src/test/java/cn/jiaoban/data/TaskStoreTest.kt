@@ -62,4 +62,32 @@ class TaskStoreTest {
         s.save(emptyList())
         assertEquals(emptyList<Task>(), s.load())
     }
+    @Test
+    fun repeatedCommitsReplaceExistingMainAndBackupAtomically() {
+        val s = store()
+        repeat(4) { s.save(listOf(one.copy(text = "revision $it"))) }
+        assertEquals("revision 3", s.load().single().text)
+        assertEquals("revision 2", TaskCodec.decode(File(tmp.root, "tasks.json.bak").readText()).single().text)
+        s.save(emptyList())
+        assertEquals(emptyList<Task>(), s.load())
+        assertEquals("revision 3", TaskCodec.decode(File(tmp.root, "tasks.json.bak").readText()).single().text)
+        assertFalse(File(tmp.root, "tasks.json.tmp").exists())
+        assertFalse(File(tmp.root, "tasks.json.bak.tmp").exists())
+    }
+
+    @Test
+    fun blockedBackupReplacementPreservesPrimaryBytes() {
+        val s = store()
+        s.save(listOf(one))
+        val primary = File(tmp.root, "tasks.json")
+        val before = primary.readBytes()
+        val blocked = File(tmp.root, "tasks.json.bak").apply { mkdir() }
+        File(blocked, "keep").writeText("block atomic replacement")
+        assertTrue(runCatching { s.save(listOf(one.copy(text = "must not commit"))) }.isFailure)
+        org.junit.Assert.assertArrayEquals(before, primary.readBytes())
+        assertEquals(listOf(one), s.load())
+        assertTrue(File(blocked, "keep").exists())
+        assertFalse(File(tmp.root, "tasks.json.tmp").exists())
+        assertFalse(File(tmp.root, "tasks.json.bak.tmp").exists())
+    }
 }

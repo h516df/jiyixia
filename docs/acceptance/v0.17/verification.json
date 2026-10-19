@@ -1,14 +1,14 @@
 {
-  "verifiedAtUtc": "2026-10-19T11:22:42.771612+00:00",
+  "verifiedAtUtc": "2026-10-19T12:34:44.051057+00:00",
   "baseline": "4e704c622481f5d2d55961336c183573dfd7abcb",
   "jvm": {
-    "tests": 221,
+    "tests": 223,
     "failures": 0,
     "errors": 0,
     "skipped": 0
   },
   "lintErrors": 0,
-  "productionApk": "debug only; not for original-signature upgrade",
+  "productionApk": "unsigned release candidate; requires original-key signing and device acceptance",
   "nativeDeviceRun": false,
   "renderType": "Robolectric native graphics / actual Compose / synthetic fixture",
   "tests": [
@@ -70,7 +70,7 @@
     },
     {
       "suite": "cn.jiaoban.data.TaskStoreTest",
-      "count": 5
+      "count": 7
     },
     {
       "suite": "cn.jiaoban.data.TasksHolderTest",
@@ -133,7 +133,7 @@
     "app/src/androidTest/AndroidManifest.xml": "1f683a50f414b1b76cd91aeeb0a7ece379c49ec58678cacde5de9c897939729c",
     "app/src/androidTest/java/cn/jiaoban/DateRegressionProbe.java": "f2c68bf251ceb2ba02056e9e7f3773babc07cbd9eb3f94213e925fc0a03378ab",
     "app/src/androidTest/java/cn/jiaoban/RedesignRegressionProbe.java": "9f36d4f1f2b1abd5a73e4c0ca60df54eec8cb5b42f139e835ea7f7be57ce89f4",
-    "app/src/androidTest/java/cn/jiaoban/WritingRegressionProbe.java": "141934dccd067c863fe58c368546bc1c19944e202b05da7ef1e6d02a75962d88",
+    "app/src/androidTest/java/cn/jiaoban/WritingRegressionProbe.java": "f8e390df8b6f0547fbc6734f9c789527a71ec5099482600586a9655eb4dd1904",
     "app/src/main/AndroidManifest.xml": "b874ef5bfca815802136d30e7f03bf6ec176c91e81e8f698f605c079894bcc2b",
     "app/src/main/assets/release-notes.json": "3c683eb48eed4f547fb2691d73fd5c375b4e5636197371afde844cdb32b7d300",
     "app/src/main/java/cn/jiaoban/ContentRules.kt": "467afca640c529ca79e37d46c8b46ffb42eda21e7beb85583816465b1a289c7a",
@@ -147,7 +147,7 @@
     "app/src/main/java/cn/jiaoban/TaskFlow.kt": "dc0b469b822315109fca577e6baad28661949153b7a9d14418f41bad44dcc3e6",
     "app/src/main/java/cn/jiaoban/WritingRules.kt": "d93f76e8df4836ad7ac88661aa55d123efecd1471e0d672a0c2e96a52bff34da",
     "app/src/main/java/cn/jiaoban/data/TaskCodec.kt": "05a344527cc900150070a3fa1ef7966668dd69ce5e86a5b5cedf4327efdb5cbe",
-    "app/src/main/java/cn/jiaoban/data/TaskStore.kt": "c73607d8bd80599e24a67b5afefcac117301dd9f41e56d0613f5a00742c4e945",
+    "app/src/main/java/cn/jiaoban/data/TaskStore.kt": "cad6205c094420c4841b45768e3a8926da27887ca3a256354672c1b9ab5c5c1f",
     "app/src/main/java/cn/jiaoban/data/TasksHolder.kt": "bee5acfc3d524da5559bcdfa3999e2cb4abc0aada1dc9aada41bdf77dddb6957",
     "app/src/main/java/cn/jiaoban/data/WritingDraft.kt": "fa64bef361e43944487237264e3edcdb7121b31991b2ec5760589134ea90eaeb",
     "app/src/main/java/cn/jiaoban/importing/BackupPackage.kt": "a7a9c4431610609fcf6ec4045f0db9ee583a7998fc501fb3ad8e8ae4faeddf9c",
@@ -201,7 +201,7 @@
     "app/src/test/java/cn/jiaoban/data/FollowUpCodecTest.kt": "7739014ea91f9467a22bbac320a465d751e877b72c6cb02b629d6b52e90420be",
     "app/src/test/java/cn/jiaoban/data/JournalCompatibilityTest.kt": "547f67bf7117f900386e0fcce86a57780a9014d2fde00cde2bda07beb8223389",
     "app/src/test/java/cn/jiaoban/data/TaskCodecTest.kt": "554e3d178f66621874d069c1c9036579936a43df85e10b6e7c7ffb3112187a15",
-    "app/src/test/java/cn/jiaoban/data/TaskStoreTest.kt": "fa6fb07215ddebf4dd1b08e74b08219028c308af63f7755f686a92a9104b5595",
+    "app/src/test/java/cn/jiaoban/data/TaskStoreTest.kt": "d0b4fb0c3109a14f4421476ed77a819e9fe9f144a775b9021b5e7b961a11c765",
     "app/src/test/java/cn/jiaoban/data/TasksHolderTest.kt": "3efbb9046062e3c12dfaf8f585c95a9ada09277e4678f993db4406d01fffd10d",
     "app/src/test/java/cn/jiaoban/data/WritingDraftTest.kt": "4e039768608611ccf83653e5218045a420c95333a2e7d753f59f18143eca6fc4",
     "app/src/test/java/cn/jiaoban/data/WritingSaveTest.kt": "d153a82ff5aae0ba8f59013cd937c5f9d9758783c411672612591f56b032e331",
@@ -228,8 +228,19 @@
     "notes-320dp-font200-light.png": "574df32b8aedfb0c7ef111db1af31996c60b28b7b3bf6138e372368882dcf83f",
     "notes-dark.png": "e989e05694465cabe1abf07656a3d82835454a7792177cec8a8eb55b5f62b79f",
     "notes-light.png": "dc7281c04c69207fc8f56b3cfc18ebc556e0bfadf39b75469ce2252b05616c80",
-    "quick-record-saved.png": "e4727f68ac0b30e8646aea02017fb9dd8c0a2f0a47beea0df122c1d08f6581a9"
+    "quick-record-saved.png": "b818ae8c0ac67eb5ca3475891c8f2994696c0e3f59c7f2d8e1436b6d5cd91ed5"
   },
   "lintWarnings": 36,
-  "lintHints": 1
+  "lintHints": 1,
+  "nativeDeviceAttempt": {
+    "sdk": 29,
+    "passed": false,
+    "blocker": "System UI not responding before application assertions; keyboard unverified"
+  },
+  "windowsStorageRegression": "pending CI; File.renameTo replacement replaced by atomic Files.move",
+  "buildConfigSha256": {
+    "app/build.gradle.kts": "ad65791b1e3a796a53a4cc5505ab000e4175096ebe297f12ce3e3834f31cd979",
+    ".github/workflows/android.yml": "f21e762fb944addbf84b1a56ee462e58a180700dfcc43be1560cfe6e81714063"
+  },
+  "unsignedReleaseSha256": "c56a3d25f3fae325842b52b0a3d63cb78f49c9d56b011d8256ddd234594c6e02"
 }

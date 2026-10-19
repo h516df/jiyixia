@@ -26,7 +26,9 @@ public class WritingRegressionProbe extends Instrumentation {
     private String shell(String cmd) throws Exception {
         try(InputStream in = new ParcelFileDescriptor.AutoCloseInputStream(getUiAutomation().executeShellCommand(cmd));
             ByteArrayOutputStream bytes = new ByteArrayOutputStream()) {
-            in.transferTo(bytes); return bytes.toString("UTF-8").trim();
+            byte[] buffer = new byte[8192]; int count;
+            while ((count = in.read(buffer)) != -1) bytes.write(buffer, 0, count);
+            return bytes.toString("UTF-8").trim();
         }
     }
     private AccessibilityNodeInfo root() {
@@ -175,6 +177,8 @@ public class WritingRegressionProbe extends Instrumentation {
         int result=0;String error="";JSONObject report=new JSONObject();
         try {
             String avd=shell("getprop ro.boot.qemu.avd_name");
+            if (avd.isEmpty()) avd=shell("getprop ro.kernel.qemu.avd_name");
+            if (avd.isEmpty()) avd=shell("getprop qemu.avd_name");
             if(!avd.startsWith("Shiye_") || !"1".equals(shell("getprop ro.kernel.qemu"))) throw new IllegalStateException("Only disposable Shiye_ emulator allowed, got "+avd);
             AccessibilityServiceInfo info=getUiAutomation().getServiceInfo();info.flags|=AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS;getUiAutomation().setServiceInfo(info);
             out=new File(getTargetContext().getExternalFilesDir(null),"writing-native");out.mkdirs();

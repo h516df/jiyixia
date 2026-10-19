@@ -36,7 +36,10 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            signingConfig = signingConfigs.getByName("release")
+            // Cloud builds may prepare an unsigned APK; the original key stays on its owner device.
+            if (!providers.gradleProperty("unsignedRelease").isPresent) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
     buildFeatures { compose = true }

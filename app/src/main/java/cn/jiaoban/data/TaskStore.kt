@@ -2,6 +2,9 @@ package cn.jiaoban.data
 
 import cn.jiaoban.Task
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption.ATOMIC_MOVE
+import java.nio.file.StandardCopyOption.REPLACE_EXISTING
 
 /**
  * 存一个 JSON 文件。写的时候先写临时文件再改名，旧文件留一份 .bak，
@@ -28,11 +31,22 @@ class TaskStore(private val file: File) {
                 val backupTmp = File(file.parentFile, file.name + ".bak.tmp")
                 try {
                     backupTmp.outputStream().use { out -> file.inputStream().use { it.copyTo(out) }; out.fd.sync() }
-                    check(backupTmp.renameTo(backup)) { "备份原记录失败" }
+                    atomicReplace(backupTmp, backup)
                 } finally { if(backupTmp.isFile)backupTmp.delete() }
             }
-            check(tmp.renameTo(file)) { "原子提交失败，原记录未改动" }
+            atomicReplace(tmp, file)
         } finally { if(tmp.isFile)tmp.delete() }
+    }
+
+    // File.renameTo cannot replace an existing target on some JVM platforms.
+    // Require an atomic same-directory move. Unsupported filesystems fail closed;
+    // never delete the destination first or fall back to a non-atomic overwrite.
+    private fun atomicReplace(source: File, target: File) {
+        try {
+            Files.move(source.toPath(), target.toPath(), ATOMIC_MOVE, REPLACE_EXISTING)
+        } catch (failure: java.io.IOException) {
+            throw IllegalStateException("原子提交失败，目标文件未改动", failure)
+        }
     }
 
     private fun readOrNull(f: File): List<Task>? {

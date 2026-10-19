@@ -26,10 +26,20 @@
 - 系统云备份和设备迁移配置均排除私有域。
 - 更新缓存跨实例恢复及重新验 hash/archive；权限拒绝后继续、验证中双击仅启动一次安装；取消授权后不保存迟到凭据。
 
-本轮 221 项 JVM 测试通过；lint 0 errors、36 warnings、1 hint。缓存恢复不发起网络请求，下载中断后需用户主动重试；系统安装确认与原证书升级仍待设备验证。
+本轮 223 项 JVM 测试通过；lint 0 errors、36 warnings、1 hint。缓存恢复不发起网络请求，下载中断后需用户主动重试；系统安装确认与原证书升级仍待设备验证。
 
 实际Compose宿主原生图形渲染使用合成记录，包含记录浅/深色、日记独立日期页、320dp/200%字号、正文阅读、旧资料只读、快捷保存后时间流和导入预览。图单独交付，不纳入源码仓库；宿主渲染不等于Android设备、系统选择器或键盘验收。
 
 ## 待设备验收
 
 真实软键盘可见性、连续两条、系统文件选择器/附件打开、原证书覆盖升级及正式发布尚待验证。云端debug APK只用于独立测试环境，不能替代原签名更新。不得卸载或清除用户数据；换手机前需主动导出并检查备份文件。
+
+## 跨平台保存与未签包
+
+原先 File.renameTo 在 Windows 覆盖已存在目标时失败，修为同目录 Files.move(ATOMIC_MOVE, REPLACE_EXISTING)，保留 fsync 且无删除目标或非原子回退。连续覆盖主库/备份和备份提交失败原字节保护已通过 Linux 回归；Windows 专项由 CI 的 storage-windows 验证，以该 job 结果为准。API29 探针修复旧 Java API/AVD 属性兼容后遇 System UI ANR，业务检查尚未开始，不能算键盘验收通过。
+
+未签 release 构建：
+
+    ./gradlew :app:assembleRelease -PunsignedRelease --max-workers=1
+
+产物 app/build/outputs/apk/release/app-release-unsigned.apk 不能直接安装；只在原密钥环境签名，并重新校验包名、版本与证书后进行覆盖升级验收。签名前哈希见 verification.json。
