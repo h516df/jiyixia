@@ -1,4 +1,7 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
-    <path android:fillColor="#00000000" android:pathData="M31,40L36,45L45,34 M31,63L36,68L45,57" android:strokeColor="#FFFFFF" android:strokeWidth="4.5" android:strokeLineCap="round" android:strokeLineJoin="round" />
-    <path android:fillColor="#00000000" android:pathData="M55,41H76 M55,64H70" android:strokeColor="#FFFFFF" android:strokeWidth="4.5" android:strokeLineCap="round" />
+    <!-- Original folded page and quiet sun; safe within adaptive icon mask. -->
+    <path android:fillColor="#F4F3E9" android:pathData="M34,29 L61,29 L75,43 L75,78 L34,78 Q30,78 30,74 L30,33 Q30,29 34,29 Z"/>
+    <path android:fillColor="#C1D0BB" android:pathData="M61,29 L61,43 L75,43 Z"/>
+    <path android:fillColor="#486859" android:pathData="M41,53 L64,53 L64,56 L41,56 Z M41,63 L58,63 L58,66 L41,66 Z"/>
+    <path android:fillColor="#D5B879" android:pathData="M48,39 a5,5 0,1 0,0.01,0 Z"/>
 </vector>

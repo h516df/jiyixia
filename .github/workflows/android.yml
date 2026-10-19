@@ -32,3 +32,23 @@ jobs:
         run: bash ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest --console=plain
         # 不往 Actions 里存 APK 产物：安装包走 Release（发布脚本会挂上去），
         # 存这里会占账号的 artifact 配额，配额满了会让整个 CI 变红。
+
+  storage-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v6
+      - name: Install Android SDK platform
+        shell: pwsh
+        run: |
+          & "$env:ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager.bat" "platforms;android-36" "build-tools;36.0.0"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify atomic replacement and existing-record compatibility
+        shell: pwsh
+        run: |
+          ./gradlew.bat :app:testDebugUnitTest --tests 'cn.jiaoban.data.TaskStoreTest' --tests 'cn.jiaoban.data.JournalCompatibilityTest' --tests 'cn.jiaoban.data.TasksHolderTest' --console=plain --max-workers=1 '-Dorg.gradle.jvmargs=-Xmx1024m -Dfile.encoding=UTF-8'
+          exit $LASTEXITCODE

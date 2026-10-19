@@ -1,0 +1,53 @@
+# 拾页 0.17 候选验收
+
+状态：未发布。基线 Jiaoban main 4e704c622481f5d2d55961336c183573dfd7abcb（有序0.16）。
+
+## 当前范围
+
+- 无标题正文时间流、中文标签、持久快捷草稿、独立日记按日小结；当天碎片默认折叠参考，不重复铺成第二个列表。
+- 本地导入预览：Obsidian Markdown、Thino DAILY 多片段、Diarium JSON/媒体与墨记原件；完整ZIP导出和补缺恢复。精确范围见[导入说明](../../design/import-formats.md)。
+- 默认关闭系统云备份与自动设备迁移；主动ZIP仅包含内容与附件，不读取应用设置中的更新凭据、偏好或草稿。
+
+## 验证
+
+精确验证时间、JVM结果与源文件SHA-256见[verification.json](verification.json)。验证命令（JDK21、SDK36）：
+
+    ./gradlew :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug --max-workers=1 -Dorg.gradle.jvmargs='-Xmx1024m -Dfile.encoding=UTF-8'
+
+覆盖：
+- 连续快捷记录、空白拒绝、中文/重复/标点标签、网址fragment；切页/详情返回/重建草稿。
+- IO队列闸门制造同ID重试、编辑在途重建、分享替换；写失败不清草稿、不显示保存成功，不让失败编辑搭便车复活。
+- 旧事项全字段及原文保留；同日多篇日记、记录/日记默认内容不同，归档不级联。
+- Thino同日多条、标题/长围栏、原文件追加稳定block、残余保留、重复与附件变化。
+- ZIP越界/重复/目录载荷/目录洪泛；未知JSON、无效日期、损坏备份嵌套字段与附件哈希。
+- 墨记原件仅手动日期；无标题Diarium完整ZIP往返；本地附件与远程链接边界。
+- 导入确认前数据库为空；非破坏合并、重复/冲突、缺附件补回、坏附件明确失败。
+- 数据库临时写入/备份rename故障保持原库，清理本次新附件；导出超限在写输出前拒绝。
+- 系统云备份和设备迁移配置均排除私有域。
+- 更新缓存跨实例恢复及重新验 hash/archive；权限拒绝后继续、验证中双击仅启动一次安装；取消授权后不保存迟到凭据。
+
+本轮 223 项 JVM 测试通过；lint 0 errors、36 warnings、1 hint。缓存恢复不发起网络请求，下载中断后需用户主动重试；系统安装确认与原证书升级仍待设备验证。
+
+实际Compose宿主原生图形渲染使用合成记录，包含记录浅/深色、日记独立日期页、320dp/200%字号、正文阅读、旧资料只读、快捷保存后时间流和导入预览。图单独交付，不纳入源码仓库；宿主渲染不等于Android设备、系统选择器或键盘验收。
+
+## 待设备验收
+
+真实软键盘可见性、连续两条、系统文件选择器/附件打开、原证书覆盖升级及正式发布尚待验证。云端debug APK只用于独立测试环境，不能替代原签名更新。不得卸载或清除用户数据；换手机前需主动导出并检查备份文件。
+
+## 跨平台保存与未签包
+
+原先 File.renameTo 在 Windows 覆盖已存在目标时失败，修为同目录 Files.move(ATOMIC_MOVE, REPLACE_EXISTING)，保留 fsync 且无删除目标或非原子回退。连续覆盖主库/备份和备份提交失败原字节保护已通过 Linux 回归；Windows 专项由 CI 的 storage-windows 验证，以该 job 结果为准。API29 探针修复旧 Java API/AVD 属性兼容后遇 System UI ANR，业务检查尚未开始，不能算键盘验收通过。
+
+未签 release 构建：
+
+    ./gradlew :app:assembleRelease -PunsignedRelease --max-workers=1
+
+产物 app/build/outputs/apk/release/app-release-unsigned.apk 不能直接安装；只在原密钥环境签名，并重新校验包名、版本与证书后进行覆盖升级验收。签名前哈希见 verification.json。
+
+## 附件路径增量（原 b481110 候选之后）
+
+显式 `./`、`../` 附件路径现在只按笔记所在目录解析。缺失或越界时保留原文并警告，不回退到 vault 根目录或猜测同名文件；非显式路径的既有歧义策略不变。新增合成回归覆盖同名根附件、URL 编码路径、缺失/越界、重复导入和完整备份附件字节往返。
+
+    ./gradlew :app:testDebugUnitTest --tests 'cn.jiaoban.importing.ImportParserTest' --tests 'cn.jiaoban.importing.ImportTransactionTest' --max-workers=1
+
+本次针对性结果：35 项通过（Parser 27、Transaction 8），0 failures/errors/skipped。没有 UI 变更；未重新生成安装包或声称完成真实用户 vault 验收。verification.json 及其中未签包哈希仍对应前一候选，不代表本增量的新包。原 Windows 五项失败的完整诊断日志不足，rename 覆盖差异只是与现象相符的修复假设；新旧平台回归通过本身不能证明原失败根因。
