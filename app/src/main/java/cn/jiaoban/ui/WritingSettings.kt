@@ -15,19 +15,20 @@ import androidx.compose.ui.unit.sp
 import cn.jiaoban.*
 import java.time.LocalDate
 
-@Composable internal fun WritingSettings(legacyCount:Int,onLegacy:()->Unit,onExport:()->Unit,onUpdate:()->Unit) {
+@Composable internal fun WritingSettings(legacyCount:Int,onLegacy:()->Unit,onExport:()->Unit,onUpdate:()->Unit,onImport:()->Unit) {
     val context=LocalContext.current
     val version=remember{context.packageManager.getPackageInfo(context.packageName,0).versionName}
     val c=MaterialTheme.colorScheme
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         item {Text("安心写，慢慢积累",fontSize=24.sp,lineHeight=34.sp,fontWeight=FontWeight.Medium,modifier=Modifier.padding(vertical=16.dp))}
-        item {SettingsAction("导出完整资料","笔记、日记和旧版资料 · JSON 文件",onExport)}
+        item {SettingsAction("导入记录","Obsidian、Thino DAILY、Diarium与墨记原件",onImport)}
+        item {SettingsAction("导出完整资料","记录、日记、旧版资料与附件 · ZIP 备份",onExport)}
         if(legacyCount>0)item{SettingsAction("旧版资料","$legacyCount 条完整保留 · 只读查看",onLegacy)}
         item {SettingsAction("检查更新","拾页 $version",onUpdate)}
         item {HorizontalDivider(color=c.outlineVariant)}
         item {Text("关于资料",style=MaterialTheme.typography.titleSmall)}
-        item {Text("内容保存在这台设备。归档只收起页面，不删除文字。导出文件包含全部内容，请保存到你信任的位置。",fontSize=14.sp,lineHeight=24.sp,color=c.onSurfaceVariant)}
-        item {Text("旧版事项的原文、来源、日期和办理记录仍完整保留。导出文件可用于备份与后续恢复；当前版本尚无导入入口。请勿卸载清除资料，也不要降级覆盖。",fontSize=14.sp,lineHeight=24.sp,color=c.onSurfaceVariant)}
+        item {Text("内容保存在这台设备。本应用不启用系统云备份或自动换机传输；卸载、清数据或换手机前，请主动导出完整 ZIP 并确认文件已保存。归档只收起页面，不删除文字。导出文件包含全部内容，请保存到你信任的位置。当前完整备份上限为 5000 条、单附件 32 MiB、总计 64 MiB；超限会报错，不会生成声称可恢复的备份。",fontSize=14.sp,lineHeight=24.sp,color=c.onSurfaceVariant)}
+        item {Text("旧版事项的原文、来源、日期和办理记录仍完整保留。完整ZIP可在“导入记录 → 拾页完整备份”恢复缺少的内容。请勿卸载清除资料，也不要降级覆盖。",fontSize=14.sp,lineHeight=24.sp,color=c.onSurfaceVariant)}
         item {Text("拾页\n留住想法，也留住日子。",modifier=Modifier.padding(top=24.dp,bottom=24.dp),fontSize=13.sp,lineHeight=23.sp,color=c.onSurfaceVariant)}
     }
 }

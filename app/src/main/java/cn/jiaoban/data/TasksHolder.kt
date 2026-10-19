@@ -131,6 +131,38 @@ class TasksHolder(private val store: TaskStore) {
         update(before)
         return true
     }
+    var importing by mutableStateOf(false)
+        private set
+    data class ImportResult(val added:Int=0,val skipped:Int=0,val error:String?=null)
+    var lastImportResult by mutableStateOf<ImportResult?>(null)
+        private set
+    fun importWriting(plan:cn.jiaoban.importing.ImportPlan,filesDir:java.io.File,onDone:(ImportResult)->Unit) {
+        if(importing)return
+        importing=true;lastImportResult=null;dirty=true
+        val currentRevision=++revision
+        io.execute {
+            var created=emptyList<java.io.File>()
+            val result=runCatching {
+                val existing=store.load()
+                val additions=plan.additions(existing)
+                val matchingExisting=existing.filter { old -> plan.records.any { it.id==old.id } }
+                val needed=(additions.flatMap{it.attachments}.map{it.relativePath} + matchingExisting.flatMap{it.attachments}.map{it.relativePath}.filter{it in plan.assets}).toSet()
+                created=cn.jiaoban.importing.ImportStorage.install(filesDir,plan.assets,needed)
+                val merged=existing+additions
+                store.save(merged)
+                Triple(merged,additions.size,plan.records.size-additions.size)
+            }
+            if(result.isFailure)created.forEach{it.delete()}
+            main.post {
+                importing=false
+                result.getOrNull()?.let{(merged,_,_)->savedTasks=merged}
+                if(currentRevision==revision)tasks=savedTasks
+                lastImportResult=result.fold({ImportResult(it.second,it.third)},{ImportResult(error=it.message ?: "导入失败，原资料未改动")})
+                onDone(lastImportResult!!)
+            }
+        }
+    }
+
     private var failedRetry:List<Task>?=null
     fun retrySave() = commit(failedRetry ?: tasks)
 

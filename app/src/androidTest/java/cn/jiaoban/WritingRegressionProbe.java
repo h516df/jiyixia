@@ -181,9 +181,24 @@ public class WritingRegressionProbe extends Instrumentation {
             seed();String old=byId("legacy").toString();
             Intent launch=getTargetContext().getPackageManager().getLaunchIntentForPackage("cn.jiaoban").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             getTargetContext().startActivity(launch);
-            waitFor(x->x.contains("留一点时间给喜欢的事"));
+            waitFor(x->hasPart(x,"留一点时间给喜欢的事"));
             check("Notes home and no task navigation",labels().containsAll(Arrays.asList("拾页","记录","日记","记下")) && !labels().contains("待办"));shot("notes-light");
-            tap("日记");waitFor(x->hasPart(x,"雨停之后"));check("Journal date timeline",hasPart(labels(),"时光里的几页"));shot("diary-light");
+            tap("随手记录正文");setText(0,"键盘打开时的第一条 #随手记");
+            long keyboardEnd=SystemClock.elapsedRealtime()+5000;
+            while(!shell("dumpsys input_method").contains("mInputShown=true") && SystemClock.elapsedRealtime()<keyboardEnd)SystemClock.sleep(100);
+            check("Real soft keyboard is visible",shell("dumpsys input_method").contains("mInputShown=true"));
+            Rect keyboard=new Rect();
+            for(AccessibilityWindowInfo w:getUiAutomation().getWindows())if(w.getType()==AccessibilityWindowInfo.TYPE_INPUT_METHOD)w.getBoundsInScreen(keyboard);
+            boolean saveAbove=false,inputAbove=false;
+            for(AccessibilityNodeInfo n:nodes()){
+                Rect bounds=new Rect();n.getBoundsInScreen(bounds);
+                if("记下".contentEquals(n.getText()==null?"":n.getText()))saveAbove=n.isVisibleToUser() && bounds.bottom<=keyboard.top;
+                if("随手记录正文".contentEquals(n.getContentDescription()==null?"":n.getContentDescription()))inputAbove=n.isVisibleToUser() && bounds.bottom<=keyboard.top;
+            }
+            check("Composer and save action remain above IME",keyboard.top>0 && saveAbove && inputAbove);shot("quick-keyboard");
+            tap("记下");byText("键盘打开时的第一条 #随手记");setText(0,"紧接着的第二条");tap("记下");byText("紧接着的第二条");
+            check("Consecutive keyboard records persist independently",byText("键盘打开时的第一条 #随手记").getString("id").equals(byText("紧接着的第二条").getString("id"))==false);hideKeyboard();
+            tap("日记");waitFor(x->hasPart(x,"雨停之后"));check("Journal date timeline",hasPart(labels(),"今日小结"));shot("diary-light");
             tap("写日记");waitFor(x->x.contains("保存"));setText(0,"新的日记\n完整第二行和表情 🌿");hideKeyboard();tap("保存");
             JSONObject diary=byText("新的日记\n完整第二行和表情 🌿");check("Diary persists as NOTE with date",diary.getString("kind").equals("NOTE") && diary.getString("journalDate").equals(LocalDate.now().toString()) && diary.isNull("due"));
             tap("新的日记\n完整第二行和表情 🌿");waitFor(x->hasPart(x,"完整第二行"));shot("diary-reading");tap("编辑");setText(0,"新的日记\n改写后完整保留 🌿");hideKeyboard();tap("保存");check("Diary edits preserve date",byText("新的日记\n改写后完整保留 🌿").getString("journalDate").equals(LocalDate.now().toString()));

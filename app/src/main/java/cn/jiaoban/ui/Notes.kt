@@ -112,9 +112,10 @@ import java.time.format.DateTimeFormatter
     val c=MaterialTheme.colorScheme
     Surface(onClick={open(note)},shape=RoundedCornerShape(16.dp),color=c.surface) {
         Column(Modifier.fillMaxWidth().padding(18.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            Text(note.createdAt.atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("M月d日  HH:mm"))+if(note.state!=TaskState.OPEN)" · 已归档" else "",fontSize=12.sp,color=c.onSurfaceVariant)
+            val stamp=note.importInfo?.originalDate?.replace('T',' ') ?: (if(note.importInfo!=null)"导入于 " else "")+note.createdAt.atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("M月d日  HH:mm"))
+            Text(stamp+(if(note.state!=TaskState.OPEN)" · 已归档" else ""),fontSize=12.sp,color=c.onSurfaceVariant)
             Text(note.text,fontSize=17.sp,lineHeight=28.sp,maxLines=7,overflow=TextOverflow.Ellipsis)
-            val tags=writingTags(note.text)
+            val tags=(writingTags(note.text)+note.importedTags).distinct()
             if(tags.isNotEmpty() && onTag!=null)FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 tags.forEach {tag->SuggestionChip(onClick={onTag(tag)},label={Text("#$tag",fontSize=12.sp)},border=null,colors=SuggestionChipDefaults.suggestionChipColors(containerColor=c.primaryContainer.copy(alpha=.5f)))}
             }
@@ -158,7 +159,7 @@ import java.time.format.DateTimeFormatter
     var archived by rememberSaveable{mutableStateOf(false)}
     val listState=androidx.compose.foundation.lazy.rememberLazyListState()
     LaunchedEffect(savedGeneration){if(savedGeneration>0){archived=false;listState.scrollToItem(0)}}
-    val shown=notes.filter{searching || (it.state!=TaskState.OPEN)==archived}.sortedByDescending{it.createdAt}
+    val shown=notes.filter{searching || (it.state!=TaskState.OPEN)==archived}.sortedByDescending{writingSortKey(it)}
     LazyColumn(Modifier.fillMaxSize(),state=listState,contentPadding=PaddingValues(start=18.dp,end=18.dp,top=4.dp,bottom=20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         if(!searching)item {
             Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
@@ -173,28 +174,59 @@ import java.time.format.DateTimeFormatter
     }
 }
 
-@Composable internal fun JournalPage(notes:List<Task>,today:LocalDate,open:(Task)->Unit,searching:Boolean=false) {
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable internal fun JournalPage(notes:List<Task>,today:LocalDate,open:(Task)->Unit,searching:Boolean=false,onWrite:(LocalDate)->Unit={}) {
     val c=MaterialTheme.colorScheme
     var archived by rememberSaveable{mutableStateOf(false)}
-    val shown=notes.filter{searching || (it.state!=TaskState.OPEN)==archived}.sortedWith(compareByDescending<Task>{writingDay(it)}.thenByDescending{it.createdAt})
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=22.dp,end=22.dp,top=18.dp,bottom=110.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+    var selectedDay by rememberSaveable{mutableStateOf(today.toString())}
+    val day=LocalDate.parse(selectedDay)
+    var pickerVisible by remember{mutableStateOf(false)}
+    var showFragments by rememberSaveable(selectedDay){mutableStateOf(false)}
+    val diaries=notes.filter{it.journalDate!=null && (searching || (it.state!=TaskState.OPEN)==archived)}
+    val shown=diaries.filter{searching || it.journalDate==day}.sortedByDescending{writingSortKey(it)}
+    val fragments=notes.filter{it.journalDate==null && it.state==TaskState.OPEN && writingDay(it)==day}.sortedBy{it.createdAt}
+    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=22.dp,end=22.dp,top=12.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         if(!searching)item {
-            Surface(shape=RoundedCornerShape(22.dp),color=c.primaryContainer) {
-                if(LocalDensity.current.fontScale>1.3f) Column(Modifier.fillMaxWidth().padding(20.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                    Text("${today.year} / ${today.monthValue} / ${today.dayOfMonth}",fontSize=20.sp,lineHeight=28.sp,color=c.onPrimaryContainer)
-                    Text("今天",fontSize=13.sp,color=c.onPrimaryContainer)
-                } else Row(Modifier.fillMaxWidth().padding(22.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(20.dp)) {
-                    Column {Text("${today.dayOfMonth}".padStart(2,'0'),fontSize=42.sp,lineHeight=48.sp,fontWeight=FontWeight.Light,color=c.onPrimaryContainer);Text("${today.monthValue}月 · ${today.year}",fontSize=12.sp,color=c.onPrimaryContainer)}
-                    Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(8.dp)) {Text("日子有迹可循",fontSize=19.sp,fontWeight=FontWeight.Medium,color=c.onPrimaryContainer);Text("不必特别，也值得记下。",fontSize=13.sp,lineHeight=21.sp,color=c.onPrimaryContainer)}
+            Text("把一天，留成一页",fontSize=24.sp,lineHeight=34.sp,fontWeight=FontWeight.Medium)
+            Text("写下自己的回想，也可以补记从前。",fontSize=13.sp,lineHeight=22.sp,color=c.onSurfaceVariant)
+            Surface(shape=RoundedCornerShape(20.dp),color=c.primaryContainer,modifier=Modifier.padding(top=18.dp)) {
+                Column(Modifier.fillMaxWidth().padding(12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick={pickerVisible=true},modifier=Modifier.align(Alignment.CenterHorizontally)){
+                        Text(day.format(DateTimeFormatter.ofPattern("yyyy年 M月d日")),fontSize=18.sp,color=c.onPrimaryContainer)
+                    }
+                    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){
+                        IconButton(onClick={selectedDay=day.minusDays(1).toString()}){Icon(Icons.Default.KeyboardArrowLeft,"上一天")}
+                        TextButton(onClick={selectedDay=today.toString()}){Text("今天")}
+                        IconButton(onClick={selectedDay=day.plusDays(1).toString()}){Icon(Icons.Default.KeyboardArrowRight,"下一天")}
+                    }
                 }
             }
-            Row(Modifier.fillMaxWidth().padding(top=20.dp),verticalAlignment=Alignment.CenterVertically) {Text(if(archived)"归档日记" else "时光里的几页",fontSize=18.sp,fontWeight=FontWeight.Medium,modifier=Modifier.weight(1f));TextButton(onClick={archived=!archived}){Text(if(archived)"返回日记" else "归档",fontSize=13.sp)}}
         }
-        if(shown.isEmpty())item{WritingEmpty(if(searching)"没有找到这段文字" else if(archived)"还没有归档的日记" else "今天，从这一页开始",if(searching)"换个关键词，再找找。" else "写下今天，也可以补记从前的一天。")}
-        shown.groupBy{writingDay(it)}.forEach{(date,group)->
-            item(key="date-$date"){Text(date?.format(DateTimeFormatter.ofPattern("yyyy年 M月d日"))?:"",style=MaterialTheme.typography.labelMedium,color=c.primary,modifier=Modifier.padding(top=12.dp,bottom=2.dp))}
-            items(group,key={it.id}){note->PaperEntry(note,open)}
+        if(!searching)item {
+            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
+                Text(if(archived)"归档日记" else if(day==today)"今日小结" else "这一天的小结",fontSize=18.sp,modifier=Modifier.weight(1f))
+                TextButton(onClick={archived=!archived}){Text(if(archived)"返回日记" else "归档")}
+            }
+            if(!archived) FilledTonalButton(onClick={onWrite(day)},modifier=Modifier.fillMaxWidth().semantics{contentDescription="写日记"}){
+                Icon(Icons.Default.Add,null,Modifier.size(18.dp));Spacer(Modifier.width(8.dp));Text(if(shown.isEmpty())"写下这一天" else "再写一篇")
+            }
         }
+        if(shown.isEmpty())item {
+            Text(if(searching)"没有找到日记，换个关键词试试。" else if(archived)"这一天没有归档日记。" else "还没写也没关系。一两句话，就能留下今天的感受。",fontSize=14.sp,lineHeight=25.sp,color=c.onSurfaceVariant,modifier=Modifier.padding(vertical=14.dp))
+        }
+        items(shown,key={it.id}){PaperEntry(it,open)}
+        if(!searching && !archived)item {
+            HorizontalDivider(color=c.outlineVariant)
+            TextButton(onClick={showFragments=!showFragments},modifier=Modifier.fillMaxWidth()){
+                Text("这天 ${fragments.size} 条记录 · ${if(showFragments)"收起参考" else "展开参考"}",fontSize=13.sp)
+            }
+            if(showFragments && fragments.isEmpty())Text("这天没有碎片记录，也可以直接写日记。",fontSize=13.sp,lineHeight=23.sp,color=c.onSurfaceVariant)
+        }
+        if(!searching && !archived && showFragments)items(fragments,key={"fragment-${it.id}"}){PaperEntry(it,open)}
+    }
+    if(pickerVisible) {
+        val picker=rememberDatePickerState(initialSelectedDateMillis=day.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli())
+        DatePickerDialog(onDismissRequest={pickerVisible=false},confirmButton={TextButton(onClick={picker.selectedDateMillis?.let{selectedDay=Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate().toString()};pickerVisible=false}){Text("确定")}},dismissButton={TextButton(onClick={pickerVisible=false}){Text("取消")}}){DatePicker(picker)}
     }
 }
 
@@ -208,6 +240,19 @@ import java.time.format.DateTimeFormatter
             TextButton(onClick={context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT,note.text),"分享文字"))}){Text("分享")}
             TextButton(onClick={confirm=true}){Text(if(note.state==TaskState.OPEN)"归档" else "恢复")}
         }}
+        note.importInfo?.let{source->item{Text("来源：${source.format}\n${source.originalPath}"+(source.originalDate?.let{"\n原日期：$it"} ?: "\n原日期未提供"),fontSize=12.sp,lineHeight=21.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}}
+        if(note.importedTags.isNotEmpty())item{Text(note.importedTags.joinToString("  "){"#$it"},fontSize=13.sp,color=MaterialTheme.colorScheme.primary)}
+        if(note.attachments.isNotEmpty())item{Text("附件与原文件",style=MaterialTheme.typography.titleSmall)}
+        items(note.attachments,key={it.relativePath}){attachment->
+            OutlinedButton(onClick={
+                runCatching {
+                    require(attachment.relativePath.matches(Regex("imports/[a-f0-9]{64}(?:\\.[a-z0-9]{1,8})?")))
+                    val file=java.io.File(context.filesDir,attachment.relativePath)
+                    val uri=androidx.core.content.FileProvider.getUriForFile(context,"cn.jiaoban.imports",file)
+                    context.startActivity(Intent.createChooser(Intent(Intent.ACTION_VIEW).setDataAndType(uri,attachment.mimeType).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION),"打开文件"))
+                }.onFailure{android.widget.Toast.makeText(context,"无法打开附件，请先导出完整资料检查原文件",android.widget.Toast.LENGTH_LONG).show()}
+            },modifier=Modifier.fillMaxWidth()){Text((if(attachment.sourceFile)"原文件 · " else "附件 · ")+attachment.name,maxLines=2)}
+        }
         // Legacy checklist source remains literal, selectable text. No task controls.
         note.text.split('\n').forEachIndexed{index,line->item(key=index) {
             SelectionContainer {Text(line,style=MaterialTheme.typography.bodyLarge,

@@ -58,6 +58,17 @@ class WritingUiTest {
     @Test fun diaryLight(){setup();compose.onNodeWithText("日记",useUnmergedTree=true).performClick();compose.onNodeWithText("雨停之后",substring=true).assertIsDisplayed();shot("diary-light")}
     @Test @Config(qualifiers="zh-rCN-w320dp-h900dp-night-xhdpi") fun diaryLargeDark(){setup(2f);compose.onNodeWithText("日记",useUnmergedTree=true).performClick();shot("diary-320dp-font200-dark")}
     @Test @Config(qualifiers="zh-rCN-w320dp-h900dp-xhdpi") fun notesLargeLight(){setup(2f);shot("notes-320dp-font200-light")}
+    @Test fun recordsAndDiaryHaveDistinctContentByDefault(){
+        setup()
+        compose.onNodeWithText("雨停之后",substring=true).assertDoesNotExist()
+        compose.onNodeWithText("日记",useUnmergedTree=true).performClick()
+        compose.onNodeWithText("雨停之后",substring=true).assertIsDisplayed()
+        compose.onNodeWithText("留一点时间给喜欢的事",substring=true).assertDoesNotExist()
+        compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText("这天 1 条记录 · 展开参考"))
+        compose.onNodeWithText("这天 1 条记录 · 展开参考").performClick()
+        compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText("留一点时间给喜欢的事",substring=true))
+        compose.onNodeWithText("留一点时间给喜欢的事",substring=true).assertIsDisplayed()
+    }
     @Test fun writingAndLegacyPreserved(){
         val store=setup()
         compose.onNodeWithText("日记",useUnmergedTree=true).performClick()
@@ -189,4 +200,15 @@ class WritingUiTest {
         shot("quick-record-saved")
     }
     @Test fun legacyReadOnly(){setup();compose.onNodeWithContentDescription("设置").performClick();compose.onNodeWithText("旧版资料").performClick();compose.onNodeWithText("以前的工作记录",substring=true).performClick();compose.onNodeWithText("编辑").assertDoesNotExist();compose.onNodeWithText("办完了").assertDoesNotExist();shot("legacy-read-only")}
+
+    @Test fun importPreviewRequiresConfirmationAndShowsSyntheticContent(){
+        val store=TaskStore(File(RuntimeEnvironment.getApplication().cacheDir,"preview-${UUID.randomUUID()}.json"));store.save(emptyList())
+        val holder=cn.jiaoban.data.TasksHolder.forStore(store)
+        val plan=cn.jiaoban.importing.ImportParser.parse(cn.jiaoban.importing.ImportBundle.read("2024-05-22.md","合成导入日记\n雨后散步，看见一朵小花。 #生活".byteInputStream()),cn.jiaoban.importing.ImportFormat.OBSIDIAN,now=at)
+        compose.setContent{JiaobanTheme{ImportPage(holder,plan,"2024-05-22.md")}}
+        compose.onNodeWithText("新增 1 条",substring=true).performScrollTo().assertIsDisplayed()
+        assertTrue(store.load().isEmpty());shot("import-preview")
+        compose.onNodeWithText("确认导入 1 条").performScrollTo().assertIsDisplayed()
+        assertTrue(store.load().isEmpty())
+    }
 }

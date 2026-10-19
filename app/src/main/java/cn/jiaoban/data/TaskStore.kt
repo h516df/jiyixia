@@ -22,14 +22,17 @@ class TaskStore(private val file: File) {
         val text = TaskCodec.encode(tasks)
         file.parentFile?.mkdirs()
         val tmp = File(file.parentFile, file.name + ".tmp")
-        tmp.writeText(text, Charsets.UTF_8)
-        if (file.isFile) {
-            runCatching { file.copyTo(backup, overwrite = true) }
-        }
-        if (!tmp.renameTo(file)) {
-            file.writeText(text, Charsets.UTF_8)
-            tmp.delete()
-        }
+        try {
+            tmp.outputStream().use { it.write(text.toByteArray(Charsets.UTF_8)); it.fd.sync() }
+            if (file.isFile && readOrNull(file)!=null) {
+                val backupTmp = File(file.parentFile, file.name + ".bak.tmp")
+                try {
+                    backupTmp.outputStream().use { out -> file.inputStream().use { it.copyTo(out) }; out.fd.sync() }
+                    check(backupTmp.renameTo(backup)) { "备份原记录失败" }
+                } finally { if(backupTmp.isFile)backupTmp.delete() }
+            }
+            check(tmp.renameTo(file)) { "原子提交失败，原记录未改动" }
+        } finally { if(tmp.isFile)tmp.delete() }
     }
 
     private fun readOrNull(f: File): List<Task>? {

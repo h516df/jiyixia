@@ -32,6 +32,9 @@ data class Task(
     val steps: List<TaskStep> = emptyList(),
     // A diary is still a NOTE for older readers. This date is independent of deadlines.
     val journalDate: LocalDate? = null,
+    val importInfo: ImportInfo? = null,
+    val importedTags: List<String> = emptyList(),
+    val attachments: List<ImportedAttachment> = emptyList(),
 )
 
 /**
@@ -103,7 +106,7 @@ fun matches(task: Task, query: String): Boolean {
     val q = query.trim()
     if (q.isEmpty()) return true
     return task.text.contains(q, ignoreCase = true) || task.from.contains(q, ignoreCase = true) ||
-        task.followUps.any { it.text.contains(q, ignoreCase = true) }
+        task.followUps.any { it.text.contains(q, ignoreCase = true) } || task.importedTags.any{it.contains(q,ignoreCase=true)}
 }
 
 /** 搜索是全局的：过期、办完、作废的都能翻出来。 */

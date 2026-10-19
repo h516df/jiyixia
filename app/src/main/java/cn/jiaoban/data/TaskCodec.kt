@@ -1,5 +1,7 @@
 package cn.jiaoban.data
 
+import cn.jiaoban.ImportInfo
+import cn.jiaoban.ImportedAttachment
 import cn.jiaoban.EntryKind
 import cn.jiaoban.Task
 import cn.jiaoban.TaskStep
@@ -31,6 +33,9 @@ object TaskCodec {
             o.put("kind",t.kind.name)
             o.put("pinned",t.pinned)
             o.put("journalDate", t.journalDate?.toString() ?: JSONObject.NULL)
+            t.importInfo?.let { source->o.put("importInfo",JSONObject().put("format",source.format).put("key",source.key).put("originalPath",source.originalPath).put("originalDate",source.originalDate ?: JSONObject.NULL).put("originalTitle",source.originalTitle ?: JSONObject.NULL).put("metadata",source.metadata ?: JSONObject.NULL)) }
+            o.put("importedTags",JSONArray(t.importedTags))
+            o.put("attachments",JSONArray().apply{t.attachments.forEach{a->put(JSONObject().put("sha256",a.sha256).put("name",a.name).put("relativePath",a.relativePath).put("mimeType",a.mimeType).put("sourceFile",a.sourceFile))}})
             o.put("important", t.important)
             o.put("steps", JSONArray().apply { t.steps.forEach { step ->
                 put(JSONObject().put("id",step.id).put("text",step.text).put("done",step.done))
@@ -75,6 +80,9 @@ object TaskCodec {
                 kind = runCatching { EntryKind.valueOf(o.optString("kind","DELEGATED")) }.getOrDefault(EntryKind.DELEGATED),
                 pinned = o.optBoolean("pinned",false),
                 journalDate = runCatching { LocalDate.parse(o.optString("journalDate")) }.getOrNull(),
+                importInfo=o.optJSONObject("importInfo")?.let{s->ImportInfo(s.optString("format"),s.optString("key"),s.optString("originalPath"),s.nullable("originalDate"),s.nullable("originalTitle"),s.nullable("metadata"))},
+                importedTags=o.optJSONArray("importedTags")?.let{a->(0 until a.length()).map{a.optString(it)}.filter{it.isNotBlank()}} ?: emptyList(),
+                attachments=o.optJSONArray("attachments")?.let{a->(0 until a.length()).mapNotNull{i->a.optJSONObject(i)?.let{x->ImportedAttachment(x.optString("sha256"),x.optString("name"),x.optString("relativePath"),x.optString("mimeType"),x.optBoolean("sourceFile"))}}} ?: emptyList(),
                 important = o.optBoolean("important",false),
                 steps = decodeSteps(o.optJSONArray("steps")),
                 followUps = decodeEvents(o.optJSONArray("followUps")),
@@ -82,6 +90,8 @@ object TaskCodec {
         }
         return out
     }
+
+    private fun JSONObject.nullable(key:String):String?=if(isNull(key))null else optString(key).takeIf{it.isNotBlank()}
 
     private fun decodeSteps(array: JSONArray?): List<TaskStep> = buildList {
         if(array != null) for(i in 0 until array.length()) {

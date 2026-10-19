@@ -36,10 +36,10 @@ import java.time.*
 
 private enum class Screen(val label: String, val icon: ImageVector) {
     NOTES("记录", Icons.Default.Edit), JOURNAL("日记", Icons.Default.DateRange),
-    LEGACY("旧版资料", Icons.Default.Info), SETTINGS("设置", Icons.Default.Settings), UPDATE("检查更新", Icons.Default.Refresh)
+    IMPORT("导入记录", Icons.Default.Info), LEGACY("旧版资料", Icons.Default.Info), SETTINGS("设置", Icons.Default.Settings), UPDATE("检查更新", Icons.Default.Refresh)
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class,ExperimentalLayoutApi::class)
 @Composable
 fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onSharedHandled: () -> Unit = {}) {
     val holder = remember { TasksHolder.forStore(store) }
@@ -55,6 +55,7 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
     var editorPosting by remember {mutableStateOf(false)}
     var newEditorId by rememberSaveable {mutableStateOf<String?>(null)}
     var creating by rememberSaveable { mutableStateOf(false) }
+    var newDiaryDay by rememberSaveable {mutableStateOf(today.toString())}
     var createDiary by rememberSaveable { mutableStateOf(false) }
     var sharedDraft by rememberSaveable { mutableStateOf("") }
     var incomingShare by rememberSaveable { mutableStateOf<String?>(null) }
@@ -122,15 +123,15 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
     }
 
     val export = androidx.activity.compose.rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json")
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/zip")
     ) { uri ->
         if(uri != null) {
-            val snapshot = TaskCodec.encode(holder.savedTasks)
+            val snapshot = holder.savedTasks.toList()
             scope.launch {
                 val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    runCatching { requireNotNull(context.contentResolver.openOutputStream(uri)).bufferedWriter(Charsets.UTF_8).use { it.write(snapshot) } }
+                    runCatching { requireNotNull(context.contentResolver.openOutputStream(uri)).use { cn.jiaoban.importing.BackupPackage.export(snapshot,context.filesDir,it) } }
                 }
-                notify(if(result.isSuccess) "完整资料已导出" else "导出失败，原资料仍保留，请重试")
+                notify(if(result.isSuccess) "完整资料已导出" else "导出未完成：${result.exceptionOrNull()?.message ?: "请检查保存位置后重试"}。原资料仍保留。")
             }
         }
     }
@@ -145,7 +146,7 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
         when {
             detailId != null -> detailId = null
             searching -> { searching=false; query=""; focus.clearFocus() }
-            screen == Screen.UPDATE || screen == Screen.LEGACY -> screen=Screen.SETTINGS
+            screen == Screen.UPDATE || screen == Screen.LEGACY || screen == Screen.IMPORT -> screen=Screen.SETTINGS
             else -> screen=Screen.NOTES
         }
     }
@@ -161,7 +162,7 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
                 if(isMain && LocalDensity.current.fontScale<=1.3f) Text(if(screen==Screen.NOTES) "随手记下，慢慢回看" else "按日翻看，想起更多",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },navigationIcon={
-            if(detail!=null || !isMain) IconButton(onClick={if(detail!=null)detailId=null else screen=if(screen==Screen.UPDATE || screen==Screen.LEGACY)Screen.SETTINGS else Screen.NOTES}) {Icon(Icons.Default.ArrowBack,"返回")}
+            if(detail!=null || !isMain) IconButton(onClick={if(detail!=null)detailId=null else screen=if(screen==Screen.UPDATE || screen==Screen.LEGACY || screen==Screen.IMPORT)Screen.SETTINGS else Screen.NOTES}) {Icon(Icons.Default.ArrowBack,"返回")}
         },actions={
             if(detail?.kind==EntryKind.NOTE) TextButton(onClick={editId=detail.id;newEditorId=null;editorSession=java.util.UUID.randomUUID().toString()}){Text("编辑")}
             else if(detail==null && searching) TextButton(onClick={searching=false;query="";focus.clearFocus()}){Text("取消")}
@@ -172,35 +173,36 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
         },colors=TopAppBarDefaults.topAppBarColors(containerColor=MaterialTheme.colorScheme.background))},
         bottomBar={if(detail==null && !searching && isMain) Column(Modifier.imePadding()) {
             if(screen==Screen.NOTES) QuickComposer(quickText,::retainQuick,posting,holder.loaded,::submitQuick)
-            NavigationBar(containerColor=MaterialTheme.colorScheme.background,tonalElevation=0.dp) {
+            if(!WindowInsets.isImeVisible) NavigationBar(containerColor=MaterialTheme.colorScheme.background,tonalElevation=0.dp) {
             listOf(Screen.NOTES,Screen.JOURNAL).forEach {item->NavigationBarItem(selected=screen==item,onClick={screen=item;focus.clearFocus()},icon={Icon(item.icon,null,Modifier.size(22.dp))},label={Text(item.label)},
                 colors=NavigationBarItemDefaults.colors(indicatorColor=MaterialTheme.colorScheme.primaryContainer))}
         }}},
-        floatingActionButton={if(holder.loaded && detail==null && !searching && screen==Screen.JOURNAL) ExtendedFloatingActionButton(
-            onClick={createDiary=screen==Screen.JOURNAL;sharedDraft="";creating=true;newEditorId=null;editorSession=java.util.UUID.randomUUID().toString()},icon={Icon(Icons.Default.Add,null)},text={Text(if(screen==Screen.JOURNAL)"写日记" else "写笔记")},
-            modifier=Modifier.zIndex(2f).semantics(mergeDescendants=true){contentDescription=if(screen==Screen.JOURNAL)"写日记" else "写笔记"},containerColor=MaterialTheme.colorScheme.primary,contentColor=MaterialTheme.colorScheme.onPrimary)}
+
     ) {padding->Column(Modifier.fillMaxSize().padding(padding)) {
         holder.saveError?.let {message->Surface(color=MaterialTheme.colorScheme.errorContainer) {Row(Modifier.fillMaxWidth().padding(start=20.dp),verticalAlignment=Alignment.CenterVertically){Text(message,Modifier.weight(1f));TextButton(onClick={if(quickText.isNotBlank())submitQuick() else holder.retrySave()}){Text("重试保存")}}}}
         when {
             detail?.kind==EntryKind.NOTE -> NoteDetail(detail,{holder.update(detail.copy(pinned=!detail.pinned))},{holder.setState(detail.id,if(detail.state==TaskState.OPEN)TaskState.VOID else TaskState.OPEN)},{holder.update(it)})
             detail!=null -> LegacyDetail(detail,today)
             !holder.loaded -> Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){CircularProgressIndicator()}
-            screen==Screen.NOTES -> NotesPage(holder.savedTasks.filter{it.kind==EntryKind.NOTE && writingMatches(it,if(searching)query else "",selectedTag)},{detailId=it.id},query,searching,selectedTag,{selectedTag=it},savedGeneration=savedGeneration,onReview={
+            screen==Screen.NOTES -> NotesPage(holder.savedTasks.filter{it.kind==EntryKind.NOTE && it.journalDate==null && writingMatches(it,if(searching)query else "",selectedTag)},{detailId=it.id},query,searching,selectedTag,{selectedTag=it},savedGeneration=savedGeneration,onReview={
                 val candidates=reviewEntries(holder.savedTasks,today)
                 val next=candidates.filter{it.id!=lastReviewed}.randomOrNull() ?: candidates.firstOrNull()
                 if(next==null)notify("还没有更早的记录。今天写下的，以后再回来看看。")
                 else {lastReviewed=next.id;detailId=next.id}
             })
-            screen==Screen.JOURNAL -> JournalPage(searchAll(holder.savedTasks.filter{it.kind==EntryKind.NOTE},if(searching)query else ""),today,{detailId=it.id},searching)
+            screen==Screen.JOURNAL -> JournalPage(searchAll(holder.savedTasks.filter{it.kind==EntryKind.NOTE},if(searching)query else ""),today,{detailId=it.id},searching,onWrite={date->
+                createDiary=true;newDiaryDay=date.toString();sharedDraft="";creating=true;newEditorId=null;editorSession=java.util.UUID.randomUUID().toString()
+            })
             screen==Screen.LEGACY -> LegacyPage(holder.savedTasks.filter{it.kind!=EntryKind.NOTE},{detailId=it.id})
+            screen==Screen.IMPORT -> ImportPage(holder)
             screen==Screen.UPDATE -> UpdateScreen(updater,PaddingValues(0.dp))
-            else -> WritingSettings(holder.savedTasks.count{it.kind!=EntryKind.NOTE},{screen=Screen.LEGACY},{export.launch("拾页-完整资料-$today.json")},{screen=Screen.UPDATE})
+            else -> WritingSettings(holder.savedTasks.count{it.kind!=EntryKind.NOTE},{screen=Screen.LEGACY},{export.launch("拾页-完整资料-$today.zip")},{screen=Screen.UPDATE},{screen=Screen.IMPORT})
         }
     }}
     if(holder.loaded && (creating || editId!=null)) {
         val task=holder.savedTasks.firstOrNull{it.id==editId}
         val closeEditor={editorDraft.edit().clear().apply();creating=false;editId=null;newEditorId=null;sharedDraft="";focus.clearFocus()}
-        NoteEditor(task,if(creating)sharedDraft else "",if(task!=null)task.journalDate else if(createDiary)today else null,session=editorSession,newId=newEditorId,saving=editorBusy,onDismiss={if(!editorBusy)closeEditor()},onSave={text,date->
+        NoteEditor(task,if(creating)sharedDraft else "",if(task!=null)task.journalDate else if(createDiary)LocalDate.parse(newDiaryDay) else null,session=editorSession,newId=newEditorId,saving=editorBusy,onDismiss={if(!editorBusy)closeEditor()},onSave={text,date->
             if(!editorBusy) {
                 editorPosting=true
                 val submittedSession=editorSession

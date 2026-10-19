@@ -120,7 +120,7 @@ fun UpdateScreen(updater: Updater, contentPadding: PaddingValues) {
                     }
                 }
                 Text(
-                    text = "App 里检查失败不影响使用：旧版本继续能用，记录也不会丢。",
+                    text = "检查更新失败时，仍可继续使用当前版本。换手机或卸载前，请先导出资料。",
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
