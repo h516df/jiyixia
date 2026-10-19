@@ -18,6 +18,16 @@ import java.util.concurrent.Executors
  * 所以界面立刻更新，磁盘写入不会互相插队。
  */
 class TasksHolder(private val store: TaskStore) {
+    companion object {
+        // One process-scoped owner per database. Activity/theme recreation must not
+        // spawn another stale snapshot writer or race on the same temporary file.
+        // Contains only File-backed stores, never an Activity or Context.
+        val processId:String=UUID.randomUUID().toString()
+        private val owners=mutableMapOf<String,TasksHolder>()
+        @Synchronized fun forStore(store:TaskStore):TasksHolder =
+            owners.getOrPut(store.identity){TasksHolder(store).also{it.start()}}
+    }
+
 
     private val io = Executors.newSingleThreadExecutor { r ->
         Thread(r, "jiaoban-io").apply { isDaemon = true }
@@ -25,6 +35,10 @@ class TasksHolder(private val store: TaskStore) {
     private val main = Handler(Looper.getMainLooper())
 
     var tasks by mutableStateOf<List<Task>>(emptyList())
+        private set
+
+    /** Last successful disk snapshot. UI never presents a failed write as saved. */
+    var savedTasks by mutableStateOf<List<Task>>(emptyList())
         private set
 
     var loaded by mutableStateOf(false)
@@ -41,7 +55,7 @@ class TasksHolder(private val store: TaskStore) {
             val list = store.load()
             main.post {
                 // 读盘期间如果用户已经记了东西，别拿旧快照把它盖掉
-                if (!dirty) tasks = list
+                if (!dirty) {tasks = list;savedTasks = list}
                 loaded = true
             }
         }
@@ -59,15 +73,16 @@ class TasksHolder(private val store: TaskStore) {
         overrideDue: Boolean = false,
         expiryPolicy: ExpiryPolicy = ExpiryPolicy.MUST_FINISH,
         kind: EntryKind = EntryKind.DELEGATED,
+        journalDate: LocalDate? = null,
     ) {
         val clean = text.trim()
         if (clean.isEmpty()) return
         val from = if(kind==EntryKind.DELEGATED) fromOverride ?: PersonParser.parse(clean, recentFroms()) else ""
         val due = if(kind==EntryKind.NOTE) null else if (overrideDue) dueOverride else if(kind==EntryKind.TODO) DueParser.parse(clean,today) else DueParser.withDefault(clean, today)
-        add(clean, from, due, expiryPolicy,kind)
+        add(clean, from, due, expiryPolicy,kind,journalDate)
     }
 
-    fun add(text: String, from: String, due: LocalDate?, expiryPolicy: ExpiryPolicy = ExpiryPolicy.MUST_FINISH,kind:EntryKind = EntryKind.DELEGATED) {
+    fun add(text: String, from: String, due: LocalDate?, expiryPolicy: ExpiryPolicy = ExpiryPolicy.MUST_FINISH,kind:EntryKind = EntryKind.DELEGATED, journalDate: LocalDate? = null) {
         val trimmed = text.trim()
         if (trimmed.isEmpty()) return
         commit(
@@ -80,11 +95,25 @@ class TasksHolder(private val store: TaskStore) {
                 createdAt = Instant.now(),
                 expiryPolicy = expiryPolicy,
                 kind = kind,
+                journalDate = if(kind == EntryKind.NOTE) journalDate else null,
             )
         )
     }
 
     fun update(task: Task) = commit(tasks.map { if (it.id == task.id) task else it })
+
+    /** Stable ID permits retrying a failed quick record without appending duplicates. */
+    fun saveWriting(text:String, journalDate:LocalDate?=null, id:String?=null, onSaved:(Boolean)->Unit):String? {
+        val clean=text.trim()
+        if(clean.isEmpty()) return null
+        val previous=tasks.firstOrNull{it.id==id}
+        if(previous!=null && previous.kind!=EntryKind.NOTE) return null
+        val entry=previous?.copy(text=clean,journalDate=journalDate) ?: Task(
+            id=id ?: UUID.randomUUID().toString(),text=clean,createdAt=Instant.now(),kind=EntryKind.NOTE,
+            expiryPolicy=ExpiryPolicy.MUST_FINISH,journalDate=journalDate)
+        commit(if(previous==null)tasks+entry else tasks.map{if(it.id==entry.id)entry else it},onSaved,forceIds=setOf(entry.id))
+        return entry.id
+    }
 
     private fun change(id: String, transform: (Task) -> Task): Task? {
         val before = tasks.firstOrNull { it.id == id } ?: return null
@@ -102,21 +131,38 @@ class TasksHolder(private val store: TaskStore) {
         update(before)
         return true
     }
-    fun retrySave() = commit(tasks)
+    private var failedRetry:List<Task>?=null
+    fun retrySave() = commit(failedRetry ?: tasks)
 
     /** 最近交代过事的人，用来少打字。 */
     fun recentFroms(): List<String> =
         tasks.asReversed().map { it.from.trim() }.filter { it.isNotEmpty() }.distinct().take(6)
 
-    private fun commit(next: List<Task>) {
-        dirty = true
-        tasks = next
-        val currentRevision = ++revision
+    private fun commit(next: List<Task>, onSaved:((Boolean)->Unit)?=null,forceIds:Set<String> = emptySet()) {
+        val before=tasks.associateBy{it.id}
+        val updates=next.filter{before[it.id]!=it || it.id in forceIds}.associateBy{it.id}
+        val removed=before.keys-next.map{it.id}.toSet()
+        dirty=true
+        tasks=next
+        val currentRevision=++revision
         io.execute {
-            val result = runCatching { store.save(next) }
+            // Apply this operation to the latest durable snapshot, not a queued
+            // optimistic full copy. A failed earlier edit cannot hitchhike on B.
+            val result=runCatching {
+                val base=store.load()
+                val present=base.map{it.id}.toSet()
+                val persisted=base.filter{it.id !in removed}.map{updates[it.id] ?: it} + updates.values.filter{it.id !in present}
+                store.save(persisted)
+                persisted
+            }
             main.post {
-                if(currentRevision == revision) saveError =
-                    if(result.isFailure) "改动暂未保存到手机，请重试" else null
+                result.getOrNull()?.let{savedTasks=it}
+                if(currentRevision==revision) {
+                    tasks=savedTasks
+                    saveError=if(result.isFailure)"改动暂未保存到手机，请重试" else null
+                    failedRetry=if(result.isFailure && onSaved==null)next else null
+                }
+                onSaved?.invoke(result.isSuccess)
             }
         }
     }

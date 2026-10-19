@@ -1,0 +1,161 @@
+{
+  "verifiedAtUtc": "2026-10-19T10:02:00Z",
+  "baseline": "4e704c622481f5d2d55961336c183573dfd7abcb",
+  "jvm": {
+    "tests": 174,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "pythonTests": 5,
+  "lintErrors": 0,
+  "productionApk": "debug only; not for original-signature upgrade",
+  "nativeDeviceRun": false,
+  "renderType": "Robolectric native graphics / actual Compose / synthetic fixture",
+  "tests": [
+    {
+      "suite": "cn.jiaoban.ContentRulesTest",
+      "count": 13
+    },
+    {
+      "suite": "cn.jiaoban.update.UpdateCatalogRealDataTest",
+      "count": 3
+    },
+    {
+      "suite": "cn.jiaoban.PeopleTest",
+      "count": 4
+    },
+    {
+      "suite": "cn.jiaoban.parse.DueParserTest",
+      "count": 18
+    },
+    {
+      "suite": "cn.jiaoban.update.UpdateVerifyTest",
+      "count": 3
+    },
+    {
+      "suite": "cn.jiaoban.ui.WritingUiTest",
+      "count": 15
+    },
+    {
+      "suite": "cn.jiaoban.parse.PersonParserTest",
+      "count": 6
+    },
+    {
+      "suite": "cn.jiaoban.TaskFlowTest",
+      "count": 10
+    },
+    {
+      "suite": "cn.jiaoban.update.UpdateCancellationTest",
+      "count": 2
+    },
+    {
+      "suite": "cn.jiaoban.data.JournalCompatibilityTest",
+      "count": 6
+    },
+    {
+      "suite": "cn.jiaoban.GrowthMetricsTest",
+      "count": 1
+    },
+    {
+      "suite": "cn.jiaoban.update.UpdateCatalogTest",
+      "count": 11
+    },
+    {
+      "suite": "cn.jiaoban.data.TasksHolderTest",
+      "count": 8
+    },
+    {
+      "suite": "cn.jiaoban.data.WritingDraftTest",
+      "count": 7
+    },
+    {
+      "suite": "cn.jiaoban.update.ReleaseNotesTest",
+      "count": 4
+    },
+    {
+      "suite": "cn.jiaoban.GrowthRulesTest",
+      "count": 5
+    },
+    {
+      "suite": "cn.jiaoban.ExpiryPolicyTest",
+      "count": 8
+    },
+    {
+      "suite": "cn.jiaoban.BucketTest",
+      "count": 14
+    },
+    {
+      "suite": "cn.jiaoban.EntryKindTest",
+      "count": 2
+    },
+    {
+      "suite": "cn.jiaoban.data.WritingSaveTest",
+      "count": 4
+    },
+    {
+      "suite": "cn.jiaoban.WritingRulesTest",
+      "count": 7
+    },
+    {
+      "suite": "cn.jiaoban.data.TaskStoreTest",
+      "count": 5
+    },
+    {
+      "suite": "cn.jiaoban.data.FollowUpCodecTest",
+      "count": 4
+    },
+    {
+      "suite": "cn.jiaoban.data.TaskCodecTest",
+      "count": 7
+    },
+    {
+      "suite": "cn.jiaoban.SearchAndSortTest",
+      "count": 7
+    }
+  ],
+  "sourceSha256": {
+    "app/src/main/AndroidManifest.xml": "58b356f56b5598719ddfedb867e5a4435dc191a7ce849bda1322f1a335cf64ac",
+    "app/src/main/assets/release-notes.json": "515d2d2031c0a147fcfd139cf23d03c82fcd2248673819c7047044b7d4840afb",
+    "app/src/main/java/cn/jiaoban/ContentRules.kt": "467afca640c529ca79e37d46c8b46ffb42eda21e7beb85583816465b1a289c7a",
+    "app/src/main/java/cn/jiaoban/GrowthLogic.kt": "55afb95c767eeab36213a49cdcc5c01ee5ecd5b8057e5f4c54ffc4a1a695facc",
+    "app/src/main/java/cn/jiaoban/GrowthMetrics.kt": "93dff46809867298d3b97fce52da24ea7746b49f19a6e1d4f22080d82fe2c8c3",
+    "app/src/main/java/cn/jiaoban/GrowthStore.kt": "938c5a183c713f697a4a070059a78aef911195487fdb230d72b306bf27c91d11",
+    "app/src/main/java/cn/jiaoban/GrowthUi.kt": "ba07ce9bdeb67e671be2f811b357969bd168dc1a28948abfa067c3707a15f125",
+    "app/src/main/java/cn/jiaoban/MainActivity.kt": "3ce7b18e8ffa50e7ad681e769d77a349c968224d678fd85cc9af8e223bdb8cc6",
+    "app/src/main/java/cn/jiaoban/Task.kt": "76f46e16f36c8b063cbc5380ba09b931326e3a0f9d7e08d1feabc8c872b3bafb",
+    "app/src/main/java/cn/jiaoban/TaskFlow.kt": "dc0b469b822315109fca577e6baad28661949153b7a9d14418f41bad44dcc3e6",
+    "app/src/main/java/cn/jiaoban/WritingRules.kt": "6a3f43660fed7b1b5875737d1a35f6ff6d23c93cfc63697bdc3b4de8ccfb0bea",
+    "app/src/main/java/cn/jiaoban/data/TaskCodec.kt": "d5b8d6a211109c42f28d007be4dd2063bbb25d28c825fe74223e0823b3b8f160",
+    "app/src/main/java/cn/jiaoban/data/TaskStore.kt": "7efa5656b1f53289767bb55c722cd13a2bbf4c79165429f1c83eb80b2738ddf0",
+    "app/src/main/java/cn/jiaoban/data/TasksHolder.kt": "6107b2d7c2bba87727af51169617481743b1967f571295fcfbed60ad8c40bab2",
+    "app/src/main/java/cn/jiaoban/data/WritingDraft.kt": "fa64bef361e43944487237264e3edcdb7121b31991b2ec5760589134ea90eaeb",
+    "app/src/main/java/cn/jiaoban/parse/DueParser.kt": "f6a2db9bcd6ca7e7c378a78cd86ba8bf75a0d7d7d3507250a501e58e278206f7",
+    "app/src/main/java/cn/jiaoban/parse/PersonParser.kt": "a14bdb0b4b23943b9ecceabe7c68d49fcc94f588724d6daeb460f3882b99c8b1",
+    "app/src/main/java/cn/jiaoban/ui/App.kt": "f91d7129da6c26bdf1624bc8f47133a71bdd1d07d127b03592c01a057ebc183e",
+    "app/src/main/java/cn/jiaoban/ui/Notes.kt": "da414aae136c5e774d9a3049b9a6a61aa69731fdda0f78aa7babc83bc2661f31",
+    "app/src/main/java/cn/jiaoban/ui/PeopleScreen.kt": "6f5286698b55563f36ea02d30eec2ce0de4cf28deca55df13f970c195471af25",
+    "app/src/main/java/cn/jiaoban/ui/TaskDetail.kt": "2f812f53d7fd376073531942560ed1697fce73c3d04e8ddde41b01664dcc2f11",
+    "app/src/main/java/cn/jiaoban/ui/Theme.kt": "65173f8bf0486a3d01042eef57284a58954cd1c7d801ea904f33cd4f3302fd04",
+    "app/src/main/java/cn/jiaoban/ui/UpdateScreen.kt": "7c6ca4d2a8a4bfbc5e8d525793187a98bf1f1a133c7e942f19c5b89af5215999",
+    "app/src/main/java/cn/jiaoban/ui/WritingSettings.kt": "920cb03e92131c55903436710bb4b4e86d04d2c241ddf1060f94aba22af77759",
+    "app/src/main/java/cn/jiaoban/update/ReleaseNotes.kt": "336276056aee2cd1d3732796553a18f96d4f2b5f75edbfe2589f42eb3cb321c9",
+    "app/src/main/java/cn/jiaoban/update/UpdateAuth.kt": "5d13ff58c3e1b8cae12aba1257f22f52a5c4db264f46d2b811b0611c92fee164",
+    "app/src/main/java/cn/jiaoban/update/UpdateCatalog.kt": "c6695bdfdbe9396f72f9dfb3e6d7acce8b5ac13bb15584d5e630942ef6f7295f",
+    "app/src/main/java/cn/jiaoban/update/UpdateConfig.kt": "a95f1cd9515b01e7c87e7f29d44bcb8b0a2ad5f36f6fcbf9dfd00a77614c0e0c",
+    "app/src/main/java/cn/jiaoban/update/UpdateHttp.kt": "89585cf54e2340c78511c2923fdd0d445ded7abdacc9d830dfa5b90d7fba9f41",
+    "app/src/main/java/cn/jiaoban/update/UpdateVerify.kt": "0d27359eb3ef135d84e6fc20456253d12734fba3bf0df7c462e1ec3691428f46",
+    "app/src/main/java/cn/jiaoban/update/Updater.kt": "c79bd1e54a14ad470aee6d278a26337a91781325de8f609149768756c71aeaf0",
+    "app/src/main/res/drawable/ic_launcher_foreground.xml": "8f8b0e7fa121bc39316451db6ee4f060aefce2cbda6a2e6c04f2881ba549c3d0",
+    "app/src/main/res/drawable/ic_launcher_monochrome.xml": "ae59cf144a9113b49d94d4211e734fb30ec5bbfe2b48d93c65acb085185554b3",
+    "app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml": "9fc4bb4a8338a88c01a6f23902366c891ad5208915137fe76338372764b48f45",
+    "app/src/main/res/mipmap-anydpi-v33/ic_launcher.xml": "e54ef02f974370a15158cdcb76d357f1d32938d147e275d57de0c3f80af10375",
+    "app/src/main/res/values/colors.xml": "815febe11694db944445fac6121b597c2121a8023091a65f2617172ea6686abc",
+    "app/src/main/res/values/strings.xml": "c639783b01f9a410d8f21967bb140620f1e89e8c26d620c9587d731b1d4e9fe4",
+    "app/src/main/res/values/themes.xml": "1daebd552a9e8546f39b61608697a2e7d90ebba9aefb09014d0993269e76a07d",
+    "app/src/main/res/values-night/themes.xml": "ef71971fd06b27e03800ced53979216459b31c61a3428a9c4377252884089975",
+    "app/src/main/res/values-night-v27/themes.xml": "ca84864709e7e3a373cc6dcae4d4c0b174614a046cc369205331d0cb370acc34",
+    "app/src/main/res/values-v27/themes.xml": "e8d301109f6e4ac7e4173495b0f31050807d8d12ea831e3bafe2b1805f8cc475",
+    "app/src/main/res/xml/update_paths.xml": "54bc97126ce4b4414ae2ae707b0a307ed1cb558b1a71737eac922267eb35987c"
+  }
+}

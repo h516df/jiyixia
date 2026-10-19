@@ -9,6 +9,8 @@ import java.io.File
  */
 class TaskStore(private val file: File) {
 
+    internal val identity: String get() = file.canonicalPath
+
     private val backup = File(file.parentFile, file.name + ".bak")
 
     fun load(): List<Task> {

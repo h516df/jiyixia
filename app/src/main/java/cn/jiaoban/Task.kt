@@ -30,6 +30,8 @@ data class Task(
     val pinned: Boolean = false,
     val important: Boolean = false,
     val steps: List<TaskStep> = emptyList(),
+    // A diary is still a NOTE for older readers. This date is independent of deadlines.
+    val journalDate: LocalDate? = null,
 )
 
 /**

@@ -1,4 +1,5 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
-    <path android:fillColor="#00000000" android:pathData="M31,40L36,45L45,34 M31,63L36,68L45,57" android:strokeColor="#FFFFFF" android:strokeWidth="4.5" android:strokeLineCap="round" android:strokeLineJoin="round" />
-    <path android:fillColor="#00000000" android:pathData="M55,41H76 M55,64H70" android:strokeColor="#FFFFFF" android:strokeWidth="4.5" android:strokeLineCap="round" />
+    <!-- Original outline for Android themed icons; no color-only interior detail. -->
+    <path android:fillColor="#00000000" android:strokeColor="#FFFFFFFF" android:strokeWidth="4" android:strokeLineJoin="round" android:pathData="M34,29 L61,29 L75,43 L75,78 L30,78 L30,29 Z M61,29 L61,43 L75,43 M41,55 L64,55 M41,65 L58,65"/>
+    <path android:fillColor="#FFFFFFFF" android:pathData="M48,39 a5,5 0,1 0,0.01,0 Z"/>
 </vector>

@@ -30,6 +30,7 @@ object TaskCodec {
             o.put("expiryPolicy", t.expiryPolicy.name)
             o.put("kind",t.kind.name)
             o.put("pinned",t.pinned)
+            o.put("journalDate", t.journalDate?.toString() ?: JSONObject.NULL)
             o.put("important", t.important)
             o.put("steps", JSONArray().apply { t.steps.forEach { step ->
                 put(JSONObject().put("id",step.id).put("text",step.text).put("done",step.done))
@@ -73,6 +74,7 @@ object TaskCodec {
                     .getOrDefault(WorkStage.RECEIVED),
                 kind = runCatching { EntryKind.valueOf(o.optString("kind","DELEGATED")) }.getOrDefault(EntryKind.DELEGATED),
                 pinned = o.optBoolean("pinned",false),
+                journalDate = runCatching { LocalDate.parse(o.optString("journalDate")) }.getOrNull(),
                 important = o.optBoolean("important",false),
                 steps = decodeSteps(o.optJSONArray("steps")),
                 followUps = decodeEvents(o.optJSONArray("followUps")),
