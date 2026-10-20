@@ -89,7 +89,8 @@ class StreamingBackupTest {
         val cache=tmp.newFolder();val plan=BackupPackage.read(archive(records,listOf(p1 to first,p2 to second)).inputStream(),cache)
         val target=tmp.newFolder();File(target,p2).also{it.parentFile!!.mkdirs();it.writeText("damaged")}
         assertThrows(IllegalArgumentException::class.java){ImportStorage.install(target,plan,linkedSetOf(p1,p2))}
-        assertFalse(File(target,p1).exists());assertEquals("damaged",File(target,p2).readText())
+        // A completed hash asset may already be reused by another draft; never roll it back.
+        assertArrayEquals(first,File(target,p1).readBytes());assertEquals("damaged",File(target,p2).readText())
         assertTrue(plan.stagedAssets.values.all{it.isFile})
         assertEquals(1,cache.listFiles()!!.size)
         plan.close();assertEquals(0,cache.listFiles()!!.size)
