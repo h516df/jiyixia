@@ -110,11 +110,16 @@ class UpdateCatalogTest {
 
     @Test
     fun onlyOurRepoApiUrlsAreAccepted() {
-        assertTrue(UpdateConfig.apiUrl("https://api.github.com/repos/h516df/Jiaoban/releases"))
-        assertTrue(UpdateConfig.apiUrl("https://api.github.com/repos/h516df/Jiaoban/releases/assets/1"))
+        assertTrue(UpdateConfig.apiUrl("https://api.github.com/repos/h516df/jiyixia/releases"))
+        assertTrue(UpdateConfig.apiUrl("https://api.github.com/repos/h516df/jiyixia/releases/assets/1"))
         assertTrue(!UpdateConfig.apiUrl("https://api.github.com/repos/other/repo/releases"))
-        assertTrue(!UpdateConfig.apiUrl("https://evil.example.com/repos/h516df/Jiaoban/releases"))
-        assertTrue(!UpdateConfig.apiUrl("http://api.github.com/repos/h516df/Jiaoban/releases"))
+        assertTrue(!UpdateConfig.apiUrl("https://api.github.com/repos/h516df/Jiaoban/releases"))
+        assertEquals(1413866214L,UpdateConfig.REPO_ID)
+        assertEquals("cn.jiaoban",UpdateConfig.PACKAGE)
+        assertEquals("Jiaoban",UpdateConfig.APK_PREFIX)
+        assertEquals("https://github.com/h516df/jiyixia/releases",UpdateConfig.RELEASES_PAGE)
+        assertTrue(!UpdateConfig.apiUrl("https://evil.example.com/repos/h516df/jiyixia/releases"))
+        assertTrue(!UpdateConfig.apiUrl("http://api.github.com/repos/h516df/jiyixia/releases"))
     }
 
     @Test
@@ -125,3 +130,4 @@ class UpdateCatalogTest {
         assertTrue(!UpdateConfig.assetRedirect("http://objects.githubusercontent.com/abc"))
     }
 }
+

@@ -1,6 +1,21 @@
 package cn.jiaoban.ui
 
 import android.content.Intent
+import android.Manifest
+import android.content.pm.PackageManager
+import android.provider.OpenableColumns
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import cn.jiaoban.media.*
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -40,6 +55,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import java.time.format.DateTimeFormatter
 
+internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
+
 @Composable internal fun FullPage(onDismiss:()->Unit,content:@Composable ()->Unit) {
     Dialog(onDismissRequest=onDismiss,properties=DialogProperties(usePlatformDefaultWidth=false,decorFitsSystemWindows=false)) {
         val view=LocalView.current
@@ -53,8 +70,8 @@ import java.time.format.DateTimeFormatter
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable internal fun NoteEditor(note:Task?,initial:String,initialDate:LocalDate?=null,session:String="editor",newId:String?=null,saving:Boolean=false,onDismiss:()->Unit,onSave:(String,LocalDate?)->Unit) {
+@OptIn(ExperimentalMaterial3Api::class,ExperimentalLayoutApi::class)
+@Composable internal fun NoteEditor(note:Task?,initial:String,initialDate:LocalDate?=null,session:String="editor",newId:String?=null,saving:Boolean=false,onDismiss:()->Unit,onSave:(String,LocalDate?,List<ImportedAttachment>)->Unit) {
     val context=LocalContext.current
     val persisted=remember{context.getSharedPreferences("editor_draft_v1",android.content.Context.MODE_PRIVATE)}
     val restoring=persisted.getString("session",null)==session
@@ -62,34 +79,120 @@ import java.time.format.DateTimeFormatter
     val baselineDate=remember(session){note?.journalDate?.toString()}
     var value by rememberSaveable(session,stateSaver=TextFieldValue.Saver){mutableStateOf(TextFieldValue(if(restoring)persisted.getString("text","").orEmpty() else note?.text ?: initial))}
     var dateText by rememberSaveable(session){mutableStateOf(if(restoring)persisted.getString("date",null) else initialDate?.toString())}
-    SideEffect {
-        if(persisted.getString("completed",null)!=session) persisted.edit().putBoolean("active",true).putString("session",session)
-            .putString("existingId",note?.id).putString("newId",newId)
-            .putString("text",value.text).putString("date",dateText).apply()
+    val scope=rememberCoroutineScope()
+    var mediaError by remember { mutableStateOf<String?>(null) }
+    var draftWriteFailed by remember(session) { mutableStateOf(false) }
+    val copying=mediaCopySessions[session]==true
+    var attachments by remember(session) { mutableStateOf(if(restoring) runCatching { AttachmentDraft.decode(persisted.getString("attachments",null)) }.getOrElse { mediaError="附件草稿无法读取，请保留资料并重试"; note?.attachments.orEmpty() } else note?.attachments.orEmpty()) }
+    fun persistEditor() {
+        runCatching { AttachmentDraft.open(persisted,session,note?.id,newId,value.text,dateText,attachments) }
+            .onSuccess { draftWriteFailed=false }
+            .onFailure { draftWriteFailed=true; mediaError=it.message }
+    }
+    SideEffect { persistEditor() }
+    DisposableEffect(persisted,session) {
+        val listener=android.content.SharedPreferences.OnSharedPreferenceChangeListener { _,key ->
+            if(key=="attachments" && persisted.getString("session",null)==session) runCatching { AttachmentDraft.decode(persisted.getString("attachments",null)) }.onSuccess { attachments=it }
+        }
+        persisted.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { persisted.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
+    var playing by remember { mutableStateOf<String?>(null) }
+    fun retainMedia(added:List<ImportedAttachment>) {
+        attachments=AttachmentDraft.append(persisted,session,added)
+    }
+    val voice=remember(session) { VoiceCapture(context,session) { file ->
+        // Finalized originals stay in the recording journal even if copying or draft persistence fails.
+        val attachment=file.inputStream().use { MediaStorage.copy(context.filesDir,it,file.name,"audio/mp4") }
+        retainMedia(listOf(attachment))
+    } }
+    val voiceState by voice.state.collectAsState()
+    val recording=voiceState.phase==VoiceCapturePhase.RECORDING
+    val lifecycle=LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(voice,lifecycle) {
+        voice.recover()
+        val observer=LifecycleEventObserver { _,event -> if(event==Lifecycle.Event.ON_STOP) voice.interrupt("已离开录音页，录音已暂停；请手动继续") }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer); voice.close() }
+    }
+    val permission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if(granted && lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) { playing=null; voice.start() }
+        else mediaError="未开启麦克风，仍可写字或添加照片视频。点录音可重试；也可在系统设置中开启。"
+    }
+    fun record() {
+        playing=null
+        if(ContextCompat.checkSelfPermission(context,Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED) voice.start()
+        else permission.launch(Manifest.permission.RECORD_AUDIO)
+    }
+    val choose=rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(10)) { uris ->
+        if(uris.isNotEmpty()) {
+            mediaCopySessions[session]=true; mediaError=null
+            scope.launch { withContext(NonCancellable) {
+                try {
+                    // Commit each finished copy so a later failed selection never loses earlier items.
+                    for(uri in uris) {
+                        val result=withContext(NonCancellable+Dispatchers.IO) { runCatching {
+                            val resolver=context.contentResolver
+                            val name=resolver.query(uri,arrayOf(OpenableColumns.DISPLAY_NAME),null,null,null)?.use { if(it.moveToFirst())it.getString(0) else null } ?: "媒体附件"
+                            val mime=resolver.getType(uri) ?: throw IllegalArgumentException("无法识别媒体格式")
+                            val added=resolver.openInputStream(uri)?.use { MediaStorage.copy(context.filesDir,it,name,mime) } ?: throw IllegalStateException("无法打开媒体")
+                            // Finish the current file and commit its ID even across Activity recreation.
+                            // An explicitly discarded/replaced session must never receive a late attachment.
+                            AttachmentDraft.append(persisted,session,listOf(added))
+                            added
+                        } }
+                        result.onFailure { mediaError=it.message ?: "附件添加失败，请重试" }
+                    }
+                } finally { mediaCopySessions.remove(session) }
+            } }
+        }
     }
     val diary=dateText!=null
     var datePicker by remember{mutableStateOf(false)}
     var discard by rememberSaveable{mutableStateOf(false)}
-    val dirty=if(note==null)value.text.isNotBlank() else value.text!=baseline || dateText!=baselineDate
-    fun close(){if(dirty)discard=true else onDismiss()}
+    val dirty=if(note==null)value.text.isNotBlank() || attachments.isNotEmpty() else value.text!=baseline || dateText!=baselineDate || attachments!=note.attachments
+    fun close(){if(copying || saving)return; voice.stop(); if(dirty || recording)discard=true else onDismiss()}
     val focus=remember{FocusRequester()}
     FullPage(::close) {
         LaunchedEffect(Unit){if(note==null && initial.isEmpty()){withFrameNanos{};focus.requestFocus()}}
         Scaffold(contentWindowInsets=WindowInsets.safeDrawing,containerColor=MaterialTheme.colorScheme.background,
             topBar={TopAppBar(title={Text(if(diary) "写日记" else if(note==null)"写一条记录" else "编辑记录",style=MaterialTheme.typography.titleMedium)},
                 navigationIcon={IconButton(onClick={close()}){Icon(Icons.Default.ArrowBack,"关闭笔记")}},
-                actions={TextButton(onClick={onSave(value.text,dateText?.let{LocalDate.parse(it)})},enabled=!saving && value.text.isNotBlank()){Text(if(saving)"保存中…" else "保存",fontWeight=FontWeight.SemiBold)}},
+                actions={TextButton(onClick={onSave(value.text,dateText?.let{LocalDate.parse(it)},attachments)},enabled=!saving && !copying && !recording && !voiceState.attachmentSaveFailed && !draftWriteFailed && mediaError!="附件草稿无法读取，请保留资料并重试" && (value.text.isNotBlank() || attachments.isNotEmpty())){Text(if(saving)"保存中…" else "保存",fontWeight=FontWeight.SemiBold)}},
                 colors=TopAppBarDefaults.topAppBarColors(containerColor=MaterialTheme.colorScheme.background))}) {padding->
             Column(Modifier.fillMaxSize().padding(padding).imePadding()) {
                 if(diary) TextButton(onClick={datePicker=true},modifier=Modifier.padding(horizontal=16.dp)) {
                     Icon(Icons.Default.DateRange,null,Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text(dateText.orEmpty()+" · 更改日期")
                 }
 
+                Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                 TextField(value,{value=it},enabled=!saving,placeholder={Text(if(diary) "今天有哪些想留住的细节？" else "现在的想法是……",lineHeight=32.sp)},
-                    modifier=Modifier.weight(1f).fillMaxWidth().padding(horizontal=8.dp).focusRequester(focus),
+                    modifier=Modifier.fillMaxWidth().heightIn(min=220.dp).padding(horizontal=8.dp).focusRequester(focus),
                     textStyle=MaterialTheme.typography.bodyLarge.copy(fontSize=18.sp,lineHeight=30.sp),
                     colors=TextFieldDefaults.colors(focusedContainerColor=MaterialTheme.colorScheme.background,unfocusedContainerColor=MaterialTheme.colorScheme.background,
                         focusedIndicatorColor=androidx.compose.ui.graphics.Color.Transparent,unfocusedIndicatorColor=androidx.compose.ui.graphics.Color.Transparent))
+                attachments.forEach { attachment ->
+                    Column(Modifier.padding(horizontal=20.dp,vertical=8.dp)) {
+                        MediaAttachment(attachment,playing==attachment.relativePath,{ if(!recording)playing=attachment.relativePath },{playing=null})
+                        TextButton(onClick={runCatching { val next=attachments.filterNot{it.relativePath==attachment.relativePath}; AttachmentDraft.replace(persisted,session,next);attachments=next }.onFailure{mediaError=it.message}},enabled=!saving && !copying && !recording) { Text("从这一页移除") }
+                    }
+                }
+                }
+                if(copying)LinearProgressIndicator(Modifier.fillMaxWidth())
+                mediaError?.let { Text(it,Modifier.padding(horizontal=20.dp),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.error) }
+                voiceState.message?.let { Text(it,Modifier.padding(horizontal=20.dp),style=MaterialTheme.typography.bodySmall) }
+                if(draftWriteFailed)TextButton(onClick={persistEditor()}){Text("重试保存草稿")}
+                if(voiceState.attachmentSaveFailed)TextButton(onClick={voice.recover()}){Text("恢复已完成录音")}
+                FlowRow(Modifier.fillMaxWidth().padding(horizontal=12.dp),verticalArrangement=Arrangement.spacedBy(0.dp)) {
+                    if(recording) {
+                        TextButton(onClick={voice.pause()}){Text("暂停录音")}
+                        TextButton(onClick={voice.stop()}){Text("结束录音")}
+                    } else {
+                        TextButton(onClick={record()},enabled=!saving && !copying){Text(if(voiceState.phase==VoiceCapturePhase.PAUSED || voiceState.phase==VoiceCapturePhase.INTERRUPTED)"继续录音" else "录音")}
+                        TextButton(onClick={choose.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))},enabled=!saving && !copying){Text("照片 / 视频")}
+                    }
+                }
+                Text(if(recording)"正在录音 · 每30秒保留一段，离开或锁屏会暂停" else "原媒体仅存本机 · 录音离开页面会暂停",Modifier.padding(horizontal=20.dp),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
                 Row(Modifier.fillMaxWidth().padding(horizontal=16.dp),verticalAlignment=Alignment.CenterVertically) {
                     Text(if(diary) "这一页，只为自己" else "留一点空白给想法",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
@@ -114,6 +217,7 @@ import java.time.format.DateTimeFormatter
         Column(Modifier.fillMaxWidth().padding(18.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
             val stamp=note.importInfo?.originalDate?.replace('T',' ') ?: (if(note.importInfo!=null)"导入于 " else "")+note.createdAt.atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("M月d日  HH:mm"))
             Text(stamp+(if(note.state!=TaskState.OPEN)" · 已归档" else ""),fontSize=12.sp,color=c.onSurfaceVariant)
+            if(note.attachments.isNotEmpty()) Text("${note.attachments.count{it.mimeType.startsWith("audio/")}} 段录音 · ${note.attachments.count{it.mimeType.startsWith("image/")}} 张照片 · ${note.attachments.count{it.mimeType.startsWith("video/")}} 个视频",style=MaterialTheme.typography.labelMedium,color=c.primary)
             Text(note.text,fontSize=17.sp,lineHeight=28.sp,maxLines=7,overflow=TextOverflow.Ellipsis)
             val tags=(writingTags(note.text)+note.importedTags).distinct()
             if(tags.isNotEmpty() && onTag!=null)FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -231,9 +335,11 @@ import java.time.format.DateTimeFormatter
 }
 
 @OptIn(ExperimentalLayoutApi::class)
-@Composable internal fun NoteDetail(note:Task,pin:()->Unit,archive:()->Unit,onUpdate:(Task)->Unit) {
+@Composable internal fun NoteDetail(note:Task,pin:()->Unit,archive:()->Unit,onUpdate:(Task)->Unit,allowPlayback:Boolean=true) {
     val context=LocalContext.current
     var confirm by remember{mutableStateOf(false)}
+    var playing by remember{mutableStateOf<String?>(null)}
+    LaunchedEffect(allowPlayback){if(!allowPlayback)playing=null}
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(26.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
         item {Text(note.journalDate?.format(DateTimeFormatter.ofPattern("yyyy年 M月d日 · 日记")) ?: note.createdAt.atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("yyyy年 M月d日 · 笔记")),style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)}
         item {FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -244,6 +350,7 @@ import java.time.format.DateTimeFormatter
         if(note.importedTags.isNotEmpty())item{Text(note.importedTags.joinToString("  "){"#$it"},fontSize=13.sp,color=MaterialTheme.colorScheme.primary)}
         if(note.attachments.isNotEmpty())item{Text("附件与原文件",style=MaterialTheme.typography.titleSmall)}
         items(note.attachments,key={it.relativePath}){attachment->
+            MediaAttachment(attachment,allowPlayback && playing==attachment.relativePath,{if(allowPlayback)playing=attachment.relativePath},{playing=null})
             OutlinedButton(onClick={
                 runCatching {
                     require(attachment.relativePath.matches(Regex("imports/[a-f0-9]{64}(?:\\.[a-z0-9]{1,8})?")))
@@ -261,3 +368,4 @@ import java.time.format.DateTimeFormatter
     }
     if(confirm)AlertDialog(onDismissRequest={confirm=false},title={Text(if(note.state==TaskState.OPEN)"归档这一页？" else "恢复这一页？")},text={Text("内容完整保留，可在对应页面的归档中找回。")},confirmButton={TextButton(onClick={confirm=false;archive()}){Text("确定")}},dismissButton={TextButton(onClick={confirm=false}){Text("取消")}})
 }
+

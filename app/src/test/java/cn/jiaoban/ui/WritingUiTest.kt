@@ -26,7 +26,7 @@ import org.robolectric.annotation.LooperMode
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @LooperMode(LooperMode.Mode.PAUSED)
-@Config(sdk=[34],application=Application::class,qualifiers="zh-rCN-w412dp-h915dp-xhdpi")
+@Config(sdk=[35],application=Application::class,qualifiers="zh-rCN-w412dp-h915dp-xhdpi")
 class WritingUiTest {
     @get:Rule val compose=createComposeRule()
     private val today=LocalDate.of(2026,10,19)
@@ -159,7 +159,7 @@ class WritingUiTest {
         compose.onNode(hasSetTextAction()).performTextReplacement("应当放弃的修改")
         val blocker=File(dataFile.path+".tmp");assertTrue(blocker.mkdir())
         compose.onNodeWithText("保存",useUnmergedTree=true).performClick()
-        compose.waitUntil(10000){compose.onAllNodesWithText("保存失败，文字仍在，请重试").fetchSemanticsNodes().isNotEmpty()}
+        compose.waitUntil(10000){compose.onAllNodesWithText("保存失败，文字和附件仍在，请重试").fetchSemanticsNodes().isNotEmpty()}
         compose.onNodeWithContentDescription("关闭笔记").performClick()
         compose.onNodeWithText("放弃改动").performClick()
         compose.onNodeWithContentDescription("返回").performClick()
@@ -175,7 +175,7 @@ class WritingUiTest {
         compose.runOnIdle{incoming="第一份分享"}
         compose.waitUntil(10000){compose.onAllNodesWithText("保存",useUnmergedTree=true).fetchSemanticsNodes().isNotEmpty()}
         compose.onNodeWithText("保存",useUnmergedTree=true).performClick()
-        compose.waitUntil(10000){compose.onAllNodesWithText("保存失败，文字仍在，请重试").fetchSemanticsNodes().isNotEmpty()}
+        compose.waitUntil(10000){compose.onAllNodesWithText("保存失败，文字和附件仍在，请重试").fetchSemanticsNodes().isNotEmpty()}
         compose.runOnIdle{incoming="第二份分享"}
         compose.waitUntil(10000){compose.onAllNodesWithText("打开分享").fetchSemanticsNodes().isNotEmpty()}
         compose.onNodeWithText("打开分享").performClick();assertTrue(blocker.delete())
@@ -212,3 +212,4 @@ class WritingUiTest {
         assertTrue(store.load().isEmpty())
     }
 }
+
