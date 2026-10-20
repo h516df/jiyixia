@@ -6,8 +6,15 @@ import java.time.LocalDate
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 
-/** Parsed only in memory. No database or permanent attachment writes before confirmation. */
-data class ImportPlan(val records:List<Task>,val assets:Map<String,ByteArray>,val warnings:List<String>,val format:String) {
+/** Preview owns private temporary files, never permanent writes before confirmation. */
+data class ImportPlan(val records:List<Task>,val assets:Map<String,ByteArray>,val warnings:List<String>,val format:String,
+    val stagedAssets:Map<String,java.io.File> = emptyMap(),
+    private val stagingDirectory:java.io.File? = null
+) : java.io.Closeable {
+    val assetPaths:Set<String> get() = assets.keys + stagedAssets.keys
+    private var owners=1
+    @Synchronized fun retain():ImportPlan { check(owners>0){"预览已关闭，请重新选择备份"};owners++;return this }
+    @Synchronized override fun close() { if(owners>0 && --owners==0)stagingDirectory?.deleteRecursively() }
     fun additions(existing:List<Task>)=records.filter{candidate->existing.none{it.id==candidate.id}}
     fun conflictCount(existing:List<Task>)=records.count{candidate->existing.any{it.id==candidate.id && (it.text!=candidate.text || it.journalDate!=candidate.journalDate || it.importedTags!=candidate.importedTags || semanticAssets(it)!=semanticAssets(candidate) || it.importInfo?.originalDate!=candidate.importInfo?.originalDate || it.importInfo?.originalTitle!=candidate.importInfo?.originalTitle || (candidate.importInfo?.format=="DIARIUM" && it.importInfo?.metadata!=candidate.importInfo?.metadata))}}
     fun duplicateCount(existing:List<Task>)=records.size-additions(existing).size-conflictCount(existing)
@@ -19,7 +26,7 @@ internal fun safeSourcePath(path:String):Boolean {
 }
 private fun semanticAssets(task:Task)=task.attachments.filter{!it.sourceFile || task.importInfo?.format=="MOJI_ORIGINAL"}.map{it.sha256}.sorted()
 
-enum class ImportFormat(val label:String){OBSIDIAN("Obsidian Markdown"),THINO_DAILY("Thino DAILY"),DIARIUM("Diarium JSON"),MOJI_ORIGINAL("墨记 PDF/图片原件"),SHIYE_BACKUP("拾页完整备份")}
+enum class ImportFormat(val label:String){OBSIDIAN("Obsidian Markdown"),THINO_DAILY("Thino DAILY"),DIARIUM("Diarium JSON"),MOJI_ORIGINAL("墨记 PDF/图片原件"),SHIYE_BACKUP("记一下完整备份")}
 
 internal class PlanBuilder(val bundle:ImportBundle,val format:ImportFormat,val importedAt:Instant) {
     val records=mutableListOf<Task>();val warnings=mutableListOf<String>();val assets=linkedMapOf<String,ByteArray>()
@@ -77,3 +84,4 @@ internal class PlanBuilder(val bundle:ImportBundle,val format:ImportFormat,val i
         return ImportPlan(records,assets,warnings.distinct(),format.name)
     }
 }
+

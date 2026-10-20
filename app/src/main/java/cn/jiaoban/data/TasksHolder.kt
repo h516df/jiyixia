@@ -103,14 +103,14 @@ class TasksHolder(private val store: TaskStore) {
     fun update(task: Task) = commit(tasks.map { if (it.id == task.id) task else it })
 
     /** Stable ID permits retrying a failed quick record without appending duplicates. */
-    fun saveWriting(text:String, journalDate:LocalDate?=null, id:String?=null, onSaved:(Boolean)->Unit):String? {
+    fun saveWriting(text:String, journalDate:LocalDate?=null, id:String?=null, attachments:List<cn.jiaoban.ImportedAttachment>?=null, onSaved:(Boolean)->Unit):String? {
         val clean=text.trim()
-        if(clean.isEmpty()) return null
         val previous=tasks.firstOrNull{it.id==id}
+        if(clean.isEmpty() && (attachments ?: previous?.attachments.orEmpty()).isEmpty()) return null
         if(previous!=null && previous.kind!=EntryKind.NOTE) return null
-        val entry=previous?.copy(text=clean,journalDate=journalDate) ?: Task(
+        val entry=previous?.copy(text=clean,journalDate=journalDate,attachments=attachments ?: previous.attachments) ?: Task(
             id=id ?: UUID.randomUUID().toString(),text=clean,createdAt=Instant.now(),kind=EntryKind.NOTE,
-            expiryPolicy=ExpiryPolicy.MUST_FINISH,journalDate=journalDate)
+            expiryPolicy=ExpiryPolicy.MUST_FINISH,journalDate=journalDate,attachments=attachments.orEmpty())
         commit(if(previous==null)tasks+entry else tasks.map{if(it.id==entry.id)entry else it},onSaved,forceIds=setOf(entry.id))
         return entry.id
     }
@@ -138,6 +138,7 @@ class TasksHolder(private val store: TaskStore) {
         private set
     fun importWriting(plan:cn.jiaoban.importing.ImportPlan,filesDir:java.io.File,onDone:(ImportResult)->Unit) {
         if(importing)return
+        plan.retain()
         importing=true;lastImportResult=null;dirty=true
         val currentRevision=++revision
         io.execute {
@@ -146,12 +147,13 @@ class TasksHolder(private val store: TaskStore) {
                 val existing=store.load()
                 val additions=plan.additions(existing)
                 val matchingExisting=existing.filter { old -> plan.records.any { it.id==old.id } }
-                val needed=(additions.flatMap{it.attachments}.map{it.relativePath} + matchingExisting.flatMap{it.attachments}.map{it.relativePath}.filter{it in plan.assets}).toSet()
-                created=cn.jiaoban.importing.ImportStorage.install(filesDir,plan.assets,needed)
+                val needed=(additions.flatMap{it.attachments}.map{it.relativePath} + matchingExisting.flatMap{it.attachments}.map{it.relativePath}.filter{it in plan.assetPaths}).toSet()
+                created=cn.jiaoban.importing.ImportStorage.install(filesDir,plan,needed)
                 val merged=existing+additions
                 store.save(merged)
                 Triple(merged,additions.size,plan.records.size-additions.size)
             }
+            plan.close()
             if(result.isFailure)created.forEach{it.delete()}
             main.post {
                 importing=false
@@ -199,3 +201,4 @@ class TasksHolder(private val store: TaskStore) {
         }
     }
 }
+

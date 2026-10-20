@@ -27,7 +27,7 @@ ROOT = Path(__file__).resolve().parents[1]
 APK = ROOT / "app" / "build" / "outputs" / "apk" / "release" / "app-release.apk"
 NOTES = ROOT / "app" / "src" / "main" / "assets" / "release-notes.json"
 GRADLE = ROOT / "gradlew.bat"
-REPO = "h516df/Jiaoban"
+REPO = "h516df/jiyixia"
 PREFIX = "Jiaoban"
 DIST = ROOT / "dist"
 
@@ -209,3 +209,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+

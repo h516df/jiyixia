@@ -69,7 +69,7 @@ fun UpdateScreen(updater: Updater, contentPadding: PaddingValues) {
             is UpdateState.Restoring -> Text("正在核对本机已下载的安装包…")
             is UpdateState.Verifying -> Text("安装前再次校验文件、版本与签名…")
             is UpdateState.NeedInstallPermission -> {
-                Text("系统尚未允许拾页安装更新。请在系统页面允许后返回；安装仍由你确认。")
+                Text("系统尚未允许记一下安装更新。请在系统页面允许后返回；安装仍由你确认。")
                 Button(onClick={updater.openInstallPermissionSettings()}){Text("打开系统安装权限")}
                 TextButton(onClick={updater.install()}){Text("已允许，继续安装")}
             }
@@ -211,3 +211,4 @@ private fun openBrowser(context: Context, url: String) {
         )
     }
 }
+

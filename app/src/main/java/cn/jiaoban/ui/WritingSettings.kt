@@ -24,12 +24,12 @@ import java.time.LocalDate
         item {SettingsAction("导入记录","Obsidian、Thino DAILY、Diarium与墨记原件",onImport)}
         item {SettingsAction("导出完整资料","记录、日记、旧版资料与附件 · ZIP 备份",onExport)}
         if(legacyCount>0)item{SettingsAction("旧版资料","$legacyCount 条完整保留 · 只读查看",onLegacy)}
-        item {SettingsAction("检查更新","拾页 $version",onUpdate)}
+        item {SettingsAction("检查更新","记一下 $version",onUpdate)}
         item {HorizontalDivider(color=c.outlineVariant)}
         item {Text("关于资料",style=MaterialTheme.typography.titleSmall)}
-        item {Text("内容保存在这台设备。本应用不启用系统云备份或自动换机传输；卸载、清数据或换手机前，请主动导出完整 ZIP 并确认文件已保存。归档只收起页面，不删除文字。导出文件包含全部内容，请保存到你信任的位置。当前完整备份上限为 5000 条、单附件 32 MiB、总计 64 MiB；超限会报错，不会生成声称可恢复的备份。",fontSize=14.sp,lineHeight=24.sp,color=c.onSurfaceVariant)}
-        item {Text("旧版事项的原文、来源、日期和办理记录仍完整保留。完整ZIP可在“导入记录 → 拾页完整备份”恢复缺少的内容。请勿卸载清除资料，也不要降级覆盖。",fontSize=14.sp,lineHeight=24.sp,color=c.onSurfaceVariant)}
-        item {Text("拾页\n留住想法，也留住日子。",modifier=Modifier.padding(top=24.dp,bottom=24.dp),fontSize=13.sp,lineHeight=23.sp,color=c.onSurfaceVariant)}
+        item {Text("内容保存在这台设备。本应用不启用系统云备份或自动换机传输；卸载、清数据或换手机前，请主动导出完整 ZIP 并确认文件已保存。归档只收起页面，不删除文字。导出文件包含全部内容，请保存到你信任的位置。当前完整备份上限为 5000 条、单附件 1 GiB、解压总计 4 GiB（需足够本机空间）；超限会报错，不会生成声称可恢复的备份。",fontSize=14.sp,lineHeight=24.sp,color=c.onSurfaceVariant)}
+        item {Text("旧版事项的原文、来源、日期和办理记录仍完整保留。完整ZIP可在“导入记录 → 记一下完整备份”恢复缺少的内容，也兼容旧版拾页备份。请勿卸载清除资料，也不要降级覆盖。",fontSize=14.sp,lineHeight=24.sp,color=c.onSurfaceVariant)}
+        item {Text("记一下\n留住想法，也留住日子。",modifier=Modifier.padding(top=24.dp,bottom=24.dp),fontSize=13.sp,lineHeight=23.sp,color=c.onSurfaceVariant)}
     }
 }
 @Composable private fun SettingsAction(title:String,subtitle:String,action:()->Unit) {
@@ -58,3 +58,4 @@ import java.time.LocalDate
         items(task.followUps,key={it.id}){SelectionContainer{Text("${it.createdAt} · ${it.kind.name}\n${it.text}",lineHeight=26.sp)}}
     }
 }
+

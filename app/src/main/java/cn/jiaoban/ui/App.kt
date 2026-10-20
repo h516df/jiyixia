@@ -63,7 +63,7 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
         if(it.getString("savingProcess",null)!=TasksHolder.processId)it.edit().remove("saving").apply()
     }}
     var editorInFlight by remember {mutableStateOf(editorDraft.getString("saving",null))}
-    val editorBusy=editorPosting || editorInFlight==editorSession
+    val editorBusy=editorPosting || editorInFlight==editorSession || mediaCopySessions[editorSession]==true
     var editorRestored by rememberSaveable {mutableStateOf(false)}
     LaunchedEffect(holder.loaded) {
         if(holder.loaded && !editorRestored) {
@@ -158,7 +158,7 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
             if(detail != null) Text(if(detail.kind!=EntryKind.NOTE) "旧版资料" else if(detail.journalDate!=null) "日记" else "笔记",style=MaterialTheme.typography.titleMedium)
             else if(searching) OutlinedTextField(query,{query=it},singleLine=true,placeholder={Text("搜索记录") },modifier=Modifier.fillMaxWidth(),shape=RoundedCornerShape(18.dp))
             else Column(verticalArrangement=Arrangement.spacedBy(3.dp)) {
-                Text(if(isMain) "拾页" else screen.label,fontSize=27.sp,fontWeight=FontWeight.SemiBold)
+                Text(if(isMain) "记一下" else screen.label,fontSize=27.sp,fontWeight=FontWeight.SemiBold)
                 if(isMain && LocalDensity.current.fontScale<=1.3f) Text(if(screen==Screen.NOTES) "随手记下，慢慢回看" else "按日翻看，想起更多",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },navigationIcon={
@@ -181,7 +181,7 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
     ) {padding->Column(Modifier.fillMaxSize().padding(padding)) {
         holder.saveError?.let {message->Surface(color=MaterialTheme.colorScheme.errorContainer) {Row(Modifier.fillMaxWidth().padding(start=20.dp),verticalAlignment=Alignment.CenterVertically){Text(message,Modifier.weight(1f));TextButton(onClick={if(quickText.isNotBlank())submitQuick() else holder.retrySave()}){Text("重试保存")}}}}
         when {
-            detail?.kind==EntryKind.NOTE -> NoteDetail(detail,{holder.update(detail.copy(pinned=!detail.pinned))},{holder.setState(detail.id,if(detail.state==TaskState.OPEN)TaskState.VOID else TaskState.OPEN)},{holder.update(it)})
+            detail?.kind==EntryKind.NOTE -> NoteDetail(detail,{holder.update(detail.copy(pinned=!detail.pinned))},{holder.setState(detail.id,if(detail.state==TaskState.OPEN)TaskState.VOID else TaskState.OPEN)},{holder.update(it)},allowPlayback=editId==null && !creating)
             detail!=null -> LegacyDetail(detail,today)
             !holder.loaded -> Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){CircularProgressIndicator()}
             screen==Screen.NOTES -> NotesPage(holder.savedTasks.filter{it.kind==EntryKind.NOTE && it.journalDate==null && writingMatches(it,if(searching)query else "",selectedTag)},{detailId=it.id},query,searching,selectedTag,{selectedTag=it},savedGeneration=savedGeneration,onReview={
@@ -196,27 +196,33 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
             screen==Screen.LEGACY -> LegacyPage(holder.savedTasks.filter{it.kind!=EntryKind.NOTE},{detailId=it.id})
             screen==Screen.IMPORT -> ImportPage(holder)
             screen==Screen.UPDATE -> UpdateScreen(updater,PaddingValues(0.dp))
-            else -> WritingSettings(holder.savedTasks.count{it.kind!=EntryKind.NOTE},{screen=Screen.LEGACY},{export.launch("拾页-完整资料-$today.zip")},{screen=Screen.UPDATE},{screen=Screen.IMPORT})
+            else -> WritingSettings(holder.savedTasks.count{it.kind!=EntryKind.NOTE},{screen=Screen.LEGACY},{export.launch("记一下-完整资料-$today.zip")},{screen=Screen.UPDATE},{screen=Screen.IMPORT})
         }
     }}
     if(holder.loaded && (creating || editId!=null)) {
         val task=holder.savedTasks.firstOrNull{it.id==editId}
-        val closeEditor={editorDraft.edit().clear().apply();creating=false;editId=null;newEditorId=null;sharedDraft="";focus.clearFocus()}
-        NoteEditor(task,if(creating)sharedDraft else "",if(task!=null)task.journalDate else if(createDiary)LocalDate.parse(newDiaryDay) else null,session=editorSession,newId=newEditorId,saving=editorBusy,onDismiss={if(!editorBusy)closeEditor()},onSave={text,date->
+        val closeEditor={
+            runCatching { cn.jiaoban.media.AttachmentDraft.clear(editorDraft,editorSession) }
+                .onSuccess { creating=false;editId=null;newEditorId=null;sharedDraft="";focus.clearFocus() }
+                .onFailure { notify(it.message ?: "草稿未能关闭，请重试") }
+        }
+        NoteEditor(task,if(creating)sharedDraft else "",if(task!=null)task.journalDate else if(createDiary)LocalDate.parse(newDiaryDay) else null,session=editorSession,newId=newEditorId,saving=editorBusy,onDismiss={if(!editorBusy)closeEditor()},onSave={text,date,attachments->
             if(!editorBusy) {
                 editorPosting=true
                 val submittedSession=editorSession
                 editorDraft.edit().putString("saving",submittedSession).putString("savingProcess",TasksHolder.processId).apply()
                 val id=task?.id ?: newEditorId ?: java.util.UUID.randomUUID().toString().also{newEditorId=it;editorDraft.edit().putString("newId",it).apply()}
-                holder.saveWriting(text,date,id) {success->
+                holder.saveWriting(text,date,id,attachments) {success->
+                    synchronized(cn.jiaoban.media.AttachmentDraft) {
                     if(editorDraft.getString("session",null)==submittedSession) {
-                        val unchanged=editorDraft.getString("text","")==text && editorDraft.getString("date",null)==date?.toString()
+                        val unchanged=editorDraft.getString("text","")==text && editorDraft.getString("date",null)==date?.toString() && cn.jiaoban.media.AttachmentDraft.decode(editorDraft.getString("attachments",null))==attachments
                         editorDraft.edit().remove("saving").apply()
                         if(success && unchanged) editorDraft.edit().putString("completed",submittedSession).putBoolean("active",false).remove("text").apply()
                         if(editorSession==submittedSession) {
                             editorPosting=false
-                            notify(if(success)"已保存" else "保存失败，文字仍在，请重试")
+                            notify(if(success)"已保存" else "保存失败，文字和附件仍在，请重试")
                         }
+                    }
                     }
                 }
             }
@@ -225,3 +231,4 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
     if(incomingShare!=null) AlertDialog(onDismissRequest={incomingShare=null},title={Text("收到新的分享")},text={Text("当前文字还未保存。继续编辑，或放弃当前改动并打开分享内容。")},
         confirmButton={TextButton(onClick={incomingShare=null}){Text("继续编辑")}},dismissButton={TextButton(enabled=!editorBusy,onClick={sharedDraft=incomingShare?:"";incomingShare=null;editId=null;detailId=null;createDiary=false;creating=true;newEditorId=null;editorSession=java.util.UUID.randomUUID().toString();searching=false;screen=Screen.NOTES}){Text("打开分享")}})
 }
+

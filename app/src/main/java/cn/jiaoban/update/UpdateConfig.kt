@@ -18,15 +18,15 @@ internal fun requireUpdate(value: Boolean, message: String = "更新资料不完
  */
 object UpdateConfig {
 
-    const val REPO = "h516df/Jiaoban"
+    const val REPO = "h516df/jiyixia"
     const val REPO_ID = 1413866214L
 
     /** 授权页上要勾选的仓库名，界面上会念给用户听。 */
-    const val REPO_NAME = "Jiaoban"
+    const val REPO_NAME = "jiyixia"
 
     /**
      * 公开的 GitHub App client id。它不是一个密钥，写进 APK 是安全的，所有项目可以共用同一个。
-     * 设备授权时你只要在 GitHub 上勾选对应仓库（比如 Jiaoban），App 拿到的令牌就只有这个仓库的只读权限。
+     * 设备授权时你只要在 GitHub 上勾选对应仓库（比如 jiyixia），App 拿到的令牌就只有这个仓库的只读权限。
      * 任何情况下都不要把 client secret、PAT、登录 cookie、签名私钥放进这个文件。
      */
     const val CLIENT_ID = "Iv23liQM3N2avCTc0QAd"
@@ -73,3 +73,4 @@ object UpdateConfig {
 
     fun shaName(version: String): String = "$APK_PREFIX-v$version-SHA256.txt"
 }
+

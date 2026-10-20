@@ -66,4 +66,18 @@ class WritingSaveTest {
         holder.saveWriting("第二条",id="two"){if(it)completions++}
         await{completions==2};assertEquals(listOf("第一条","第二条"),store.load().map{it.text})
     }
+    @Test fun mediaOnlySaveRetryAndEditingRetainOriginalAttachments(){
+        val store=TaskStore(File(RuntimeEnvironment.getApplication().cacheDir,"media-${UUID.randomUUID()}.json"))
+        val holder=TasksHolder(store);holder.start();await{holder.loaded}
+        val a=cn.jiaoban.ImportedAttachment("a".repeat(64),"voice.m4a","imports/${"a".repeat(64)}.m4a","audio/mp4")
+        var done=false
+        holder.saveWriting("",id="media",attachments=listOf(a)){done=it};await{done}
+        assertEquals(listOf(a),store.load().single().attachments)
+        done=false;holder.saveWriting("加一句话",id="media"){done=it};await{done}
+        assertEquals(listOf(a),store.load().single().attachments)
+        done=false;holder.saveWriting("",id="media",attachments=listOf(a)){done=it};await{done}
+        assertEquals(1,store.load().size);assertEquals("",store.load().single().text)
+        assertNull(holder.saveWriting("",id="empty",attachments=emptyList()){})
+    }
 }
+

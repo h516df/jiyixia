@@ -17,7 +17,7 @@ import cn.jiaoban.data.TasksHolder
 import cn.jiaoban.importing.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.runInterruptible
 import java.time.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -29,6 +29,7 @@ import java.time.*
     var manualDate by rememberSaveable{mutableStateOf<String?>(null)}
     var datePicker by remember{mutableStateOf(false)}
     var plan by remember{mutableStateOf(initialPreview)}
+    DisposableEffect(plan){val owned=plan;onDispose{owned?.close()}}
     var loading by remember{mutableStateOf(false)}
     var error by remember{mutableStateOf<String?>(null)}
     var filename by remember{mutableStateOf(initialFilename)}
@@ -36,13 +37,20 @@ import java.time.*
         if(uri!=null){val selectedFormat=format;val selectedHeading=heading;val selectedDate=manualDate
             loading=true;plan=null;error=null
             scope.launch{
-                val result=withContext(Dispatchers.IO){runCatching{
+                var pending:ImportPlan?=null
+                try {
+                val result=runInterruptible(Dispatchers.IO){runCatching{
                     val name=context.contentResolver.query(uri,arrayOf(OpenableColumns.DISPLAY_NAME),null,null,null)?.use{cursor->if(cursor.moveToFirst())cursor.getString(0) else null} ?: "import"
-                    val bundle=context.contentResolver.openInputStream(uri)?.use{ImportBundle.read(name,it)} ?: throw IllegalStateException("无法打开选择的文件")
-                    name to ImportParser.parse(bundle,selectedFormat,selectedHeading,selectedDate?.let{LocalDate.parse(it)})
+                    val parsed=context.contentResolver.openInputStream(uri)?.use{input->
+                        if(selectedFormat==ImportFormat.SHIYE_BACKUP)BackupPackage.read(input,context.cacheDir)
+                        else ImportParser.parse(ImportBundle.read(name,input),selectedFormat,selectedHeading,selectedDate?.let{LocalDate.parse(it)})
+                    } ?: throw IllegalStateException("无法打开选择的文件")
+                    pending=parsed
+                    name to parsed
                 }}
                 loading=false
-                result.onSuccess{filename=it.first;plan=it.second}.onFailure{error=it.message ?: "无法识别文件；原资料未改动"}
+                result.onSuccess{filename=it.first;plan=it.second;pending=null}.onFailure{error=it.message ?: "无法识别文件；原资料未改动"}
+                } finally {pending?.close()}
             }
         }
     }
@@ -57,9 +65,9 @@ import java.time.*
             ImportFormat.THINO_DAILY->"仅支持 DAILY 日期文件的时间列表，一天可拆多条。当前不承诺 JOURNAL、FILE、MULTI、Canvas 或自定义模板。未知结构不会写入。"
             ImportFormat.DIARIUM->"在 Diarium 导出 JSON；有附件请勾选独立附件并选择 ZIP。支持单条对象或数组，不读取 .diary 专有备份。"
             ImportFormat.MOJI_ORIGINAL->"只收存墨记导出的 PDF/图片原件，供打开查看。不会自动解析成完整日记；正文、标签与原日期不保证可搜索或迁移。"
-            ImportFormat.SHIYE_BACKUP->"选择拾页导出的完整 ZIP 备份。恢复缺少的记录与附件，重复跳过，冲突保留现有内容，包中未包含的旧附件不作修复。损坏的现存附件会明确报错，不会覆盖。"
+            ImportFormat.SHIYE_BACKUP->"选择记一下或旧版拾页导出的完整 ZIP 备份，格式兼容。恢复缺少的记录与附件，重复跳过，冲突保留现有内容，包中未包含的旧附件不作修复。损坏的现存附件会明确报错，不会覆盖。"
         },fontSize=14.sp,lineHeight=24.sp)}
-        item{Text("本轮安全上限：单文件 32 MiB，ZIP 解压总计 64 MiB，最多 5000 条；超限不写入。",fontSize=12.sp,lineHeight=20.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}
+        item{Text(if(format==ImportFormat.SHIYE_BACKUP)"完整备份上限：单附件 1 GiB、解压总计 4 GiB、记录文件 32 MiB，最多 5000 条和 10000 个文件。附件暂存在本机缓存，需足够可用空间；超限不写入。" else "外部格式上限：单文件 32 MiB，ZIP 解压总计 64 MiB，最多 5000 条；超限不写入。",fontSize=12.sp,lineHeight=20.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}
         if(format==ImportFormat.THINO_DAILY)item{OutlinedTextField(heading,{heading=it;plan=null},label={Text("精确标题，留空读取整篇")},singleLine=true,modifier=Modifier.fillMaxWidth(),enabled=!loading && !holder.importing)}
         if(format==ImportFormat.MOJI_ORIGINAL)item{OutlinedButton(onClick={datePicker=true},enabled=!loading && !holder.importing){Text(manualDate?.let{"手动标注日期：$it"} ?: "选择手动标注日期")}}
         item{Button(onClick={choose.launch(arrayOf("*/*"))},enabled=!loading && !holder.importing && (format!=ImportFormat.MOJI_ORIGINAL || manualDate!=null),modifier=Modifier.fillMaxWidth()){Text(if(loading)"正在本机解析…" else "选择文件并预览")}}
@@ -75,10 +83,11 @@ import java.time.*
                 Text("${record.attachments.count{!it.sourceFile}} 个关联附件 · 原文件保留",fontSize=12.sp)
             }}}
             if(current.records.size>8)item{Text("预览前8条，共 ${current.records.size} 条。",fontSize=13.sp)}
-            item{Button(onClick={holder.importWriting(current,context.filesDir){}},enabled=(additions>0 || format==ImportFormat.SHIYE_BACKUP) && !holder.importing && !loading,modifier=Modifier.fillMaxWidth()){Text(if(holder.importing)"正在保存…" else if(format==ImportFormat.SHIYE_BACKUP)"恢复缺少的记录与附件" else "确认导入 $additions 条")}}
+            item{Button(onClick={holder.importWriting(current,context.filesDir){if(it.error==null)plan=null}},enabled=(additions>0 || format==ImportFormat.SHIYE_BACKUP) && !holder.importing && !loading,modifier=Modifier.fillMaxWidth()){Text(if(holder.importing)"正在保存…" else if(format==ImportFormat.SHIYE_BACKUP)"恢复缺少的记录与附件" else "确认导入 $additions 条")}}
         }
         holder.lastImportResult?.let{result->item{Text(result.error ?: "已导入 ${result.added} 条，跳过 ${result.skipped} 条已有记录。",color=if(result.error==null)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,fontSize=14.sp,lineHeight=24.sp)}}
     }
     if(datePicker){val state=rememberDatePickerState(initialSelectedDateMillis=manualDate?.let{LocalDate.parse(it).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()})
         DatePickerDialog(onDismissRequest={datePicker=false},confirmButton={TextButton(onClick={state.selectedDateMillis?.let{manualDate=Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate().toString();plan=null};datePicker=false}){Text("确定")}},dismissButton={TextButton(onClick={datePicker=false}){Text("取消")}}){DatePicker(state)}}
 }
+
