@@ -29,13 +29,14 @@ class ImportTransactionTest {
         assertEquals(0,holder.lastImportResult!!.added);assertEquals(2,store.load().size)
         val a=plan.records.single().attachments.single();assertArrayEquals(plan.assets.getValue(a.relativePath),File(tmp.root,a.relativePath).readBytes())
     }
-    @Test fun failedDatabaseWriteLeavesOldDataAndRollsBackOnlyNewAttachments(){
+    @Test fun failedDatabaseWriteLeavesOldDataAndRetainsPublishedAttachments(){
         val file=File(tmp.root,"tasks.json");val store=TaskStore(file);val old=Task("old","不应改变",createdAt=now,kind=EntryKind.NOTE);store.save(listOf(old))
         val before=file.readBytes();val blocker=File(file.path+".tmp");assertTrue(blocker.mkdir())
         val holder=TasksHolder.forStore(store);await{holder.loaded};val plan=plan()
         holder.importWriting(plan,tmp.root){};await{!holder.importing}
         assertNotNull(holder.lastImportResult!!.error);assertArrayEquals(before,file.readBytes());assertEquals(listOf(old),holder.savedTasks)
-        assertTrue(plan.records.flatMap{it.attachments}.none{File(tmp.root,it.relativePath).exists()})
+        // A parallel editor can already refer to a published content hash; rollback must not delete it.
+        plan.records.flatMap{it.attachments}.forEach { assertArrayEquals(plan.assets.getValue(it.relativePath),File(tmp.root,it.relativePath).readBytes()) }
     }
     @Test fun existingIdConflictNeverOverwritesCurrentBody(){
         val plan=plan();val record=plan.records.single().copy(text="用户已编辑的正文")

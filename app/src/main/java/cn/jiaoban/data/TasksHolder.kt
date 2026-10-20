@@ -142,19 +142,19 @@ class TasksHolder(private val store: TaskStore) {
         importing=true;lastImportResult=null;dirty=true
         val currentRevision=++revision
         io.execute {
-            var created=emptyList<java.io.File>()
             val result=runCatching {
                 val existing=store.load()
                 val additions=plan.additions(existing)
                 val matchingExisting=existing.filter { old -> plan.records.any { it.id==old.id } }
                 val needed=(additions.flatMap{it.attachments}.map{it.relativePath} + matchingExisting.flatMap{it.attachments}.map{it.relativePath}.filter{it in plan.assetPaths}).toSet()
-                created=cn.jiaoban.importing.ImportStorage.install(filesDir,plan,needed)
+                cn.jiaoban.importing.ImportStorage.install(filesDir,plan,needed)
                 val merged=existing+additions
                 store.save(merged)
                 Triple(merged,additions.size,plan.records.size-additions.size)
             }
             plan.close()
-            if(result.isFailure)created.forEach{it.delete()}
+            // Keep complete published attachments after a failed metadata save: another editor
+            // may already reference the same content hash. The original library remains unchanged.
             main.post {
                 importing=false
                 result.getOrNull()?.let{(merged,_,_)->savedTasks=merged}

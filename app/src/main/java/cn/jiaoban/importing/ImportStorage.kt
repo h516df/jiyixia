@@ -4,7 +4,7 @@ import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
 import java.security.MessageDigest
-import java.nio.file.Files
+import cn.jiaoban.media.AttachmentPublisher
 import java.util.UUID
 
 internal val assetPathPattern=Regex("imports/[a-f0-9]{64}(?:\\.[a-z0-9]{1,8})?")
@@ -43,17 +43,19 @@ object ImportStorage {
                     source().use{require(streamDigest(it).first==expected){"附件校验失败"}}
                     continue
                 }
-                check(file.parentFile!!.isDirectory || file.parentFile!!.mkdirs()){"附件目录创建失败"}
+                check(file.parentFile!!.isDirectory || file.parentFile!!.mkdirs() || file.parentFile!!.isDirectory){"附件目录创建失败"}
                 checkedAsset(root,relative)
                 val temp=File(file.parentFile,".${UUID.randomUUID()}.tmp")
                 try {
                     temp.outputStream().use{out->source().use{input->require(streamDigest(input,out).first==expected){"附件校验失败"}};out.fd.sync()}
-                    // A hard-link publish is atomic and fails if the target already exists.
-                    // Unlike renameTo it cannot silently replace even a concurrently-created asset.
-                    Files.createLink(file.toPath(),temp.toPath());created+=file
+                    if (AttachmentPublisher.publish(temp,file,expected)) created+=file
                 } finally {temp.delete()}
             }
             return created
-        }catch(error:Throwable){created.forEach{it.delete()};throw error}
+        }catch(error:Throwable){
+            // Published hashes can already be referenced by another editor. Retain them on failure;
+            // only this operation's unpublished temporary files may be cleaned up.
+            throw error
+        }
     }
 }

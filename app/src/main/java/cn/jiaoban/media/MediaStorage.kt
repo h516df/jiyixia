@@ -28,7 +28,7 @@ object MediaStorage {
         require(mime.startsWith("image/") || mime.startsWith("video/") || mime.startsWith("audio/")) { "请选择照片、视频或录音" }
         val directory = File(root, "imports")
         require(directory.canonicalFile == File(root.canonicalFile, "imports")) { "附件目录无效" }
-        check(directory.isDirectory || directory.mkdirs()) { "无法创建附件目录" }
+        check(directory.isDirectory || directory.mkdirs() || directory.isDirectory) { "无法创建附件目录" }
         val temporary = File(directory, ".${UUID.randomUUID()}.tmp")
         try {
             val digest = MessageDigest.getInstance("SHA-256")
@@ -46,11 +46,7 @@ object MediaStorage {
             val extension = name.substringAfterLast('.', "").lowercase().takeIf { it.matches(Regex("[a-z0-9]{1,8}")) }
             val relative = "imports/$hash" + (extension?.let { ".$it" } ?: "")
             val destination = file(root, relative)
-            if (destination.exists()) require(destination.isFile && hash(destination) == hash) { "已有附件校验失败，未覆盖" }
-            else try { java.nio.file.Files.createLink(destination.toPath(), temporary.toPath()) }
-            catch (_: java.nio.file.FileAlreadyExistsException) {
-                require(destination.isFile && hash(destination) == hash) { "已有附件校验失败，未覆盖" }
-            }
+            AttachmentPublisher.publish(temporary, destination, hash)
             return ImportedAttachment(hash, name.substringAfterLast('/').substringAfterLast('\\').take(240).ifBlank { "媒体附件" }, relative, mime)
         } finally { temporary.delete() }
     }
