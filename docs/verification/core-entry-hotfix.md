@@ -24,3 +24,15 @@
 - [运行时权限](https://developer.android.com/training/permissions/requesting)：在用户明确交互后请求，按真实授权结果而非回调瞬间页面状态处理。
 - [AtomicFile](https://developer.android.com/reference/android/util/AtomicFile) 与 [Files](https://developer.android.com/reference/java/nio/file/Files)：写完整、同步、同目录原子提交；不以删除原文件换取保存成功。
 - [Fossify Voice Recorder](https://github.com/FossifyOrg/Voice-Recorder)：参考简明离线录音交互；GPL-3.0，仅产品思路，不复制代码、不引入依赖。
+
+
+## 原签名本地运行回归（2026-10-20）
+
+生产候选3c56a02a36fbd0bea5876affd96836b6f1809279在API36/x86_64模拟器，直接覆盖保留资料的v0.18正式包。最终af369b42ffeb9a7078a0e25fe7568aa79d1fbd15仅同步StreamingBackupTest断言，生产/构建输入一致，远端双平台CI39375512720成功。
+
+- 升级保留旧合成记录和编辑草稿；v0.18失败录音原件自动恢复，系统音频输出轨道实际启动并完成回放。
+- 真实系统Photo Picker选择自制RGB PNG，保存后重启，预览与附件仍在。
+- 系统拒绝后重试允许，回调直接启动录音；约12秒停止，成功保存，重启后新录音仍在；系统音频轨道正常输出10.896秒并完成，非仅按钮检查。
+- 720×1600/360dpi、200%系统字号，拒权后真实键盘多行输入，正文可见高度524px，保存重开逐字一致。
+
+全部素材为自制，未使用用户图片/录音或操作真实手机。模拟器宿主音频输入归零，故物理麦克风音质、来电/锁屏、视频兼容、低空间和本人手机授权/系统覆盖仍未验。保留前台分段与强杀活动片段可能丢失的既有限制，不宣称所有设备或所有bug均已解决。
