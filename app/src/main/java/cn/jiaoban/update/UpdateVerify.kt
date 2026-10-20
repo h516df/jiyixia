@@ -68,6 +68,16 @@ internal object UpdateVerify {
         requireUpdate(apkAbis.isEmpty() || deviceAbis().firstOrNull() in apkAbis, "安装包不适合这台手机")
     }
 
+    fun verifyPublicCertificate(context: Context, file: File) {
+        val info = packageInfo(context, file.absolutePath, context.packageManager)
+        val certificates = if (Build.VERSION.SDK_INT >= 28) info.signingInfo?.apkContentsSigners
+            else @Suppress("DEPRECATION") info.signatures
+        val hashes = certificates?.map {
+            MessageDigest.getInstance("SHA-256").digest(it.toByteArray()).joinToString("") { b -> "%02x".format(b) }
+        }?.toSet().orEmpty()
+        requireUpdate(hashes == setOf(UpdateConfig.CERTIFICATE_SHA256), "安装包签名不可信，已停止更新")
+    }
+
     /** APK 里带的 .so 决定了它能装在哪些 CPU 上；没有 .so 就是通用包。 */
     fun nativeAbis(file: File): Set<String> = ZipFile(file).use { zip ->
         zip.entries().asSequence()

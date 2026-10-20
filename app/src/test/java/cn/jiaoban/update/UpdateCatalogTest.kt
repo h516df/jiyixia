@@ -117,7 +117,7 @@ class UpdateCatalogTest {
         assertEquals(1413866214L,UpdateConfig.REPO_ID)
         assertEquals("cn.jiaoban",UpdateConfig.PACKAGE)
         assertEquals("Jiaoban",UpdateConfig.APK_PREFIX)
-        assertEquals("https://github.com/h516df/jiyixia/releases",UpdateConfig.RELEASES_PAGE)
+        assertEquals("https://github.com/h516df/app-releases/releases?q=jiyixia-stable",UpdateConfig.RELEASES_PAGE)
         assertTrue(!UpdateConfig.apiUrl("https://evil.example.com/repos/h516df/jiyixia/releases"))
         assertTrue(!UpdateConfig.apiUrl("http://api.github.com/repos/h516df/jiyixia/releases"))
     }
