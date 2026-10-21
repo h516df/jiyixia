@@ -11,3 +11,6 @@ verification/
 dist/
 
 __pycache__/
+
+# Disposable cloud workspace state
+.cloud/

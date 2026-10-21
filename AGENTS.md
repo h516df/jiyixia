@@ -14,3 +14,7 @@
     ./gradlew :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug --max-workers=1
 
 测试探针仅可运行在独立、可丢弃的测试模拟器，不能对用户实际资料执行种子重置。
+
+## 云端开发默认（2026-10-21）
+
+用户已要求所有 GitHub 项目转为云端开发。后续源码编辑、测试、构建默认在云端执行，入口见 `CLOUD_DEVELOPMENT.md`；不再依赖旧 Windows 路径或默认派回本机。原证书、私人资料、生产 Host/隧道与设备保护继续适用。缺少密钥、流水线源码或设备验收时如实报告，不以开发容器代替生产服务。
