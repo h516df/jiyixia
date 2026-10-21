@@ -23,3 +23,6 @@ JDK 21、Android SDK 36、Gradle 9.1、Kotlin/Compose，使用官方 Media3 播�
 
 参考与设计取舍见 [设计说明](docs/design/shiye-20261019.md)。历史验收见 [0.17 验收](docs/acceptance/v0.17/README.md)，本轮云端验证见 [媒体验收](docs/verification/media/cloud-validation.md)，0.19 变更和未验设备边界见 [更新记录](CHANGELOG.md)。正式安装包以 [现有私有仓库发布页](https://github.com/h516df/jiyixia/releases) 为准，发布不代表用户设备已升级。旧版0.17的原仓库更新地址可能拒绝重定向，首次升级请登录发布页下载同签名APK，保留应用直接覆盖安装。
 
+## 云端开发入口
+
+后续开发默认使用云端：[打开开发工作区](https://codespaces.new/h516df/jiyixia) · [环境、检查命令与迁移边界](CLOUD_DEVELOPMENT.md)。
