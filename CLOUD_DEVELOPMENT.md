@@ -27,7 +27,36 @@ GitHub Actions 的 **Cloud development** 在 PR、main 推送及手动运行时�
 
 ## 构建附件配额
 
-GitHub 私有仓库的 Actions 附件存储当前可能已满。测试/构建失败仍使检查失败；附件上传失败单独显示警告和运行摘要，不宣称有可下载 APK。可以从云开发工作区的构建输出获取开发包；恢复 Actions 存储可用性后才能继续上传附件。本轮不删除历史产物，也不自动公开私有构建物。
+2026-10-21 核对：Cloud development [运行 39549162478 第一次尝试](https://github.com/h516df/jiyixia/actions/runs/39549162478/attempts/1)的单测、APK 构建及 lint 通过；上传明确报 `Artifact storage quota has been hit`，附件列表为空。不能把整体绿色等同于 APK 已交付。随后重新运行在 runner 分配前失败：认证读取的 GitHub 检查注释明确提示近期账户付款失败或支出上限阻止任务启动。这不是测试、构建或上传步骤失败。账户最新账单用量因现有凭据权限不足未读到，没有扩大权限或修改预算；存储当前是否已释放仍需恢复运行后用实际上传复测。测试/构建失败继续严格阻断；不删除历史产物，不自动付费或公开 APK。
+
+### 按需取得开发 APK（不使用 Actions artifact）
+
+复用现有云端工具链，新增 **Private development APK** 工作流：
+
+- 代理向 `delivery/**` 任务分支推送，或在 Actions 手动运行此工作流。普通 PR 不触发交付，也不向 PR 授予写权限。
+- 分别运行 Test、Build、Lint。任一步失败均不会创建交付草稿；摘要分别显示失败环节。
+- 只有本私有仓库才能运行。通过后将 APK、SHA256 和构建来源保存到 **未发布的 Release 草稿**，不进入正式/最新版本，不调用现有正式发布脚本，不读取原签名密钥。
+- 三项附件均通过 GitHub API 下载回读并核对 SHA256；全部通过后运行摘要才给出下载入口。使用有仓库写权限的账号登录，打开草稿的三项附件即可。仅有读权限的协作者不能访问草稿。
+- 每次运行尝试使用独立 `dev-apk-<run>-<attempt>` 标识，不覆盖或删除已有资产；失败时保留现场。草稿不会自动过期，不自动清理；仅按需运行以避免无谓积累。
+- 开发包沿用应用 ID `cn.jiaoban` 和版本号，使用当前云环境的 debug 证书，**不是原证书签名的正式升级包**。不要在存有资料的手机卸载、清数据或安装开发包。需要试装时使用可丢弃模拟器。
+- 该方案避开 Actions 附件存储，但构建仍使用 Actions 分钟。若 runner 无法启动或分钟不足，也不能声称已生成 APK；不擅自提高预算。
+
+### 本轮已验证的交付（2026-10-21）
+
+- 源码提交：`28d9c7cd4f63b5b4b0102f33e69581e0fb428ce6`，PR [#33](https://github.com/h516df/jiyixia/pull/33)。
+- 当前云端工作区执行 `bash cloud/check.sh`：279 项 JVM 测试（0 失败/错误/跳过）、debug APK / AndroidTest APK 构建、lint 全部通过；不是 Actions runner 结果，也不代表实体手机已验收。
+- APK 大小 15,850,660 字节，SHA256 `79a2b9b6743ae32e2f55d6793cb73536b9ef9276f81baec612196ee179a2f2f8`，包名 cn.jiaoban / 0.19 / debug；签名结构已验证，没有使用或迁移原证书。
+- 使用已有授权 GitHub CLI 仅中转上传；复用本分支交付脚本的 API、草稿保护和回读函数。APK、SHA256、构建来源三项资产均已实际下载回读，哈希一致。
+- [私有未发布草稿](https://github.com/h516df/jiyixia/releases/tag/untagged-0b0b34b71ada30405859)，release ID `419373728`；仓库仍私有，draft=true / prerelease=true，正式 v0.19 未变。当前应用代码与正式 v0.19 相同，日常安装继续使用原正式包。
+- 新工作流配置通过 actionlint 1.7.7 和四项保护测试。Actions 实际触发被账户账务拦截，工作流的端到端自动执行仍未验收；不能把上述云工作区结果标为 Actions 通过。
+
+### 云开发工作区备用路径
+
+在已有 Codespaces / Codex 环境执行现有 `bash cloud/check.sh`，成功后从文件面板下载 `app/build/outputs/apk/debug/app-debug.apk`。代理负责构建与核对提交，不要求用户重建环境或搬日志。这条路径不依赖 Actions 附件存储；Codespaces 仍受账户额度约束，不自动新建收费资源。当前会话没有成功访问现成工作区时，必须明确标记未验证。
+
+正式升级继续使用已有私有 Releases 中经原证书签名和数据保护验收的包，不以开发草稿替代。
+
+依据：[GitHub Release 资产容量](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases#storage-and-bandwidth-quotas)、[草稿与发布 API](https://docs.github.com/en/rest/releases/releases#create-a-release)。
 
 ## 会话接续
 

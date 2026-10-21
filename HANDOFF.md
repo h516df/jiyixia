@@ -1,3 +1,15 @@
+# 当前接续记录（2026-10-21 · 私有开发 APK 已交付）
+
+- **目标与结果**：绕开 Actions 附件容量，恢复开发 APK 获取。本次已用当前云工作区构建、既有 GitHub CLI 中转，交付到[私有未发布草稿](https://github.com/h516df/jiyixia/releases/tag/untagged-0b0b34b71ada30405859)，release ID `419373728`。三项附件下载回读 SHA256 全部一致，draft/prerelease 均为 true；无正式发布、历史删除、公开资源、密钥迁移或设备操作。
+- **分支 / PR**：`delivery/apk-20261021` / [#33](https://github.com/h516df/jiyixia/pull/33)；main 基线 `ddc8c17f0158dec3e3ae11665ba39fa00bf55975`。最终远端提交/合并以 PR 实时状态为准；未修改或合并 #28 的公开稳定更新源任务。
+- **实际验证来源**：源码 `28d9c7cd4f63b5b4b0102f33e69581e0fb428ce6`；`bash cloud/check.sh` passed：279 JVM（0 failure/error/skipped）、debug APK、AndroidTest APK、lint。APK 签名结构 passed；没有运行 AndroidTest APK 或实体手机验收。当前业务源码与现有正式 v0.19 一致。
+- **产物绑定**：`jiyixia-DEVELOPMENT-28d9c7cd4f63.apk`，15,850,660 字节，SHA256 `79a2b9b6743ae32e2f55d6793cb73536b9ef9276f81baec612196ee179a2f2f8`。三项 readback 结果在草稿构建说明/哈希与本轮回执中；包名 cn.jiaoban / 0.19 / debug，未使用原证书，不是手机正式升级包。
+- **修复配置**：新增 Private development APK，复用现有工具链；Test / Build / Lint / 交付分开，仅本私有仓库手动运行或 delivery/** 推送触发。普通 PR 不交付；API 只创建草稿，不发布、替换或删除资产。actionlint 1.7.7（官方 SHA256 校验）、4 项保护测试、Python 语法及 diff 检查 passed；交付辅助函数本轮实际上传/回读 passed。
+- **准确故障分类**：运行 39549162478 第一次尝试测试/构建/lint passed，artifact 上传因 storage quota 失败，实际附件为空。后来第二次尝试与本 PR 的新旧工作流在 runner 分配前失败（无 steps，runner_id=0）；认证读取注释明确为近期付款失败或支出上限需检查。不是测试/构建失败。账户实时用量读取因权限不足未取得，不增权、不付费；当前存储是否释放仍未知。
+- **剩余限制与下一步**：自动 Actions 执行因账户账务阻塞未验收，不能用本轮云工作区通过冒充。用户若要恢复自动流水线，需本人处理 GitHub Billing & plans 提示；随后代理只重跑必要交付流程。未恢复前继续复用现成云环境构建输出和私有草稿交付，不新建收费资源。保留正式 v0.19、原签名及所有应用资料，不安装开发包到存有资料的手机。
+
+## 之前的交接（保留）
+
 # 当前接续记录（2026-10-21 · 统一通用入口）
 
 - **目标**：适应用户经常新开云端 Codex 的方式；每个项目默认分支都指向同一通用工作流，并保留本地可执行简版，用户无需记启动语或分支名。
