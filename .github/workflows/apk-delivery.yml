@@ -53,7 +53,8 @@ jobs:
         run: |
           source .cloud/env.sh
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs app/build/outputs/apk/debug/app-debug.apk
-          "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging app/build/outputs/apk/debug/app-debug.apk | head -1
+          "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging app/build/outputs/apk/debug/app-debug.apk > .cloud/apk-badging.txt
+          sed -n '1p' .cloud/apk-badging.txt
       - name: Deliver private draft and verify downloaded bytes
         env:
           GH_TOKEN: ${{ github.token }}

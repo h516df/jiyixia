@@ -27,7 +27,7 @@ GitHub Actions 的 **Cloud development** 在 PR、main 推送及手动运行时�
 
 ## 构建附件配额
 
-2026-10-21 核对：Cloud development [运行 39549162478 第一次尝试](https://github.com/h516df/jiyixia/actions/runs/39549162478/attempts/1)的单测、APK 构建及 lint 通过；上传明确报 `Artifact storage quota has been hit`，附件列表为空。不能把整体绿色等同于 APK 已交付。账户最新账单用量未直接读取，后续状态以新的实际上传结果为准。测试/构建失败继续严格阻断；不删除历史产物，不自动付费或公开 APK。
+2026-10-21 核对：Cloud development [运行 39549162478 第一次尝试](https://github.com/h516df/jiyixia/actions/runs/39549162478/attempts/1)的单测、APK 构建及 lint 通过；上传明确报 `Artifact storage quota has been hit`，附件列表为空。不能把整体绿色等同于 APK 已交付。随后重新运行在 runner 分配前失败：认证读取的 GitHub 检查注释明确提示近期账户付款失败或支出上限阻止任务启动。这不是测试、构建或上传步骤失败。账户最新账单用量因现有凭据权限不足未读到，没有扩大权限或修改预算；存储当前是否已释放仍需恢复运行后用实际上传复测。测试/构建失败继续严格阻断；不删除历史产物，不自动付费或公开 APK。
 
 ### 按需取得开发 APK（不使用 Actions artifact）
 
@@ -40,6 +40,15 @@ GitHub Actions 的 **Cloud development** 在 PR、main 推送及手动运行时�
 - 每次运行尝试使用独立 `dev-apk-<run>-<attempt>` 标识，不覆盖或删除已有资产；失败时保留现场。草稿不会自动过期，不自动清理；仅按需运行以避免无谓积累。
 - 开发包沿用应用 ID `cn.jiaoban` 和版本号，使用当前云环境的 debug 证书，**不是原证书签名的正式升级包**。不要在存有资料的手机卸载、清数据或安装开发包。需要试装时使用可丢弃模拟器。
 - 该方案避开 Actions 附件存储，但构建仍使用 Actions 分钟。若 runner 无法启动或分钟不足，也不能声称已生成 APK；不擅自提高预算。
+
+### 本轮已验证的交付（2026-10-21）
+
+- 源码提交：`28d9c7cd4f63b5b4b0102f33e69581e0fb428ce6`，PR [#33](https://github.com/h516df/jiyixia/pull/33)。
+- 当前云端工作区执行 `bash cloud/check.sh`：279 项 JVM 测试（0 失败/错误/跳过）、debug APK / AndroidTest APK 构建、lint 全部通过；不是 Actions runner 结果，也不代表实体手机已验收。
+- APK 大小 15,850,660 字节，SHA256 `79a2b9b6743ae32e2f55d6793cb73536b9ef9276f81baec612196ee179a2f2f8`，包名 cn.jiaoban / 0.19 / debug；签名结构已验证，没有使用或迁移原证书。
+- 使用已有授权 GitHub CLI 仅中转上传；复用本分支交付脚本的 API、草稿保护和回读函数。APK、SHA256、构建来源三项资产均已实际下载回读，哈希一致。
+- [私有未发布草稿](https://github.com/h516df/jiyixia/releases/tag/untagged-0b0b34b71ada30405859)，release ID `419373728`；仓库仍私有，draft=true / prerelease=true，正式 v0.19 未变。当前应用代码与正式 v0.19 相同，日常安装继续使用原正式包。
+- 新工作流配置通过 actionlint 1.7.7 和四项保护测试。Actions 实际触发被账户账务拦截，工作流的端到端自动执行仍未验收；不能把上述云工作区结果标为 Actions 通过。
 
 ### 云开发工作区备用路径
 
