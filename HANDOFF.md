@@ -1,4 +1,4 @@
-# 当前接续记录（2026-10-21 · 私有开发 APK 已交付）
+# 当前接续记录（2026-10-21 · 全云端开发包交付与并行核对）
 
 - **目标与结果**：绕开 Actions 附件容量，恢复开发 APK 获取。本次已用当前云工作区构建、既有 GitHub CLI 中转，交付到[私有未发布草稿](https://github.com/h516df/jiyixia/releases/tag/untagged-0b0b34b71ada30405859)，release ID `419373728`。三项附件下载回读 SHA256 全部一致，draft/prerelease 均为 true；无正式发布、历史删除、公开资源、密钥迁移或设备操作。
 - **分支 / PR**：`delivery/apk-20261021` / [#33](https://github.com/h516df/jiyixia/pull/33)；main 基线 `ddc8c17f0158dec3e3ae11665ba39fa00bf55975`。最终远端提交/合并以 PR 实时状态为准；未修改或合并 #28 的公开稳定更新源任务。
@@ -6,7 +6,11 @@
 - **产物绑定**：`jiyixia-DEVELOPMENT-28d9c7cd4f63.apk`，15,850,660 字节，SHA256 `79a2b9b6743ae32e2f55d6793cb73536b9ef9276f81baec612196ee179a2f2f8`。三项 readback 结果在草稿构建说明/哈希与本轮回执中；包名 cn.jiaoban / 0.19 / debug，未使用原证书，不是手机正式升级包。
 - **修复配置**：新增 Private development APK，复用现有工具链；Test / Build / Lint / 交付分开，仅本私有仓库手动运行或 delivery/** 推送触发。普通 PR 不交付；API 只创建草稿，不发布、替换或删除资产。actionlint 1.7.7（官方 SHA256 校验）、4 项保护测试、Python 语法及 diff 检查 passed；交付辅助函数本轮实际上传/回读 passed。
 - **准确故障分类**：运行 39549162478 第一次尝试测试/构建/lint passed，artifact 上传因 storage quota 失败，实际附件为空。后来第二次尝试与本 PR 的新旧工作流在 runner 分配前失败（无 steps，runner_id=0）；认证读取注释明确为近期付款失败或支出上限需检查。不是测试/构建失败。账户实时用量读取因权限不足未取得，不增权、不付费；当前存储是否释放仍未知。
-- **剩余限制与下一步**：自动 Actions 执行因账户账务阻塞未验收，不能用本轮云工作区通过冒充。用户若要恢复自动流水线，需本人处理 GitHub Billing & plans 提示；随后代理只重跑必要交付流程。未恢复前继续复用现成云环境构建输出和私有草稿交付，不新建收费资源。保留正式 v0.19、原签名及所有应用资料，不安装开发包到存有资料的手机。
+- **并行核对**：另一云端 Codex 的最新可见成果为工具库 PR #7（通用工作流 0.2，已合并），声明仅升级工具库、TimeWorth 和模板。本轮仅改 jiyixia 的项目交付约定，不改工具库、TimeWorth、共享 Make 场景或其他业务 PR。无法看到另一会话未推送内容，因此每次写入仍须重新核对 main/PR；不声称已直接联系或锁定其会话。
+- **新增云端证据**：复用已有 Make 场景/连接，只读 GET 私有仓库与现有草稿均成功，OAuth repo 权限和草稿三资产摘要已核对；具体 execution 与已知 5 MiB 文件限制见 CLOUD_DEVELOPMENT。APK 15,850,660 字节，本轮未验证 Make 二进制上传，不创建新的上传场景。
+- **默认交付**：云端构建后使用当前任务实际可用的私有文件下载；[本次已保存的开发包](https://chatgpt.com/api/library/files/libfile_bf5350e7bd308191a2f6b2bd2df8bcf1/download) 的大小/哈希/私有身份已核对。上次本机 CLI 中转仅作为历史，不再作为默认路线。不要求用户开电脑、搬包或提供 token；其他 Codex 环境须核对其实际文件交付能力。
+- **本轮验证**：并行成果/分支/PR 核对 passed；两次云端只读连接实测 passed；已有 APK 大小、SHA256 和私有文件身份复核 passed；文档差异、原历史/规则保留及空白检查 passed。没有业务/脚本/CI 修改，不重复构建或重跑已知账务失败的 Actions。
+- **剩余限制**：自动 Actions 因账务阻塞未验收；正式签名仍未接入云端。开发包下载无需等待 Actions 恢复；正式签名迁移、正式发布和付款/预算改变仍不在本次授权内。保留正式 v0.19、原签名及用户资料。
 
 ## 之前的交接（保留）
 

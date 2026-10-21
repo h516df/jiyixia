@@ -29,6 +29,23 @@ GitHub Actions 的 **Cloud development** 在 PR、main 推送及手动运行时�
 
 2026-10-21 核对：Cloud development [运行 39549162478 第一次尝试](https://github.com/h516df/jiyixia/actions/runs/39549162478/attempts/1)的单测、APK 构建及 lint 通过；上传明确报 `Artifact storage quota has been hit`，附件列表为空。不能把整体绿色等同于 APK 已交付。随后重新运行在 runner 分配前失败：认证读取的 GitHub 检查注释明确提示近期账户付款失败或支出上限阻止任务启动。这不是测试、构建或上传步骤失败。账户最新账单用量因现有凭据权限不足未读到，没有扩大权限或修改预算；存储当前是否已释放仍需恢复运行后用实际上传复测。测试/构建失败继续严格阻断；不删除历史产物，不自动付费或公开 APK。
 
+### 默认交付路径：云端构建后私有下载
+
+Actions 因账务或附件配额受阻时，继续使用当前 Codex 云工作区运行已有 `bash cloud/check.sh`。代理核对源码提交、构建退出状态、APK 大小、SHA256 和开发/正式属性，再通过**当前任务实际可用的私有文件下载能力**交付。GitHub 保留源码与交接；当前会话无需 Windows 电脑登录或中转。不同云端任务的工具和凭据各自核对，不把这次能力当作账户级自动配置。
+
+2026-10-21 的现有开发包已保存在用户自己的私有文件空间，可[直接下载已保存的 APK](https://chatgpt.com/api/library/files/libfile_bf5350e7bd308191a2f6b2bd2df8bcf1/download)。它与本页后述草稿 APK 相同：源码 `28d9c7cd4f63b5b4b0102f33e69581e0fb428ce6`，15,850,660 字节，SHA256 `79a2b9b6743ae32e2f55d6793cb73536b9ef9276f81baec612196ee179a2f2f8`。需由该 ChatGPT 账号访问；没有公开分享。只是开发测试包，不是手机正式升级包。
+
+上次为核验 GitHub 草稿而借用本机已有 CLI 中转，作为历史实际经过保留，**不作为后续默认全云端路线**。已有私有草稿保持不动；正式 v0.19、原签名和用户资料保持不动。
+
+### 现有云端 GitHub 连接的核对
+
+已读取另一云端 Codex 合并的 [通用工作流 0.2 / PR #7](https://github.com/h516df/vibe-ui-quality-kit/pull/7) 与 `workflow/CLOUD_CAPABILITIES.md`。复用其中已建立的 Make 按需场景 `6715378` / GitHub 连接 `11842349`，仅执行 GET，未修改共享场景：
+
+- `/repos/h516df/jiyixia`：成功，账号连接可访问本私有仓库，返回 push/admin 权限及 OAuth `repo` scope；execution `090b7b2b626f4a7e93843f122d887eb0`。
+- `/repos/h516df/jiyixia/releases/419373728`：成功读取既有 draft/prerelease 和三项资产摘要；execution `cefe366a45194ccab4d351441c00a322`。
+- 当前 Make Free 许可证的单文件上限为 5 MiB（`fslimit=5242880`），而本包为 15,850,660 字节。本轮**没有验证该连接的 APK 二进制上传**，不把仓库管理权限等同于可传此包，不拆包、不升级套餐、不改另一任务的连接或场景。
+- 当前云端私有文件下载已具备，因此无需为了开发包交付再引入传输系统。GitHub 草稿自动上传仍以已有 Actions 恢复后的真实运行结果为准，不反复启动已知被账务拦截的任务。
+
 ### 按需取得开发 APK（不使用 Actions artifact）
 
 复用现有云端工具链，新增 **Private development APK** 工作流：
