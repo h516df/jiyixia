@@ -17,29 +17,15 @@ android {
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
     }
-    // 正式版用本机调试证书签：这样正式版能直接覆盖安装调试版，已经记的东西不丢
-    signingConfigs {
-        create("release") {
-            val keystore = rootProject.file("${System.getProperty("user.home")}/.android/debug.keystore")
-            if (keystore.isFile) {
-                storeFile = keystore
-                storePassword = "android"
-                keyAlias = "androiddebugkey"
-                keyPassword = "android"
-            }
-        }
-    }
     buildTypes {
+        debug { applicationIdSuffix = ".dev" }
         release {
             isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            // Cloud builds may prepare an unsigned APK; the original key stays on its owner device.
-            if (!providers.gradleProperty("unsignedRelease").isPresent) {
-                signingConfig = signingConfigs.getByName("release")
-            }
+            signingConfig = null
         }
     }
     buildFeatures { compose = true }
@@ -105,3 +91,11 @@ dependencies {
     testImplementation("io.github.takahirom.roborazzi:roborazzi-compose:1.76.0")
 }
 
+
+// Fail closed: unsigned candidates require an explicit opt-in; final signing is external.
+gradle.taskGraph.whenReady {
+    val releaseRequested = allTasks.any { it.project == project && it.name in setOf("assembleRelease", "packageRelease", "bundleRelease") }
+    if (releaseRequested && providers.gradleProperty("unsignedRelease").orNull != "true") {
+        throw GradleException("Official signing requires original injected credentials via cloud/sign_apk.py. Use -PunsignedRelease=true only for an unsigned build candidate.")
+    }
+}

@@ -1,0 +1,9 @@
+{
+  "certificateSha256": "21b74e3e2a10e12da8284d4e6bd7d99e55b00a385215902e94d7896f7a46c967",
+  "alias": "androiddebugkey",
+  "schemaVersion": 1,
+  "repository": "h516df/jiyixia",
+  "packageName": "cn.jiaoban",
+  "publishedTag": "v0.19",
+  "publishedApkSha256": "54144a6d59ed5bef3ed96b0fa8169420f77df11b977badd374cfc7cf05eac7c6"
+}

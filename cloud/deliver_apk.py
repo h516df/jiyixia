@@ -68,7 +68,7 @@ def main():
 
     apk_dir = ROOT / 'app/build/outputs/apk/debug'
     metadata = json.loads((apk_dir / 'output-metadata.json').read_text())
-    if metadata.get('applicationId') != 'cn.jiaoban' or metadata.get('variantName') != 'debug':
+    if metadata.get('applicationId') != 'cn.jiaoban.dev' or metadata.get('variantName') != 'debug':
         raise RuntimeError('Expected the unchanged application ID and debug variant.')
     elements = metadata.get('elements', [])
     if len(elements) != 1 or elements[0].get('outputFile') != 'app-debug.apk':
@@ -88,7 +88,7 @@ def main():
     manifest = out / 'build-info.json'
     manifest.write_text(json.dumps({
         'repository': REPO, 'sourceCommit': sha, 'workflowRun': run_url,
-        'runAttempt': int(attempt), 'applicationId': 'cn.jiaoban',
+        'runAttempt': int(attempt), 'applicationId': 'cn.jiaoban.dev',
         'versionCode': elements[0]['versionCode'], 'versionName': elements[0]['versionName'],
         'variant': 'debug', 'developmentOnly': True, 'originalSigningKey': False,
         'upgradeApproved': False, 'apk': apk_out.name,
