@@ -5,5 +5,11 @@
   "repository": "h516df/jiyixia",
   "packageName": "cn.jiaoban",
   "publishedTag": "v0.19",
-  "publishedApkSha256": "54144a6d59ed5bef3ed96b0fa8169420f77df11b977badd374cfc7cf05eac7c6"
+  "publishedApkSha256": "54144a6d59ed5bef3ed96b0fa8169420f77df11b977badd374cfc7cf05eac7c6",
+  "developmentPackageName": "cn.jiaoban.dev",
+  "launcherActivity": "cn.jiaoban.MainActivity",
+  "fileProviderSuffixes": [
+    ".updates",
+    ".imports"
+  ]
 }

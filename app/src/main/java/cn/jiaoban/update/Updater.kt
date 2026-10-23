@@ -36,7 +36,7 @@ class Updater internal constructor(
     private val archiveVerifier:(Context,File,Int)->Unit=UpdateVerify::verifyArchive,
     private val installAllowed:(Context)->Boolean={it.packageManager.canRequestPackageInstalls()},
     private val installer:(Context,File)->Unit={ctx,file->
-        val uri=FileProvider.getUriForFile(ctx,"${UpdateConfig.PACKAGE}.updates",file)
+        val uri=FileProvider.getUriForFile(ctx,"${ctx.packageName}.updates",file)
         ctx.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri,"application/vnd.android.package-archive").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK))
     },
 ) {
