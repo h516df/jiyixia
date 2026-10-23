@@ -1,10 +1,11 @@
+import os
 #!/usr/bin/env python3
 """Real UI regression on the task's disposable AVD; exact source/APK binding and optional evidence reuse."""
 import argparse, hashlib, json, os, subprocess, sys, time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-ADB = Path(r"D:\Apps\Android\sdk\platform-tools\adb.exe")
+ADB = Path(os.environ.get("ANDROID_HOME", "C:/Android/sdk")) / "platform-tools" / "adb.exe"
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 def digest(path): return hashlib.sha256(path.read_bytes()).hexdigest()

@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env python3
 """Run the native date probe on the task's disposable emulator."""
 import argparse
@@ -9,7 +10,7 @@ from pathlib import Path
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 ROOT = Path(__file__).resolve().parents[1]
-ADB = r"D:\Apps\Android\sdk\platform-tools\adb.exe"
+ADB = os.path.join(os.environ.get("ANDROID_HOME", "C:/Android/sdk"), "platform-tools", "adb.exe")
 
 def main():
     parser = argparse.ArgumentParser()

@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """交办 v0.2 正式版冒烟 + 卡顿实测。
@@ -23,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "verification"
 DEBUG_APK = ROOT / "app" / "build" / "outputs" / "apk" / "debug" / "app-debug.apk"
 RELEASE_APK = ROOT / "app" / "build" / "outputs" / "apk" / "release" / "app-release.apk"
-ADB = r"D:\Apps\Android\sdk\platform-tools\adb.exe"
+ADB = os.path.join(os.environ.get("ANDROID_HOME", "C:/Android/sdk"), "platform-tools", "adb.exe")
 PKG = "cn.jiaoban"
 
 RESULTS = []

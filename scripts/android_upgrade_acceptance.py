@@ -8,7 +8,7 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SDK = Path(r'D:\Apps\Android\sdk')
+SDK = Path(os.environ.get("ANDROID_HOME", "C:/Android/sdk"))
 parser = argparse.ArgumentParser()
 parser.add_argument('--serial', required=True)
 parser.add_argument('--adb-port', default='5037')

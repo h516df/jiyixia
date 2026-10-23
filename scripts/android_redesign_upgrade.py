@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env python3
 """Verify same-signature cover upgrade, exact record preservation and real loaded UI on the owned AVD."""
 import argparse, hashlib, json, os, re, subprocess, sys, time
@@ -5,8 +6,8 @@ from pathlib import Path
 from android_redesign_acceptance import fingerprint
 
 ROOT=Path(__file__).resolve().parents[1]
-ADB=Path(r"D:\Apps\Android\sdk\platform-tools\adb.exe")
-TOOLS=Path(r"D:\Apps\Android\sdk\build-tools\36.0.0")
+ADB=Path(os.environ.get("ANDROID_HOME", "C:/Android/sdk")) / "platform-tools" / "adb.exe"
+TOOLS=Path(os.environ.get("ANDROID_HOME", "C:/Android/sdk")) / "build-tools" / "36.0.0"
 sys.stdout.reconfigure(encoding="utf-8",errors="replace")
 def run(command):
     p=subprocess.run(list(map(str,command)),capture_output=True,timeout=180)

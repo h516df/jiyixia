@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """交办性能采集：一次短 trace 包住「冷启动 -> 打字 -> 滑动列表」，带操作时间标记。
@@ -18,7 +19,7 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "verification"
-ADB = r"D:\Apps\Android\sdk\platform-tools\adb.exe"
+ADB = os.path.join(os.environ.get("ANDROID_HOME", "C:/Android/sdk"), "platform-tools", "adb.exe")
 ANALYZER = r"D:\AI\Tools\android-performance\analyze_trace.py"
 PKG = "cn.jiaoban"
 ACTIVITY = "cn.jiaoban/.MainActivity"

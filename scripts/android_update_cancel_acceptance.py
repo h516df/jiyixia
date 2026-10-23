@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env python3
 """Real update-page cancellation regression. Uses an explicitly selected test emulator."""
 import argparse
@@ -11,7 +12,7 @@ import xml.etree.ElementTree as ET
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 ROOT = Path(__file__).resolve().parents[1]
-ADB = r"D:\Apps\Android\sdk\platform-tools\adb.exe"
+ADB = os.path.join(os.environ.get("ANDROID_HOME", "C:/Android/sdk"), "platform-tools", "adb.exe")
 PKG = "cn.jiaoban"
 
 

@@ -28,7 +28,7 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "verification"
 APK = ROOT / "app" / "build" / "outputs" / "apk" / "debug" / "app-debug.apk"
-ADB = r"D:\Apps\Android\sdk\platform-tools\adb.exe"
+ADB = os.path.join(os.environ.get("ANDROID_HOME", "C:/Android/sdk"), "platform-tools", "adb.exe")
 PKG = "cn.jiaoban"
 ACTIVITY = "cn.jiaoban/.MainActivity"
 MARKER = "abc123"
