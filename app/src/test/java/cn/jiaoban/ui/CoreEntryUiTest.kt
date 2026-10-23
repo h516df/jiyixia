@@ -62,7 +62,7 @@ class CoreEntryUiTest {
         val original=File(directory,"synthetic-source.png")
         original.outputStream().use {Bitmap.createBitmap(40,40,Bitmap.Config.ARGB_8888).apply{eraseColor(android.graphics.Color.GREEN)}.compress(Bitmap.CompressFormat.PNG,100,it)}
         val before=original.readBytes()
-        val uri=FileProvider.getUriForFile(compose.activity,"cn.jiaoban.imports",original)
+        val uri=FileProvider.getUriForFile(compose.activity,"${compose.activity.packageName}.imports",original)
         compose.onNodeWithText("照片 / 视频").performClick()
         compose.runOnIdle {
             val shadow=shadowOf(compose.activity)

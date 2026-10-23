@@ -373,7 +373,7 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
                 runCatching {
                     require(attachment.relativePath.matches(Regex("imports/[a-f0-9]{64}(?:\\.[a-z0-9]{1,8})?")))
                     val file=java.io.File(context.filesDir,attachment.relativePath)
-                    val uri=androidx.core.content.FileProvider.getUriForFile(context,"cn.jiaoban.imports",file)
+                    val uri=androidx.core.content.FileProvider.getUriForFile(context,"${context.packageName}.imports",file)
                     context.startActivity(Intent.createChooser(Intent(Intent.ACTION_VIEW).setDataAndType(uri,attachment.mimeType).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION),"打开文件"))
                 }.onFailure{android.widget.Toast.makeText(context,"无法打开附件，请先导出完整资料检查原文件",android.widget.Toast.LENGTH_LONG).show()}
             },modifier=Modifier.fillMaxWidth()){Text((if(attachment.sourceFile)"原文件 · " else "附件 · ")+attachment.name,maxLines=2)}

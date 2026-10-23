@@ -13,7 +13,7 @@ GitHub Actions 的 **Cloud development** 在 PR、main 推送及手动运行时�
 
 ## 当前边界
 
-本机原证书尚未接入云端。调试包不是正式升级包，不可覆盖或卸载存有资料的正式 App。
+原签名材料已写入受保护 `android-signing` 环境；普通检查不读取它们。开发包为 `cn.jiaoban.dev`，Provider 与 URI 跟随运行时包名；真实产品签名及跨机器恢复仍因私有云执行受阻而未验证。调试包不能冒充正式升级包。
 
 原 README、AGENTS 与交接文件中的 Windows 路径作为历史恢复线索保留；云端开发不依赖这些路径。生产运行与发布步骤按本节边界处理，不自动运行旧的本机派发、安装、隧道或签名脚本。凭据通过平台 Secrets 注入，不能进入源码、日志或构建附件；私有项目继续保持私有。
 
@@ -115,3 +115,7 @@ Actions 因账务或附件配额受阻时，继续使用当前 Codex 云工作�
 通用约定与模板统一维护在 [vibe-ui-quality-kit/workflow](https://github.com/h516df/vibe-ui-quality-kit/blob/main/workflow/README.md)。开始任务由代理主动读取；本仓库 AGENTS 内保留可独立执行的简版，跨仓库读取暂不可用时先沿用，不要求用户重复说明工作流或添加仓库。具体工具链、数据、签名、生产与设备保护仍以本项目约束为准。
 
 新任务从默认分支开始时，代理应按用户描述核对相关未合并 PR、依赖和对应分支交接，不能直接把 main 当作所有最新成果；不根据旧快照自动合并业务 PR。这里的仓库配置不代表 Codex 账户级环境已发布。
+
+## 2026-10-22 原签名准备
+
+当前准备分支见 [SIGNING_PREPARATION](docs/SIGNING_PREPARATION.md)。历史未迁移状态由本轮实际运行结果更新；PR 未合并不代表 main 已启用。
