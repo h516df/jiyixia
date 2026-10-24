@@ -3,7 +3,7 @@
 <!-- shared-cloud-workflow:start -->
 ## 通用云端工作流
 
-通用入口：[h516df/vibe-ui-quality-kit · workflow](https://github.com/h516df/vibe-ui-quality-kit/blob/main/workflow/README.md)。代理在开始任务时主动读取并采用适用规则，用户无需重复提醒。项目特有约束和用户当前指令继续适用。
+通用入口：[h516df/vibe-ui-quality-kit · workflow](https://github.com/h516df/vibe-ui-quality-kit-open/blob/main/workflow/README.md)。代理在开始任务时主动读取并采用适用规则，用户无需重复提醒。项目特有约束和用户当前指令继续适用。
 
 以下简版随项目保存，可独立执行；通用私有库暂不可读时先沿用，不要求用户添加仓库、复制提示词或重新授权已有权限，也不凭空声称已读到全文：
 

@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "repositoryId": 1426495445,
+  "appId": "jiyixia",
+  "channel": "stable",
+  "status": "published",
+  "applicationId": "cn.jiaoban",
+  "release": {
+    "versionCode": 18,
+    "versionName": "0.18",
+    "signingCertificateSha256": "21b74e3e2a10e12da8284d4e6bd7d99e55b00a385215902e94d7896f7a46c967",
+    "minSdk": 26,
+    "abis": [
+      "arm64-v8a",
+      "armeabi-v7a",
+      "x86",
+      "x86_64"
+    ],
+    "tag": "jiyixia-stable-v0.18",
+    "releaseId": 418001773,
+    "publishedAt": "2026-10-20T04:36:24Z",
+    "notes": {
+      "新增": [
+        "编辑器支持本机前台录音、照片和视频，也能保存只有媒体的记录",
+        "录音支持分段暂停、继续和停止；本机播放音频与视频",
+        "显示名更新为记一下，保留原记录与日记"
+      ],
+      "改进": [
+        "草稿保留附件引用，保存和落盘失败时可重试，避免异步内容覆盖",
+        "完整备份采用流式读写，附件上限1 GiB、解压总计4 GiB、5000条记录；兼容旧备份",
+        "更新地址迁至jiyixia，保留原包名、签名、资料路径和安装包前缀"
+      ],
+      "修复": [
+        "草稿切换竞态和已完成录音停止后落盘失败的恢复路径"
+      ],
+      "说明": [
+        "本页正式 APK 可免登录公开下载。请使用原签名覆盖安装，勿卸载或清除数据；旧版更新地址失效时可从本公开发布页手动下载安装包。",
+        "仅前台录音，离开页面或锁屏暂停；约每30秒分段，片段间可能有间隔，强杀时活动片段可能丢失",
+        "完整备份仅包含已保存记录和附件，不含尚未保存草稿",
+        "真实录音听回、来电、锁屏、系统权限和选择器、视频解码、低空间、强杀恢复及手机覆盖升级尚未设备验证",
+        "手机系统安装和真实数据保留尚未实测；包内原设备授权流程及统一公开更新入口接入需另行验收。"
+      ]
+    },
+    "apk": {
+      "assetId": 658270672,
+      "fileName": "Jiaoban-v0.18-universal.apk",
+      "url": "https://github.com/h516df/app-releases/releases/download/jiyixia-stable-v0.18/Jiaoban-v0.18-universal.apk",
+      "size": 2928598,
+      "sha256": "d44f09befb5c1db37bc6dd3afa729e936ec617ac97d2319d529bf89f0cc58429"
+    },
+    "source": {
+      "repositoryId": 1413866214,
+      "releaseId": 417997752,
+      "tag": "v0.18",
+      "apkAssetId": 658259303,
+      "url": "https://github.com/h516df/jiyixia/releases/tag/v0.18",
+      "commit": "760ae9bb2e91f69b23a5890f0c2dcb9f54247cda"
+    },
+    "verification": {
+      "anonymousDownload": true,
+      "downloadedAt": "2026-10-20T04:37:01.759192+00:00",
+      "size": 2928598,
+      "sha256": "d44f09befb5c1db37bc6dd3afa729e936ec617ac97d2319d529bf89f0cc58429"
+    }
+  }
+}

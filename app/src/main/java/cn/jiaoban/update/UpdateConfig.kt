@@ -37,7 +37,16 @@ object UpdateConfig {
     const val VERIFY_URI = "https://github.com/login/device"
 
     /** 兜底入口：App 里检查失败时，至少能在浏览器打开发布页手动下载。 */
-    const val RELEASES_PAGE = "https://github.com/$REPO/releases"
+    const val PUBLIC_REPO = "h516df/app-releases"
+    const val PUBLIC_REPO_ID = 1426495445L
+    const val PUBLIC_MANIFEST = "https://api.github.com/repositories/$PUBLIC_REPO_ID/contents/apps/jiyixia/stable.json?ref=main"
+    const val CERTIFICATE_SHA256 = "21b74e3e2a10e12da8284d4e6bd7d99e55b00a385215902e94d7896f7a46c967"
+    const val RELEASES_PAGE = "https://github.com/$PUBLIC_REPO/releases?q=jiyixia-stable"
+
+    fun publicApkUrl(value: String, tag: String, name: String): Boolean =
+        tag.matches(Regex("jiyixia-stable-v[0-9]+\\.[0-9]+")) &&
+            name.matches(Regex("Jiaoban-v[0-9]+\\.[0-9]+-(universal|arm64)\\.apk")) &&
+            value == "https://github.com/$PUBLIC_REPO/releases/download/$tag/$name"
     const val MAX_APK = 120L * 1024 * 1024
 
     /** 只允许访问这个仓库自己的 API 路径。 */

@@ -1,3 +1,14 @@
+# 当前接续：0.20 免登录更新交付（2026-10-24）
+
+- 基线：公开 main `83cdd3fc147662b68ea0911289e5b708ab14dcaf`，已包含正式 0.19 的修复；复用 PR #28 / `33a189083a7b26ece8f740d5169328d98cca7e5d` 的公开稳定更新实现。
+- 当前写手：本任务独立分支 `agent/codex/public-update-release-20261024`；旧主工作区未知修改保持原状。
+- 目标：原证书签名的 0.20 正式安装包、可匿名下载及固定 stable 清单，保留记录/日记/附件与原系统安装流程。
+- 当前是交付候选，尚未发布；源码/构建/签名/Release 下载/手机各自验收，不用旧证据代替。准确 head、PR 和最终发行状态以本次远端记录及交付回执为准。
+- 接续：云端跑现有检查；手动运行 Cloud development 得到 unsigned release 及小屏/大字 UI 图。原签名只在本机使用，不向云端搬私钥；核对原证书、版本递增、最终包与公开下载摘要后正式交付。实体手机未验不称通过。
+- 通用入口：https://github.com/h516df/vibe-ui-quality-kit-open/blob/main/workflow/README.md；历史快照仅作线索，保留项目定制规则。
+
+---
+
 # 当前接续记录（2026-10-21 · 全云端开发包交付与并行核对）
 
 - **目标与结果**：绕开 Actions 附件容量，恢复开发 APK 获取。本次已用当前云工作区构建、既有 GitHub CLI 中转，交付到[私有未发布草稿](https://github.com/h516df/jiyixia/releases/tag/untagged-0b0b34b71ada30405859)，release ID `419373728`。三项附件下载回读 SHA256 全部一致，draft/prerelease 均为 true；无正式发布、历史删除、公开资源、密钥迁移或设备操作。

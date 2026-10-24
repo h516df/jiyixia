@@ -63,7 +63,13 @@ private fun oauthMessage(error: String): String = when (error) {
  * 所有联网都从这里走。目的地写死：GitHub 的登录/接口/资产域名。
  * 跳转不继承令牌，错误响应体不打印，任何一步都能取消。
  */
-internal class UpdateHttp {
+internal class UpdateHttp(
+    private val connect: (String) -> HttpURLConnection = { URI(it).toURL().openConnection() as HttpURLConnection },
+    private val now: () -> Long = System::currentTimeMillis,
+) {
+    companion object {
+        @Volatile internal var publicRetryAt = 0L
+    }
 
     @Volatile private var connection: HttpURLConnection? = null
     @Volatile private var cancelled = false
@@ -79,7 +85,7 @@ internal class UpdateHttp {
 
     private fun open(url: String, token: String?, binary: Boolean): HttpURLConnection {
         ensureAlive()
-        val c = URI(url).toURL().openConnection() as HttpURLConnection
+        val c = connect(url)
         connection = c
         c.instanceFollowRedirects = false
         c.connectTimeout = 15_000
@@ -153,6 +159,78 @@ internal class UpdateHttp {
                 c.disconnect()
                 connection = null
             }
+        }
+        throw UpdateFailure("更新下载地址异常，请稍后重试")
+    }
+
+    /** Public requests never read or attach the legacy authorization. No automatic retry. */
+    private fun publicStatus(c: HttpURLConnection) {
+        val code = c.responseCode
+        if (code in 200..299) return
+        if (code == 403 || code == 429) {
+            val seconds = c.getHeaderField("Retry-After")?.toLongOrNull()?.coerceIn(0, 86400 * 30L)
+            val retryDate = c.getHeaderFieldDate("Retry-After", 0L)
+            val reset = c.getHeaderField("X-RateLimit-Reset")?.toLongOrNull()
+                ?.coerceIn(0, Long.MAX_VALUE / 1000)?.times(1000) ?: 0L
+            publicRetryAt = maxOf(publicRetryAt, now() + (seconds ?: 60L) * 1000, retryDate, reset)
+            throw UpdateFailure("更新服务暂时限流，请稍后再试；无需重新授权")
+        }
+        throw UpdateFailure(when (code) {
+            404 -> "正式更新暂时不可用，请稍后重试"
+            in 500..599 -> "更新服务暂时连不上，请稍后重试"
+            else -> "检查更新失败，请稍后重试"
+        })
+    }
+
+    private fun publicAllowed() {
+        ensureAlive()
+        requireUpdate(now() >= publicRetryAt, "更新服务暂时限流，请稍后再试；无需重新授权")
+    }
+
+    fun publicManifest(): String {
+        publicAllowed()
+        val c = open(UpdateConfig.PUBLIC_MANIFEST, null, binary = false)
+        try {
+            c.setRequestProperty("Accept", "application/vnd.github.raw+json")
+            publicStatus(c)
+            return c.inputStream.use { String(readBounded(it, 128 * 1024), Charsets.UTF_8) }
+        } finally { c.disconnect(); connection = null }
+    }
+
+    fun downloadPublicApk(url: String, expectedSize: Long, dest: File, onProgress: (Int) -> Unit) {
+        publicAllowed()
+        val parts = URI(url).path.split('/')
+        requireUpdate(parts.size == 7 && UpdateConfig.publicApkUrl(url, parts[5], parts[6]),
+            "更新下载地址不可信，已停止")
+        requireUpdate(expectedSize in 1..UpdateConfig.MAX_APK)
+        var next = url
+        repeat(4) {
+            val c = open(next, null, binary = true)
+            try {
+                if (c.responseCode in setOf(301, 302, 303, 307, 308)) {
+                    next = c.getHeaderField("Location").orEmpty()
+                    requireUpdate(UpdateConfig.assetRedirect(next), "更新下载地址不可信，已停止")
+                } else {
+                    publicStatus(c)
+                    c.inputStream.use { input ->
+                        dest.outputStream().use { output ->
+                            val buffer = ByteArray(64 * 1024)
+                            var written = 0L
+                            while (true) {
+                                ensureAlive()
+                                val n = input.read(buffer)
+                                if (n < 0) break
+                                written += n
+                                requireUpdate(written <= expectedSize, "安装包大小不对，已停止下载")
+                                output.write(buffer, 0, n)
+                                onProgress((written * 100 / expectedSize).toInt())
+                            }
+                            requireUpdate(written == expectedSize, "安装包下载不完整，请重试")
+                        }
+                    }
+                    return
+                }
+            } finally { c.disconnect(); connection = null }
         }
         throw UpdateFailure("更新下载地址异常，请稍后重试")
     }

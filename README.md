@@ -20,13 +20,13 @@
 
 继续使用原来的本地 tasks.json 和备份文件。旧版拾页完整 ZIP 继续兼容，内部 shiye-backup 格式标识、cn.jiaoban 应用 ID、私有目录和签名验证路径均不随名称改变。新日记为 NOTE 加可选 journalDate，旧笔记/旧事项不批量迁移。不要卸载、清除资料或降级；旧版本保存时可能丢掉新增日期字段。
 
-仓库地址 h516df/jiyixia（固定仓库 ID 1413866214）。应用 ID cn.jiaoban、签名验证链路和安装包资产前缀保持原样。自行编译的包需要换成自己的签名，才能与上游版本共装或覆盖。应用内更新会在下载和安装前校验文件、包名、版本与签名；进入应用只恢复本机状态，不自动联网下载。系统安装仍由用户确认。
+仓库地址 h516df/jiyixia（固定仓库 ID 1413866214）。应用 ID cn.jiaoban、原签名验证链路和安装包资产前缀保持原样。默认检查固定公开稳定清单，免登录，不读取全仓 latest；下载和安装前核对大小、SHA256、包名、版本、架构与原证书。进入应用不自动联网下载，系统安装仍由用户确认。正式包直接覆盖安装，不卸载或清除资料；云端 unsigned/debug 包不能作为正式升级包。
 
 ## 开发验证
 
 JDK 21、Android SDK 36、Gradle 9.1、Kotlin/Compose，使用官方 Media3 播放本地音视频。单测覆盖原有数据兼容；WritingUiTest 使用 Robolectric + Roborazzi 检查实际 Compose 交互与渲染。所有测试仅用合成记录，不能在用户手机执行会改数据的验收探针。
 
-参考与设计取舍见 [设计说明](docs/design/shiye-20261019.md)。历史验收见 [0.17 验收](docs/acceptance/v0.17/README.md)，本轮云端验证见 [媒体验收](docs/verification/media/cloud-validation.md)，0.19 变更和未验设备边界见 [更新记录](CHANGELOG.md)。正式安装包以 [发布页](https://github.com/h516df/jiyixia/releases) 为准，发布不代表用户设备已升级。旧版0.17的原仓库更新地址可能拒绝重定向，首次升级请登录发布页下载同签名APK，保留应用直接覆盖安装。
+参考与设计取舍见 [设计说明](docs/design/shiye-20261019.md)。历史验收见 [0.17 验收](docs/acceptance/v0.17/README.md)，本轮云端验证见 [媒体验收](docs/verification/media/cloud-validation.md)，0.20 变更和未验设备边界见 [更新记录](CHANGELOG.md)。正式安装包以 [发布页](https://github.com/h516df/jiyixia/releases) 为准，发布不代表用户设备已升级。旧版0.17的原仓库更新地址可能拒绝重定向，首次升级请登录发布页下载同签名APK，保留应用直接覆盖安装。
 
 ## 云端开发入口
 
