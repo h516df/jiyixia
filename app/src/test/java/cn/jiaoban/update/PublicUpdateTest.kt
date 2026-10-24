@@ -21,7 +21,11 @@ class PublicUpdateTest {
         assertTrue(PublicUpdateCatalog.decide(fixture(), 18, 26, listOf("x86_64")) is UpdateCatalog.Result.Latest)
         assertTrue(PublicUpdateCatalog.decide(fixture(), 19, 26, listOf("x86")) is UpdateCatalog.Result.Latest)
         val bundled = ReleaseNotes.decode(File("src/main/assets/release-notes.json").readText())
-        assertEquals(18, bundled.code)
+        val build = File("build.gradle.kts").readText()
+        val packageCode = Regex("""versionCode\s*=\s*(\d+)""").find(build)!!.groupValues[1].toInt()
+        val packageVersion = Regex("""versionName\s*=\s*["]([^"]+)["]""").find(build)!!.groupValues[1]
+        assertEquals(packageCode, bundled.code)
+        assertEquals(packageVersion, bundled.version)
         assertTrue(bundled.sections.isNotEmpty())
     }
     @Test fun malformedWrongIdentityAndUnsupportedDeviceAreRecoverable() {
