@@ -33,6 +33,7 @@ sealed class UpdateState {
  */
 class Updater internal constructor(
     context:Context,
+    private val httpFactory: () -> UpdateHttp = { UpdateHttp() },
     private val archiveVerifier:(Context,File,Int)->Unit=UpdateVerify::verifyArchive,
     private val installAllowed:(Context)->Boolean={it.packageManager.canRequestPackageInstalls()},
     private val installer:(Context,File)->Unit={ctx,file->
@@ -48,7 +49,7 @@ class Updater internal constructor(
     private val readyStore=ReadyUpdateStore(this.context)
     @Volatile private var ready:ReadyUpdate?=null
 
-    @Volatile private var http = UpdateHttp()
+    @Volatile private var http = httpFactory()
     private val tokens = UpdateTokenStore(this.context)
     private val io = Executors.newSingleThreadExecutor { r ->
         Thread(r, "jiaoban-update").apply { isDaemon = true }
@@ -97,23 +98,31 @@ class Updater internal constructor(
 
     fun installedVersionCode(): Int = runCatching { UpdateVerify.installedVersionCode(context) }.getOrDefault(0)
 
-    fun check() {
+    fun check(privateSource: Boolean = false) {
         if (busy) return
         cancelled = false
         candidate = null
         set(UpdateState.Checking)
         io.execute {
             // 上次取消过的请求对象不能复用；单线程队列保证旧任务已退出。
-            http = UpdateHttp()
+            http = httpFactory()
             try {
-                val token = tokenOrAuthorize()
-                val releases = http.json("/releases?per_page=20", token)
-                val published = UpdateCatalog.parse(releases)
-                val newest = UpdateCatalog.newest(published)
-                    ?: throw UpdateFailure("还没发布过带更新说明的版本，请稍后再试")
-                val notes = ReleaseNotes.decode(http.assetText(newest.notesAsset.id, token))
+                if (cancelled) throw InterruptedException()
                 val installed = UpdateVerify.installedVersionCode(context)
-                when (val result = UpdateCatalog.decide(notes, newest.assets, installed, UpdateVerify.deviceAbis())) {
+                val result = if (!privateSource) {
+                    PublicUpdateCatalog.decide(http.publicManifest(), installed,
+                        android.os.Build.VERSION.SDK_INT, UpdateVerify.deviceAbis())
+                } else {
+                    val token = tokenOrAuthorize()
+                    val releases = http.json("/releases?per_page=20", token)
+                    val published = UpdateCatalog.parse(releases)
+                    val newest = UpdateCatalog.newest(published)
+                        ?: throw UpdateFailure("还没发布过带更新说明的版本，请稍后再试")
+                    val notes = ReleaseNotes.decode(http.assetText(newest.notesAsset.id, token))
+                    UpdateCatalog.decide(notes, newest.assets, installed, UpdateVerify.deviceAbis())
+                }
+                if (cancelled) throw InterruptedException()
+                when (result) {
                     is UpdateCatalog.Result.Latest -> set(UpdateState.Latest(result.notes))
                     is UpdateCatalog.Result.Available -> {
                         candidate = result.candidate
@@ -137,22 +146,30 @@ class Updater internal constructor(
         set(UpdateState.Downloading(0))
         io.execute {
             // 上次取消过的请求对象不能复用；单线程队列保证旧任务已退出。
-            http = UpdateHttp()
+            http = httpFactory()
             try {
-                val token = tokens.load()?.access ?: throw UpdateFailure("授权失效了，请重新检查更新")
+                if (cancelled) throw InterruptedException()
+                val token = if (target.publicUrl == null) tokens.load()?.access
+                    ?: throw UpdateFailure("授权失效了，请重新检查更新") else null
                 readyStore.beginDownload();ready=null
                 val dir = File(context.cacheDir, "updates").apply { mkdirs() }
                 dir.listFiles()?.forEach { it.delete() }
                 val dest = File(dir, target.apk.name)
-                http.downloadApk(target.apk.id, token, target.apk.size, dest) { percent ->
-                    set(UpdateState.Downloading(percent))
+                val progress: (Int) -> Unit = { set(UpdateState.Downloading(it)) }
+                if (target.publicUrl != null) {
+                    http.downloadPublicApk(target.publicUrl, target.apk.size, dest, progress)
+                } else {
+                    http.downloadApk(target.apk.id, token!!, target.apk.size, dest, progress)
                 }
-                val expectedSha = target.shaFile?.let { UpdateVerify.parseShaFile(http.assetText(it.id, token)) }
+                if (cancelled) throw InterruptedException()
+                val expectedSha = target.shaFile?.let { UpdateVerify.parseShaFile(http.assetText(it.id, token!!)) }
                     ?: target.apk.apiDigest
                     ?: throw UpdateFailure("发布资料里缺校验值，请稍后再试")
                 UpdateVerify.verifyHash(dest, target.apk.size, expectedSha, target.apk.apiDigest)
                 archiveVerifier(context, dest, target.notes.code)
+                if (target.publicUrl != null) UpdateVerify.verifyPublicCertificate(context, dest)
                 val verified=ReadyUpdate(target.apk.name,target.apk.size,expectedSha,target.apk.apiDigest,target.notes.code)
+                if (cancelled) throw InterruptedException()
                 readyStore.save(verified);ready=verified
                 set(UpdateState.ReadyToInstall(dest))
             } catch (e: UpdateFailure) {

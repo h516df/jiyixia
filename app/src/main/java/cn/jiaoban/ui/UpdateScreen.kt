@@ -134,6 +134,9 @@ fun UpdateScreen(updater: Updater, contentPadding: PaddingValues) {
             }
         }
 
+        if (state is UpdateState.Checking || state is UpdateState.Downloading) {
+            TextButton(onClick = { updater.cancel() }) { Text("取消") }
+        }
         if (state is UpdateState.Available) {
             NotesBlock("新版说明 ${state.candidate.notes.version}", state.candidate.notes)
         }
@@ -142,11 +145,11 @@ fun UpdateScreen(updater: Updater, contentPadding: PaddingValues) {
         if (updater.hasAuthorization()) {
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             Text(
-                text = "这台手机已经授权过。如果检查时提示看不到发布资料，" +
-                    "多半是授权范围里没有「${UpdateConfig.REPO_NAME}」这个仓库：清掉授权，重新授权并勾上它。",
+                text = "正式更新不需要登录。以前保存的授权只供旧版兼容入口使用，也可以清掉。",
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            TextButton(onClick = { updater.check(privateSource = true) }, enabled = !updater.busy) { Text("旧版授权更新（兼容）") }
             TextButton(onClick = { updater.forgetAuthorization() },enabled=!updater.busy) { Text("清掉授权") }
         }
     }

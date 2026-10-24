@@ -31,6 +31,11 @@ jobs:
         run: bash .devcontainer/setup.sh
       - name: Check this revision
         run: bash cloud/check.sh
+      - name: Prepare unsigned release for local original-key signing
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          source .cloud/env.sh
+          bash ./gradlew --no-daemon --max-workers=1 :app:assembleRelease -PunsignedRelease
       - name: Preserve development APK and test reports
         id: development-artifact
         continue-on-error: true
@@ -40,6 +45,8 @@ jobs:
           name: development-${{ github.sha }}
           path: |
             **/build/outputs/apk/debug/*.apk
+            **/build/outputs/apk/release/*-unsigned.apk
+            **/build/outputs/public-update-ui/*.png
             **/build/test-results/**/*.xml
             **/build/reports/lint-results-debug.*
           retention-days: 3

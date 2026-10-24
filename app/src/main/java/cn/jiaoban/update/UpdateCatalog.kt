@@ -18,6 +18,7 @@ data class UpdateCandidate(
     val notes: ReleaseNotes,
     val apk: UpdateAsset,
     val shaFile: UpdateAsset?,
+    val publicUrl: String? = null,
 )
 
 internal object UpdateCatalog {
