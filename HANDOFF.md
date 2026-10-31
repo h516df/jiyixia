@@ -1,4 +1,15 @@
-# 当前接续：0.20 免登录更新交付（2026-10-24）
+# 当前接续：0.21 整体改版与短/长录音（2026-10-31）
+
+- **手机基线与边界**：用户手机实际是 **0.19**，不是 0.20。下一正式包必须使用 `cn.jiaoban`、原证书及递增版本码同签名覆盖，不能卸载、清资料或拿云端 debug APK 直接安装。当前无原签名私钥；DSH 主机离线，未触碰用户手机。
+- **源码**：公开 main 基线 `19694522a1aac117436c71ac958e1c677364c43b`；独立工作分支 `feat/jiyixia-redesign-voice-20261031`，0.21 / versionCode 21，内置说明同步。实际远端提交/PR 以本轮链接为准，开发候选不等于正式发行。
+- **界面/操作**：暖纸/松绿 Compose 主题，按日时间流，首页文字、图片视频、麦克风快捷入口；日记与旧资料保持，320dp/200% 字号重新排布。编辑器可直接打开系统媒体选择器，原草稿只在成功保存后清理。新全局录音与旧编辑器前台录音互斥，录音分段在阅读/编辑页合并播放，原文件可查看。
+- **录音**：`VoiceRecordingService` 麦克风前台服务 + `VoiceSessionController` 持久草稿；用户可锁屏或离开应用，通知栏暂停/继续/结束。Android 13+ 请求可选通知权限，拒绝后仍可返回应用控制；仅录制时持有 partial wake lock。沿用 30 秒 M4A 分段、RecordingJournal、原媒体目录；`VoiceSessionStore` 同步落盘会话，停止后以稳定 ID 保存一条 NOTE，数据回调成功才清理草稿索引；异常保留已完成片段和原文件。没有改变旧 Task JSON 或导出格式。
+- **首轮验证**：云端 JDK21 / SDK36 / Gradle9.1 `compileDebugKotlin` passed，`testDebugUnitTest + assembleDebug + assembleDebugAndroidTest` passed，共 290 项 JVM 测试、0 fail/error/skip；debug SHA256 `f6c5f0d16580e3aa21c81e5cf6fbd1e3e242ea94d25dfed59cdaa36816553a24`（仅开发签名）。Robolectric 实际生成亮/暗、小屏/200% 字体、日记/编辑器截图。最后 UI/唤醒锁更改的最终重测、lint、unsigned release 以本轮后续回执为准。
+- **待验收**：原证书签名 APK 与用户 0.19→0.21 的手机覆盖安装；旧数据/媒体/备份、真机锁屏长录音、音质、来电、通知授权、强杀和低空间。未原签名和实机验证前不可宣称手机已更新。GitHub Actions 已知账务/产物额度阻塞，不以其替代本轮实测。未授权发布公共 Release。
+
+---
+
+# 历史接续：0.20 免登录更新交付（2026-10-24）
 
 - 基线：公开 main `83cdd3fc147662b68ea0911289e5b708ab14dcaf`，已包含正式 0.19 的修复；复用 PR #28 / `33a189083a7b26ece8f740d5169328d98cca7e5d` 的公开稳定更新实现。
 - 当前写手：本任务独立分支 `agent/codex/public-update-release-20261024`；旧主工作区未知修改保持原状。

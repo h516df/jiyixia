@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.semantics
@@ -78,7 +79,7 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
 }
 
 @OptIn(ExperimentalMaterial3Api::class,ExperimentalLayoutApi::class)
-@Composable internal fun NoteEditor(note:Task?,initial:String,initialDate:LocalDate?=null,session:String="editor",newId:String?=null,saving:Boolean=false,onDismiss:()->Unit,onSave:(String,LocalDate?,List<ImportedAttachment>)->Unit) {
+@Composable internal fun NoteEditor(note:Task?,initial:String,initialDate:LocalDate?=null,session:String="editor",newId:String?=null,saving:Boolean=false,onDismiss:()->Unit,onSave:(String,LocalDate?,List<ImportedAttachment>)->Unit,openMediaPickerOnLaunch:Boolean=false) {
     val context=LocalContext.current
     val persisted=remember{context.getSharedPreferences("editor_draft_v1",android.content.Context.MODE_PRIVATE)}
     val restoring=persisted.getString("session",null)==session
@@ -105,6 +106,7 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
         onDispose { persisted.unregisterOnSharedPreferenceChangeListener(listener) }
     }
     var playing by remember { mutableStateOf<String?>(null) }
+    var showRecordingFiles by rememberSaveable(session) { mutableStateOf(false) }
     fun retainMedia(added:List<ImportedAttachment>) {
         attachments=AttachmentDraft.append(persisted,session,added)
     }
@@ -114,6 +116,11 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
         retainMedia(listOf(attachment))
     } }
     val voiceState by voice.state.collectAsState()
+    val globalVoiceState by VoiceSessionController.state.collectAsState()
+    // A foreground voice session owns the microphone until its durable note has been saved.
+    // The legacy in-editor recorder remains available for old drafts, but never competes with it.
+    val globalVoicePending = globalVoiceState.sessionId != null && globalVoiceState.phase != VoiceCapturePhase.IDLE
+    val latestGlobalVoicePending = rememberUpdatedState(globalVoicePending)
     val recording=voiceState.phase==VoiceCapturePhase.RECORDING
     val lifecycle=LocalLifecycleOwner.current.lifecycle
     val microphoneRequest=remember(session) { MicrophoneStartRequest() }
@@ -121,7 +128,7 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
         voice.recover()
         val observer=LifecycleEventObserver { _,event ->
             if(event==Lifecycle.Event.ON_STOP) { microphoneRequest.cancel(); voice.interrupt("已离开录音页，录音已暂停；请手动继续") }
-            if(event==Lifecycle.Event.ON_RESUME && microphoneRequest.resumed(ContextCompat.checkSelfPermission(context,Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED)) { mediaError=null; playing=null; voice.start() }
+            if(event==Lifecycle.Event.ON_RESUME && microphoneRequest.resumed(ContextCompat.checkSelfPermission(context,Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED) && !latestGlobalVoicePending.value) { mediaError=null; playing=null; voice.start() }
         }
         lifecycle.addObserver(observer)
         onDispose { microphoneRequest.cancel(); lifecycle.removeObserver(observer); voice.close() }
@@ -129,10 +136,11 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
     val permission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if(granted) {
             mediaError=null
-            if(microphoneRequest.granted(lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))) { playing=null; voice.start() }
+            if(microphoneRequest.granted(lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) && !globalVoicePending) { playing=null; voice.start() }
         } else { microphoneRequest.cancel(); mediaError="未开启麦克风，可重试授权或到系统设置开启；文字和照片仍可保存。" }
     }
     fun record() {
+        if(globalVoicePending) { mediaError="有一条语音录音或草稿尚未保存，请先完成它。"; return }
         playing=null; mediaError=null
         if(ContextCompat.checkSelfPermission(context,Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED) voice.start()
         else permission.launch(Manifest.permission.RECORD_AUDIO)
@@ -160,6 +168,13 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
             } }
         }
     }
+    var launchedMediaPicker by rememberSaveable(session) { mutableStateOf(false) }
+    LaunchedEffect(session,openMediaPickerOnLaunch) {
+        if(openMediaPickerOnLaunch && !launchedMediaPicker) {
+            launchedMediaPicker=true
+            choose.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
+        }
+    }
     val diary=dateText!=null
     var datePicker by remember{mutableStateOf(false)}
     var discard by rememberSaveable{mutableStateOf(false)}
@@ -167,7 +182,7 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
     fun close(){if(copying || saving)return; voice.stop(); if(dirty || recording)discard=true else onDismiss()}
     val focus=remember{FocusRequester()}
     FullPage(::close) {
-        LaunchedEffect(Unit){if(note==null && initial.isEmpty()){withFrameNanos{};focus.requestFocus()}}
+        LaunchedEffect(Unit){if(!openMediaPickerOnLaunch && note==null && initial.isEmpty()){withFrameNanos{};focus.requestFocus()}}
         Scaffold(contentWindowInsets=WindowInsets.safeDrawing,containerColor=MaterialTheme.colorScheme.background,
             topBar={TopAppBar(title={Text(if(diary) "写日记" else if(note==null)"写一条记录" else "编辑记录",style=MaterialTheme.typography.titleMedium)},
                 navigationIcon={IconButton(onClick={close()}){Icon(Icons.Default.ArrowBack,"关闭笔记")}},
@@ -184,7 +199,23 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
                     textStyle=MaterialTheme.typography.bodyLarge.copy(fontSize=18.sp,lineHeight=30.sp),
                     colors=TextFieldDefaults.colors(focusedContainerColor=MaterialTheme.colorScheme.background,unfocusedContainerColor=MaterialTheme.colorScheme.background,
                         focusedIndicatorColor=androidx.compose.ui.graphics.Color.Transparent,unfocusedIndicatorColor=androidx.compose.ui.graphics.Color.Transparent))
-                attachments.forEach { attachment ->
+                val audioAttachments=attachments.filter{it.mimeType.startsWith("audio/")}
+                if(audioAttachments.isNotEmpty())Column(Modifier.padding(horizontal=20.dp,vertical=8.dp)) {
+                    AudioRecordingGroup(audioAttachments,playing=="editor-audio-group",{if(!recording)playing="editor-audio-group"},{playing=null})
+                    TextButton(onClick={showRecordingFiles=!showRecordingFiles}) {
+                        Text(if(showRecordingFiles)"收起录音原始文件" else "管理录音原始文件（${audioAttachments.size}）")
+                    }
+                    if(showRecordingFiles)audioAttachments.forEach { attachment ->
+                        Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+                            Text(attachment.name,style=MaterialTheme.typography.labelMedium,modifier=Modifier.weight(1f),maxLines=2,overflow=TextOverflow.Ellipsis)
+                            TextButton(onClick={
+                                playing=null
+                                runCatching { val next=attachments.filterNot{it.relativePath==attachment.relativePath}; AttachmentDraft.replace(persisted,session,next);attachments=next }.onFailure{mediaError=it.message}
+                            },enabled=!saving && !copying && !recording){Text("移除")}
+                        }
+                    }
+                }
+                attachments.filterNot{it.mimeType.startsWith("audio/")}.forEach { attachment ->
                     Column(Modifier.padding(horizontal=20.dp,vertical=8.dp)) {
                         MediaAttachment(attachment,playing==attachment.relativePath,{ if(!recording)playing=attachment.relativePath },{playing=null})
                         TextButton(onClick={runCatching { val next=attachments.filterNot{it.relativePath==attachment.relativePath}; AttachmentDraft.replace(persisted,session,next);attachments=next }.onFailure{mediaError=it.message}},enabled=!saving && !copying && !recording) { Text("从这一页移除") }
@@ -204,10 +235,11 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
                         TextButton(onClick={voice.pause()}){Text("暂停录音")}
                         TextButton(onClick={voice.stop()}){Text("结束录音")}
                     } else {
-                        TextButton(onClick={record()},enabled=!saving && !copying){Text(if(voiceState.phase==VoiceCapturePhase.PAUSED || voiceState.phase==VoiceCapturePhase.INTERRUPTED)"继续录音" else "录音")}
+                        TextButton(onClick={record()},enabled=!saving && !copying && !globalVoicePending){Text(if(voiceState.phase==VoiceCapturePhase.PAUSED || voiceState.phase==VoiceCapturePhase.INTERRUPTED)"继续录音" else "录音")}
                         TextButton(onClick={choose.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))},enabled=!saving && !copying){Text("照片 / 视频")}
                     }
                 }
+                if(globalVoicePending && !recording) Text("录音进行中或有待保存的语音，请先结束并保存；当前文字与照片仍可编辑。",Modifier.padding(horizontal=20.dp),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 if(WindowInsets.ime.getBottom(LocalDensity.current)==0) {
                 Text(if(recording)"正在录音 · 每30秒保留一段，离开或锁屏会暂停" else "原媒体仅存本机 · 录音离开页面会暂停",Modifier.padding(horizontal=20.dp),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
@@ -231,32 +263,61 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
 @OptIn(ExperimentalLayoutApi::class)
 @Composable internal fun PaperEntry(note:Task,open:(Task)->Unit,query:String="",onTag:((String)->Unit)?=null) {
     val c=MaterialTheme.colorScheme
-    Surface(onClick={open(note)},shape=RoundedCornerShape(16.dp),color=c.surface) {
-        Column(Modifier.fillMaxWidth().padding(18.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            val stamp=note.importInfo?.originalDate?.replace('T',' ') ?: (if(note.importInfo!=null)"导入于 " else "")+note.createdAt.atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("M月d日  HH:mm"))
-            Text(stamp+(if(note.state!=TaskState.OPEN)" · 已归档" else ""),fontSize=12.sp,color=c.onSurfaceVariant)
-            if(note.attachments.isNotEmpty()) Text("${note.attachments.count{it.mimeType.startsWith("audio/")}} 段录音 · ${note.attachments.count{it.mimeType.startsWith("image/")}} 张照片 · ${note.attachments.count{it.mimeType.startsWith("video/")}} 个视频",style=MaterialTheme.typography.labelMedium,color=c.primary)
-            Text(note.text,fontSize=17.sp,lineHeight=28.sp,maxLines=7,overflow=TextOverflow.Ellipsis)
+    Surface(onClick={open(note)},shape=RoundedCornerShape(18.dp),color=c.surface) {
+        Column(Modifier.fillMaxWidth().padding(horizontal=18.dp,vertical=17.dp),verticalArrangement=Arrangement.spacedBy(11.dp)) {
+            val stamp=note.importInfo?.originalDate?.replace('T',' ') ?: (if(note.importInfo!=null)"导入于 " else "")+note.createdAt.atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("HH:mm"))
+            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+                Text(stamp,style=MaterialTheme.typography.labelMedium,color=c.onSurfaceVariant,modifier=Modifier.weight(1f))
+                if(note.state!=TaskState.OPEN)Text("已归档",style=MaterialTheme.typography.labelSmall,color=c.onSurfaceVariant)
+            }
+            if(note.text.isNotBlank())Text(note.text,style=MaterialTheme.typography.bodyLarge,maxLines=7,overflow=TextOverflow.Ellipsis)
+            val voiceCount=note.attachments.count{it.mimeType.startsWith("audio/")}
+            val imageCount=note.attachments.count{it.mimeType.startsWith("image/")}
+            val videoCount=note.attachments.count{it.mimeType.startsWith("video/")}
+            if(voiceCount>0 || imageCount>0 || videoCount>0)Row(horizontalArrangement=Arrangement.spacedBy(12.dp),verticalAlignment=Alignment.CenterVertically) {
+                if(voiceCount>0)Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(5.dp)) {
+                    MicGlyph(modifier=Modifier.size(16.dp),color=c.primary)
+                    Text("语音记录",style=MaterialTheme.typography.labelMedium,color=c.primary)
+                }
+                if(imageCount>0)Text("照片 $imageCount",style=MaterialTheme.typography.labelMedium,color=c.onSurfaceVariant)
+                if(videoCount>0)Text("视频 $videoCount",style=MaterialTheme.typography.labelMedium,color=c.onSurfaceVariant)
+            }
             val tags=(writingTags(note.text)+note.importedTags).distinct()
             if(tags.isNotEmpty() && onTag!=null)FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                tags.forEach {tag->SuggestionChip(onClick={onTag(tag)},label={Text("#$tag",fontSize=12.sp)},border=null,colors=SuggestionChipDefaults.suggestionChipColors(containerColor=c.primaryContainer.copy(alpha=.5f)))}
+                tags.forEach {tag->SuggestionChip(onClick={onTag(tag)},label={Text("#$tag",style=MaterialTheme.typography.labelMedium)},border=null,colors=SuggestionChipDefaults.suggestionChipColors(containerColor=c.primaryContainer.copy(alpha=.5f)))}
             }
         }
     }
 }
 
-@Composable internal fun QuickComposer(text:String,onText:(String)->Unit,posting:Boolean,ready:Boolean,onSave:()->Unit) {
+@Composable internal fun QuickComposer(
+    text:String,
+    onText:(String)->Unit,
+    posting:Boolean,
+    ready:Boolean,
+    onSave:()->Unit,
+    onRecord:()->Unit={},
+    onMedia:()->Unit={},
+) {
     val c=MaterialTheme.colorScheme
     Surface(color=c.background,tonalElevation=0.dp) {
-        Column(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=8.dp)) {
-            OutlinedTextField(text,onText,enabled=ready && !posting,placeholder={Text("记下一点想法…",fontSize=16.sp)},
-                minLines=1,maxLines=4,modifier=Modifier.fillMaxWidth().semantics{contentDescription="随手记录正文"},shape=RoundedCornerShape(18.dp),
-                textStyle=MaterialTheme.typography.bodyLarge.copy(fontSize=17.sp,lineHeight=27.sp),
-                colors=OutlinedTextFieldDefaults.colors(focusedBorderColor=c.primary,unfocusedBorderColor=c.outlineVariant,focusedContainerColor=c.surface,unfocusedContainerColor=c.surface))
-            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-                TextButton(onClick={onText(text+if(text.isEmpty() || text.last().isWhitespace())"#" else " #")},enabled=ready && !posting){Text("# 标签")}
+        Column(Modifier.fillMaxWidth().padding(horizontal=12.dp,vertical=8.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(4.dp)) {
+                IconButton(onClick=onMedia,enabled=ready && !posting,modifier=Modifier.size(48.dp).semantics { contentDescription="添加照片或视频" }) {
+                    Icon(Icons.Default.Add,null,tint=c.primary)
+                }
+                OutlinedTextField(text,onText,enabled=ready && !posting,placeholder={Text("记下一点想法…",fontSize=15.sp)},
+                    minLines=1,maxLines=3,modifier=Modifier.weight(1f).semantics{contentDescription="随手记录正文"},shape=RoundedCornerShape(18.dp),
+                    textStyle=MaterialTheme.typography.bodyLarge.copy(fontSize=16.sp,lineHeight=25.sp),
+                    colors=OutlinedTextFieldDefaults.colors(focusedBorderColor=c.primary,unfocusedBorderColor=c.outlineVariant,focusedContainerColor=c.surface,unfocusedContainerColor=c.surface))
+                IconButton(onClick=onRecord,enabled=ready && !posting,modifier=Modifier.size(48.dp).semantics { contentDescription="开始录音" }) {
+                    MicGlyph(color=c.primary)
+                }
+            }
+            if(text.isNotBlank()) Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+                TextButton(onClick={onText(text+if(text.lastOrNull()?.isWhitespace()!=false)"#" else " #")},enabled=ready && !posting){Text("# 标签",fontSize=13.sp)}
                 Spacer(Modifier.weight(1f))
-                TextButton(onClick=onSave,enabled=ready && !posting && text.isNotBlank()){Text(if(posting)"保存中…" else "记下",fontWeight=FontWeight.SemiBold)}
+                Button(onClick=onSave,enabled=ready && !posting){Text(if(posting)"保存中…" else "记下",fontWeight=FontWeight.Medium)}
             }
         }
     }
@@ -279,20 +340,31 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
 @Composable internal fun NotesPage(notes:List<Task>,open:(Task)->Unit,query:String="",searching:Boolean=false,selectedTag:String?=null,onTag:(String?)->Unit={},savedGeneration:Int=0,onReview:()->Unit={}) {
     val c=MaterialTheme.colorScheme
     var archived by rememberSaveable{mutableStateOf(false)}
+    val configuration=LocalConfiguration.current
+    val compactActions=configuration.screenWidthDp<=360 || configuration.fontScale>=1.4f
     val listState=androidx.compose.foundation.lazy.rememberLazyListState()
     LaunchedEffect(savedGeneration){if(savedGeneration>0){archived=false;listState.scrollToItem(0)}}
     val shown=notes.filter{searching || (it.state!=TaskState.OPEN)==archived}.sortedByDescending{writingSortKey(it)}
-    LazyColumn(Modifier.fillMaxSize(),state=listState,contentPadding=PaddingValues(start=18.dp,end=18.dp,top=4.dp,bottom=20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+    LazyColumn(Modifier.fillMaxSize(),state=listState,contentPadding=PaddingValues(start=18.dp,end=18.dp,top=4.dp,bottom=28.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
         if(!searching)item {
             Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-                TextButton(onClick=onReview,modifier=Modifier.weight(1f)){Text("翻一条旧记录",fontSize=13.sp)}
-                TextButton(onClick={archived=!archived}){Text(if(archived)"返回记录" else "归档",fontSize=13.sp)}
+                TextButton(onClick=onReview,modifier=Modifier.weight(1f)){Text(if(compactActions)"回看" else "回看一条旧记录",style=MaterialTheme.typography.labelLarge)}
+                TextButton(onClick={archived=!archived}){Text(if(archived)"返回记录" else "归档",style=MaterialTheme.typography.labelLarge)}
             }
         }
         if(selectedTag!=null)item {Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Text("#$selectedTag",color=c.primary,modifier=Modifier.weight(1f));TextButton(onClick={onTag(null)}){Text("清除筛选")}}}
         if(archived && !searching)item{Text("已归档 · 内容完整保留",style=MaterialTheme.typography.labelMedium,color=c.onSurfaceVariant)}
         if(shown.isEmpty())item{WritingEmpty(if(searching || selectedTag!=null)"没有找到这段文字" else if(archived)"还没有归档的记录" else "想到什么，就记下来",if(searching || selectedTag!=null)"换个关键词，或清除标签筛选。" else "不必起标题，也不必想好放在哪里。")}
-        items(shown,key={it.id}){note->PaperEntry(note,open,query){onTag(it)}}
+        shown.groupBy { writingDay(it) }.forEach { (day,entries) ->
+            item(key="date-$day") {
+                Text(when(day) {
+                    LocalDate.now() -> "今天"
+                    LocalDate.now().minusDays(1) -> "昨天"
+                    else -> day.format(DateTimeFormatter.ofPattern("M月d日 · EEEE"))
+                },style=MaterialTheme.typography.labelLarge,color=c.onSurfaceVariant,modifier=Modifier.padding(start=4.dp,top=14.dp,bottom=3.dp))
+            }
+            items(entries,key={it.id}){note->PaperEntry(note,open,query){onTag(it)}}
+        }
     }
 }
 
@@ -303,33 +375,31 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
     var selectedDay by rememberSaveable{mutableStateOf(today.toString())}
     val day=LocalDate.parse(selectedDay)
     var pickerVisible by remember{mutableStateOf(false)}
-    var showFragments by rememberSaveable(selectedDay){mutableStateOf(false)}
+    var showFragments by rememberSaveable(selectedDay){mutableStateOf(true)}
     val diaries=notes.filter{it.journalDate!=null && (searching || (it.state!=TaskState.OPEN)==archived)}
     val shown=diaries.filter{searching || it.journalDate==day}.sortedByDescending{writingSortKey(it)}
     val fragments=notes.filter{it.journalDate==null && it.state==TaskState.OPEN && writingDay(it)==day}.sortedBy{it.createdAt}
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=22.dp,end=22.dp,top=12.dp,bottom=24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=18.dp,end=18.dp,top=12.dp,bottom=28.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
         if(!searching)item {
-            Text("把一天，留成一页",fontSize=24.sp,lineHeight=34.sp,fontWeight=FontWeight.Medium)
-            Text("写下自己的回想，也可以补记从前。",fontSize=13.sp,lineHeight=22.sp,color=c.onSurfaceVariant)
-            Surface(shape=RoundedCornerShape(20.dp),color=c.primaryContainer,modifier=Modifier.padding(top=18.dp)) {
-                Column(Modifier.fillMaxWidth().padding(12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
-                    TextButton(onClick={pickerVisible=true},modifier=Modifier.align(Alignment.CenterHorizontally)){
-                        Text(day.format(DateTimeFormatter.ofPattern("yyyy年 M月d日")),fontSize=18.sp,color=c.onPrimaryContainer)
+            Text("日记",style=MaterialTheme.typography.headlineSmall)
+            Text("给一天留几行文字，也可以回头补记。",style=MaterialTheme.typography.bodyMedium,color=c.onSurfaceVariant)
+            Surface(shape=RoundedCornerShape(18.dp),color=c.surface,modifier=Modifier.padding(top=10.dp)) {
+                Row(Modifier.fillMaxWidth().padding(6.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween) {
+                    IconButton(onClick={selectedDay=day.minusDays(1).toString()}){Icon(Icons.Default.KeyboardArrowLeft,"上一天")}
+                    TextButton(onClick={pickerVisible=true}) {
+                        Text(day.format(DateTimeFormatter.ofPattern("M月d日 EEEE")),style=MaterialTheme.typography.titleMedium,color=c.onSurface)
                     }
-                    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){
-                        IconButton(onClick={selectedDay=day.minusDays(1).toString()}){Icon(Icons.Default.KeyboardArrowLeft,"上一天")}
-                        TextButton(onClick={selectedDay=today.toString()}){Text("今天")}
-                        IconButton(onClick={selectedDay=day.plusDays(1).toString()}){Icon(Icons.Default.KeyboardArrowRight,"下一天")}
-                    }
+                    IconButton(onClick={selectedDay=day.plusDays(1).toString()}){Icon(Icons.Default.KeyboardArrowRight,"下一天")}
                 }
             }
+            if(day!=today)TextButton(onClick={selectedDay=today.toString()}){Text("回到今天")}
         }
         if(!searching)item {
             Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
-                Text(if(archived)"归档日记" else if(day==today)"今日小结" else "这一天的小结",fontSize=18.sp,modifier=Modifier.weight(1f))
+                Text(if(archived)"归档日记" else if(day==today)"今天的日记" else "这一天的日记",style=MaterialTheme.typography.titleMedium,modifier=Modifier.weight(1f))
                 TextButton(onClick={archived=!archived}){Text(if(archived)"返回日记" else "归档")}
             }
-            if(!archived) FilledTonalButton(onClick={onWrite(day)},modifier=Modifier.fillMaxWidth().semantics{contentDescription="写日记"}){
+            if(!archived) FilledTonalButton(onClick={onWrite(day)},modifier=Modifier.fillMaxWidth().semantics{contentDescription="写日记"},shape=RoundedCornerShape(14.dp)){
                 Icon(Icons.Default.Add,null,Modifier.size(18.dp));Spacer(Modifier.width(8.dp));Text(if(shown.isEmpty())"写下这一天" else "再写一篇")
             }
         }
@@ -340,9 +410,9 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
         if(!searching && !archived)item {
             HorizontalDivider(color=c.outlineVariant)
             TextButton(onClick={showFragments=!showFragments},modifier=Modifier.fillMaxWidth()){
-                Text("这天 ${fragments.size} 条记录 · ${if(showFragments)"收起参考" else "展开参考"}",fontSize=13.sp)
+                Text("同一天的随手记录 · ${fragments.size} 条   ${if(showFragments)"收起" else "展开"}",style=MaterialTheme.typography.labelLarge)
             }
-            if(showFragments && fragments.isEmpty())Text("这天没有碎片记录，也可以直接写日记。",fontSize=13.sp,lineHeight=23.sp,color=c.onSurfaceVariant)
+            if(showFragments && fragments.isEmpty())Text("这天还没有随手记录。",style=MaterialTheme.typography.bodyMedium,color=c.onSurfaceVariant)
         }
         if(!searching && !archived && showFragments)items(fragments,key={"fragment-${it.id}"}){PaperEntry(it,open)}
     }
@@ -357,32 +427,50 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
     val context=LocalContext.current
     var confirm by remember{mutableStateOf(false)}
     var playing by remember{mutableStateOf<String?>(null)}
+    var showAudioFiles by rememberSaveable(note.id){mutableStateOf(false)}
+    val audios=note.attachments.filter{it.mimeType.startsWith("audio/")}
+    val otherMedia=note.attachments.filterNot{it.mimeType.startsWith("audio/")}
+    fun openAttachment(attachment:ImportedAttachment) {
+        runCatching {
+            require(attachment.relativePath.matches(Regex("imports/[a-f0-9]{64}(?:\\.[a-z0-9]{1,8})?")))
+            val file=java.io.File(context.filesDir,attachment.relativePath)
+            val uri=androidx.core.content.FileProvider.getUriForFile(context,"cn.jiaoban.imports",file)
+            context.startActivity(Intent.createChooser(Intent(Intent.ACTION_VIEW).setDataAndType(uri,attachment.mimeType).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION),"打开文件"))
+        }.onFailure{android.widget.Toast.makeText(context,"无法打开附件，请先导出完整资料检查原文件",android.widget.Toast.LENGTH_LONG).show()}
+    }
     LaunchedEffect(allowPlayback){if(!allowPlayback)playing=null}
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(26.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
         item {Text(note.journalDate?.format(DateTimeFormatter.ofPattern("yyyy年 M月d日 · 日记")) ?: note.createdAt.atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("yyyy年 M月d日 · 笔记")),style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)}
+        // Legacy checklist text stays literal and each line remains independently selectable.
+        if(note.text.isNotEmpty())note.text.split('\n').forEachIndexed { index,line ->
+            item(key="text-line-$index") {
+                SelectionContainer {Text(line,style=MaterialTheme.typography.bodyLarge,fontWeight=FontWeight.Normal,lineHeight=30.sp)}
+            }
+        }
         item {FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
             TextButton(onClick={context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT,note.text),"分享文字"))}){Text("分享")}
             TextButton(onClick={confirm=true}){Text(if(note.state==TaskState.OPEN)"归档" else "恢复")}
         }}
         note.importInfo?.let{source->item{Text("来源：${source.format}\n${source.originalPath}"+(source.originalDate?.let{"\n原日期：$it"} ?: "\n原日期未提供"),fontSize=12.sp,lineHeight=21.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}}
         if(note.importedTags.isNotEmpty())item{Text(note.importedTags.joinToString("  "){"#$it"},fontSize=13.sp,color=MaterialTheme.colorScheme.primary)}
-        if(note.attachments.isNotEmpty())item{Text("附件与原文件",style=MaterialTheme.typography.titleSmall)}
-        items(note.attachments,key={it.relativePath}){attachment->
-            MediaAttachment(attachment,allowPlayback && playing==attachment.relativePath,{if(allowPlayback)playing=attachment.relativePath},{playing=null})
-            OutlinedButton(onClick={
-                runCatching {
-                    require(attachment.relativePath.matches(Regex("imports/[a-f0-9]{64}(?:\\.[a-z0-9]{1,8})?")))
-                    val file=java.io.File(context.filesDir,attachment.relativePath)
-                    val uri=androidx.core.content.FileProvider.getUriForFile(context,"cn.jiaoban.imports",file)
-                    context.startActivity(Intent.createChooser(Intent(Intent.ACTION_VIEW).setDataAndType(uri,attachment.mimeType).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION),"打开文件"))
-                }.onFailure{android.widget.Toast.makeText(context,"无法打开附件，请先导出完整资料检查原文件",android.widget.Toast.LENGTH_LONG).show()}
-            },modifier=Modifier.fillMaxWidth()){Text((if(attachment.sourceFile)"原文件 · " else "附件 · ")+attachment.name,maxLines=2)}
+        if(note.attachments.isNotEmpty())item{Text("声音与照片",style=MaterialTheme.typography.titleMedium)}
+        if(audios.isNotEmpty())item(key="audio-group") {
+            AudioRecordingGroup(audios,allowPlayback && playing=="audio-group",{if(allowPlayback)playing="audio-group"},{playing=null})
         }
-        // Legacy checklist source remains literal, selectable text. No task controls.
-        note.text.split('\n').forEachIndexed{index,line->item(key=index) {
-            SelectionContainer {Text(line,style=MaterialTheme.typography.bodyLarge,
-                fontWeight=FontWeight.Normal,lineHeight=30.sp)}
-        }}
+        if(audios.isNotEmpty())item(key="audio-originals-button") {
+            TextButton(onClick={showAudioFiles=!showAudioFiles}) {
+                Text(if(showAudioFiles)"收起录音原始文件" else "查看录音原始文件（${audios.size}）",style=MaterialTheme.typography.labelLarge)
+            }
+        }
+        if(showAudioFiles)items(audios,key={"audio-file-${it.relativePath}"}) { attachment ->
+            OutlinedButton(onClick={openAttachment(attachment)},modifier=Modifier.fillMaxWidth()) {
+                Text(attachment.name,maxLines=2)
+            }
+        }
+        items(otherMedia,key={it.relativePath}){attachment->
+            MediaAttachment(attachment,allowPlayback && playing==attachment.relativePath,{if(allowPlayback)playing=attachment.relativePath},{playing=null})
+            OutlinedButton(onClick={openAttachment(attachment)},modifier=Modifier.fillMaxWidth()){Text((if(attachment.sourceFile)"原文件 · " else "附件 · ")+attachment.name,maxLines=2)}
+        }
     }
     if(confirm)AlertDialog(onDismissRequest={confirm=false},title={Text(if(note.state==TaskState.OPEN)"归档这一页？" else "恢复这一页？")},text={Text("内容完整保留，可在对应页面的归档中找回。")},confirmButton={TextButton(onClick={confirm=false;archive()}){Text("确定")}},dismissButton={TextButton(onClick={confirm=false}){Text("取消")}})
 }
