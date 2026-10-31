@@ -28,11 +28,10 @@ jobs:
           yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
           yes | "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0" > /dev/null 2>&1 || true
 
-      - name: 逻辑单测
-        run: bash ./gradlew :app:testDebugUnitTest --console=plain
-
-      - name: 出调试与验收包
-        run: bash ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest --console=plain
+      # Cloud development 已对同一提交执行完整 JVM 单测、AndroidTest 打包与 Lint。
+      # 此独立检查只验证 Android 调试 APK 可打包，避免把同一套测试重复跑两遍。
+      - name: 独立调试 APK 打包
+        run: bash ./gradlew :app:assembleDebug --console=plain
         # 不往 Actions 里存 APK 产物：安装包走 Release（发布脚本会挂上去），
         # 存这里会占账号的 artifact 配额，配额满了会让整个 CI 变红。
 
