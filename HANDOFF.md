@@ -1,11 +1,11 @@
 # 当前接续：0.21 整体改版与短/长录音（2026-10-31）
 
 - **手机基线与边界**：用户手机实际是 **0.19**，不是 0.20。下一正式包必须使用 `cn.jiaoban`、原证书及递增版本码同签名覆盖，不能卸载、清资料或拿云端 debug APK 直接安装。当前无原签名私钥；DSH 主机离线，未触碰用户手机。
-- **源码**：公开 main 基线 `19694522a1aac117436c71ac958e1c677364c43b`；独立工作分支 `feat/jiyixia-redesign-voice-20261031`，0.21 / versionCode 21，内置说明同步。实际远端提交/PR 以本轮链接为准，开发候选不等于正式发行。
+- **源码**：公开 main 基线 `19694522a1aac117436c71ac958e1c677364c43b`；独立工作分支 `feat/jiyixia-redesign-voice-20261031`，远端 [PR #37](https://github.com/h516df/jiyixia/pull/37)（本轮代码 head `a4b66f2323c1267f42ea37165d36aa23bbf436bd`，交接补充后以 PR 最新 head 为准），0.21 / versionCode 21，内置说明同步。PR 未合并，开发候选不等于正式发行。
 - **界面/操作**：暖纸/松绿 Compose 主题，按日时间流，首页文字、图片视频、麦克风快捷入口；日记与旧资料保持，320dp/200% 字号重新排布。编辑器可直接打开系统媒体选择器，原草稿只在成功保存后清理。新全局录音与旧编辑器前台录音互斥，录音分段在阅读/编辑页合并播放，原文件可查看。
 - **录音**：`VoiceRecordingService` 麦克风前台服务 + `VoiceSessionController` 持久草稿；用户可锁屏或离开应用，通知栏暂停/继续/结束。Android 13+ 请求可选通知权限，拒绝后仍可返回应用控制；仅录制时持有 partial wake lock。沿用 30 秒 M4A 分段、RecordingJournal、原媒体目录；`VoiceSessionStore` 同步落盘会话，停止后以稳定 ID 保存一条 NOTE，数据回调成功才清理草稿索引；异常保留已完成片段和原文件。没有改变旧 Task JSON 或导出格式。
-- **首轮验证**：云端 JDK21 / SDK36 / Gradle9.1 `compileDebugKotlin` passed，`testDebugUnitTest + assembleDebug + assembleDebugAndroidTest` passed，共 290 项 JVM 测试、0 fail/error/skip；debug SHA256 `f6c5f0d16580e3aa21c81e5cf6fbd1e3e242ea94d25dfed59cdaa36816553a24`（仅开发签名）。Robolectric 实际生成亮/暗、小屏/200% 字体、日记/编辑器截图。最后 UI/唤醒锁更改的最终重测、lint、unsigned release 以本轮后续回执为准。
-- **待验收**：原证书签名 APK 与用户 0.19→0.21 的手机覆盖安装；旧数据/媒体/备份、真机锁屏长录音、音质、来电、通知授权、强杀和低空间。未原签名和实机验证前不可宣称手机已更新。GitHub Actions 已知账务/产物额度阻塞，不以其替代本轮实测。未授权发布公共 Release。
+- **最终云端验证**：JDK21 / SDK36 / Gradle9.1 一次性 `:app:compileDebugKotlin :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug :app:assembleRelease -PunsignedRelease` **BUILD SUCCESSFUL**（129 tasks）；40 类、290 项 JVM 测试、0 fail/error/skip；lint 0 error、48 warnings、1 hint。debug APK SHA256 `a9ae9bb176aace5a5acb4b5fc443ba34080f8d73c30d4d80cacfbd8b4b659783`（仅开发签名）；unsigned release SHA256 `980dc3fd97646a41f7b3425a9909a72502c52b453fa6a430c0c17f48df5a103e`（未签名不可安装）。Robolectric/Roborazzi 已生成并目检亮/暗、小屏 320dp + 200% 字号、日记和编辑器截图；AndroidTest APK 只构建未在设备运行。
+- **待验收**：原证书签名 APK 与用户 0.19→0.21 的手机覆盖安装；旧数据/媒体/备份、真机锁屏长录音、音质、来电、通知授权、强杀和低空间。SentinelX 只读核实 Windows `MY-AI-PC` 的旧 `debug.keystore` 存在且旧工程配置指向它，但**尚未证明此证书与正式 0.19 一致**；DSH Linux 离线，Windows 命令白名单不允许 `keytool/apksigner`，不得绕过。未原签名和实机验证前不可宣称手机已更新。GitHub Actions 已知账务/产物额度阻塞，不以其替代本轮实测。未授权发布公共 Release。
 
 ---
 
