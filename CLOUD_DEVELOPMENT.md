@@ -112,6 +112,6 @@ Actions 因账务或附件配额受阻时，继续使用当前 Codex 云工作�
 
 ## 通用工作流入口
 
-通用约定与模板统一维护在 [vibe-ui-quality-kit/workflow](https://github.com/h516df/vibe-ui-quality-kit/blob/main/workflow/README.md)。开始任务由代理主动读取；本仓库 AGENTS 内保留可独立执行的简版，跨仓库读取暂不可用时先沿用，不要求用户重复说明工作流或添加仓库。具体工具链、数据、签名、生产与设备保护仍以本项目约束为准。
+通用约定与模板统一维护在 [vibe-ui-quality-kit-open/workflow](https://github.com/h516df/vibe-ui-quality-kit-open/blob/main/workflow/README.md)。开始任务由代理主动读取；本仓库 AGENTS 内保留可独立执行的简版，跨仓库读取暂不可用时先沿用，不要求用户重复说明工作流或添加仓库。具体工具链、数据、签名、生产与设备保护仍以本项目约束为准。
 
 新任务从默认分支开始时，代理应按用户描述核对相关未合并 PR、依赖和对应分支交接，不能直接把 main 当作所有最新成果；不根据旧快照自动合并业务 PR。这里的仓库配置不代表 Codex 账户级环境已发布。
