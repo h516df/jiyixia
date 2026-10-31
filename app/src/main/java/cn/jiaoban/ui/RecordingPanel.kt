@@ -134,7 +134,7 @@ internal fun RecordingControlPanel(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.width(8.dp))
-                    Text("录音已完成，正在保存到记录。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("音频已暂存，等待写入记录。", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
