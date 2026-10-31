@@ -58,14 +58,12 @@ class WritingUiTest {
     @Test fun diaryLight(){setup();compose.onNodeWithText("日记",useUnmergedTree=true).performClick();compose.onNodeWithText("雨停之后",substring=true).assertIsDisplayed();shot("diary-light")}
     @Test @Config(qualifiers="zh-rCN-w320dp-h900dp-night-xhdpi") fun diaryLargeDark(){setup(2f);compose.onNodeWithText("日记",useUnmergedTree=true).performClick();shot("diary-320dp-font200-dark")}
     @Test @Config(qualifiers="zh-rCN-w320dp-h900dp-xhdpi") fun notesLargeLight(){setup(2f);shot("notes-320dp-font200-light")}
-    @Test fun recordsAndDiaryHaveDistinctContentByDefault(){
+    @Test fun recordsAndDiaryRemainDistinctButSameDayNotesAreLinked(){
         setup()
         compose.onNodeWithText("雨停之后",substring=true).assertDoesNotExist()
         compose.onNodeWithText("日记",useUnmergedTree=true).performClick()
         compose.onNodeWithText("雨停之后",substring=true).assertIsDisplayed()
-        compose.onNodeWithText("留一点时间给喜欢的事",substring=true).assertDoesNotExist()
-        compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText("这天 1 条记录 · 展开参考"))
-        compose.onNodeWithText("这天 1 条记录 · 展开参考").performClick()
+        compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText("同一天的随手记录 · 1 条   收起"))
         compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText("留一点时间给喜欢的事",substring=true))
         compose.onNodeWithText("留一点时间给喜欢的事",substring=true).assertIsDisplayed()
     }

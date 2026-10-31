@@ -1,6 +1,11 @@
 package cn.jiaoban.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -27,8 +32,14 @@ import androidx.compose.ui.zIndex
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import cn.jiaoban.*
 import cn.jiaoban.data.*
+import cn.jiaoban.media.VoiceCapturePhase
+import cn.jiaoban.media.VoiceSessionController
 import cn.jiaoban.parse.*
 import cn.jiaoban.update.Updater
 import kotlinx.coroutines.launch
@@ -59,6 +70,8 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
     var createDiary by rememberSaveable { mutableStateOf(false) }
     var sharedDraft by rememberSaveable { mutableStateOf("") }
     var incomingShare by rememberSaveable { mutableStateOf<String?>(null) }
+    var openMediaPicker by rememberSaveable { mutableStateOf(false) }
+    var promotedQuickText by rememberSaveable { mutableStateOf<String?>(null) }
     val editorDraft=remember{context.getSharedPreferences("editor_draft_v1",android.content.Context.MODE_PRIVATE).also {
         if(it.getString("savingProcess",null)!=TasksHolder.processId)it.edit().remove("saving").apply()
     }}
@@ -110,6 +123,115 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
     val snack = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     fun notify(message: String) { scope.launch { snack.showSnackbar(message) } }
+    // The recording owner survives an editor being closed and the Activity going to the background.
+    // The stable session ID also becomes the entry ID, so a failed save can safely be retried.
+    val voice = VoiceSessionController
+    val voiceState by voice.state.collectAsState()
+    var showVoicePanel by rememberSaveable { mutableStateOf(false) }
+    var savingVoice by remember { mutableStateOf(false) }
+    var voiceSaveError by remember { mutableStateOf<String?>(null) }
+    var attemptedVoiceSession by remember { mutableStateOf<String?>(null) }
+    var pendingMicStart by remember { mutableStateOf(false) }
+    var notificationPermissionAllowed by remember {
+        mutableStateOf(Build.VERSION.SDK_INT < 33 || ContextCompat.checkSelfPermission(context,
+            Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED)
+    }
+    var requestedNotificationPermission by rememberSaveable { mutableStateOf(false) }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    fun startVoiceWhenVisible() {
+        if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) voice.start(context)
+        else pendingMicStart = true
+    }
+    DisposableEffect(lifecycle) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && Build.VERSION.SDK_INT >= 33) {
+                notificationPermissionAllowed = ContextCompat.checkSelfPermission(context,
+                    Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+            }
+            if (event == Lifecycle.Event.ON_RESUME && pendingMicStart) {
+                pendingMicStart = false
+                voice.start(context)
+            }
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+    val microphonePermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            voiceSaveError = null
+            showVoicePanel = true
+            startVoiceWhenVisible()
+        } else notify("未授予麦克风权限；文字和图片仍可正常记录")
+    }
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        notificationPermissionAllowed = granted
+        if (!granted) notify("通知未开启；录音仍可进行，请返回应用内暂停或结束")
+    }
+    LaunchedEffect(voiceState.phase, notificationPermissionAllowed) {
+        // The microphone is already active: notification permission is optional and cannot
+        // block creation of the recovery journal or the foreground service itself.
+        if (Build.VERSION.SDK_INT >= 33 && voiceState.phase == VoiceCapturePhase.RECORDING &&
+            !notificationPermissionAllowed && !requestedNotificationPermission) {
+            requestedNotificationPermission = true
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+    fun beginVoice() {
+        if (!holder.loaded) return
+        if (voiceState.sessionId != null && voiceState.phase != VoiceCapturePhase.IDLE) {
+            showVoicePanel = true
+            return
+        }
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            voiceSaveError = null
+            showVoicePanel = true
+            startVoiceWhenVisible()
+        } else microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
+    }
+    fun saveStoppedVoice() {
+        val snapshot = voice.state.value
+        val sessionId = snapshot.sessionId ?: return
+        if (!holder.loaded || savingVoice || snapshot.phase != VoiceCapturePhase.STOPPED ||
+            snapshot.attachmentSaveFailed || snapshot.attachments.isEmpty()) return
+        savingVoice = true
+        voiceSaveError = null
+        val submitted = holder.saveWriting("", id = sessionId, attachments = snapshot.attachments) { success ->
+            savingVoice = false
+            if (success) {
+                voice.acknowledgeSaved(context, sessionId)
+                showVoicePanel = false
+                savedGeneration++
+                notify("录音已保存")
+            } else {
+                voiceSaveError = "录音原件已保留，但记录入库失败；请重试保存"
+            }
+        }
+        if (submitted == null) {
+            savingVoice = false
+            voiceSaveError = "录音尚未准备好，请稍后重试保存"
+        }
+    }
+    LaunchedEffect(holder.loaded) {
+        if (holder.loaded) voice.recover(context)
+    }
+    LaunchedEffect(holder.loaded, voiceState.phase, voiceState.sessionId, voiceState.attachmentSaveFailed) {
+        val sessionId = voiceState.sessionId
+        if (holder.loaded && sessionId != null && sessionId != attemptedVoiceSession &&
+            voiceState.phase == VoiceCapturePhase.STOPPED && !voiceState.attachmentSaveFailed) {
+            attemptedVoiceSession = sessionId
+            saveStoppedVoice()
+        }
+    }
+    fun beginMediaEntry() {
+        if (!holder.loaded) return
+        promotedQuickText = quickText.takeIf { it.isNotBlank() }
+        sharedDraft = quickText
+        createDiary = false
+        newEditorId = null
+        editorSession = java.util.UUID.randomUUID().toString()
+        openMediaPicker = true
+        creating = true
+    }
     fun submitQuick() {
         if(posting || !holder.loaded || quickText.isBlank()) return
         val request=draft.begin() ?: return
@@ -138,12 +260,13 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
     LaunchedEffect(sharedText, holder.loaded) {
         if(holder.loaded && !sharedText.isNullOrBlank()) {
             if(creating || editId != null) incomingShare = sharedText.trim()
-            else { sharedDraft = sharedText.trim(); createDiary=false; creating=true; newEditorId=null;editorSession=java.util.UUID.randomUUID().toString(); searching=false; screen=Screen.NOTES }
+            else { sharedDraft = sharedText.trim(); createDiary=false; creating=true; newEditorId=null;openMediaPicker=false;promotedQuickText=null;editorSession=java.util.UUID.randomUUID().toString(); searching=false; screen=Screen.NOTES }
             onSharedHandled()
         }
     }
-    BackHandler(enabled = detailId != null || searching || screen != Screen.NOTES) {
+    BackHandler(enabled = showVoicePanel || detailId != null || searching || screen != Screen.NOTES) {
         when {
+            showVoicePanel -> showVoicePanel = false
             detailId != null -> detailId = null
             searching -> { searching=false; query=""; focus.clearFocus() }
             screen == Screen.UPDATE || screen == Screen.LEGACY || screen == Screen.IMPORT -> screen=Screen.SETTINGS
@@ -155,8 +278,8 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
     Scaffold(contentWindowInsets=WindowInsets.safeDrawing,containerColor=MaterialTheme.colorScheme.background,
         snackbarHost={SnackbarHost(snack)},
         topBar={TopAppBar(expandedHeight=if(LocalDensity.current.fontScale>1.3f)112.dp else 82.dp,title={
-            if(detail != null) Text(if(detail.kind!=EntryKind.NOTE) "旧版资料" else if(detail.journalDate!=null) "日记" else "笔记",style=MaterialTheme.typography.titleMedium)
-            else if(searching) OutlinedTextField(query,{query=it},singleLine=true,placeholder={Text("搜索记录") },modifier=Modifier.fillMaxWidth(),shape=RoundedCornerShape(18.dp))
+            if(detail != null) Text(if(detail.kind!=EntryKind.NOTE) "旧版资料" else if(detail.journalDate!=null) "日记" else "记录",style=MaterialTheme.typography.titleMedium)
+            else if(searching) OutlinedTextField(query,{query=it},singleLine=true,placeholder={Text("搜索记录与日记") },modifier=Modifier.fillMaxWidth(),shape=RoundedCornerShape(18.dp))
             else Column(verticalArrangement=Arrangement.spacedBy(3.dp)) {
                 Text(if(isMain) "记一下" else screen.label,fontSize=27.sp,fontWeight=FontWeight.SemiBold)
                 if(isMain && LocalDensity.current.fontScale<=1.3f) Text(if(screen==Screen.NOTES) "随手记下，慢慢回看" else "按日翻看，想起更多",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
@@ -164,7 +287,7 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
         },navigationIcon={
             if(detail!=null || !isMain) IconButton(onClick={if(detail!=null)detailId=null else screen=if(screen==Screen.UPDATE || screen==Screen.LEGACY || screen==Screen.IMPORT)Screen.SETTINGS else Screen.NOTES}) {Icon(Icons.Default.ArrowBack,"返回")}
         },actions={
-            if(detail?.kind==EntryKind.NOTE) TextButton(onClick={editId=detail.id;newEditorId=null;editorSession=java.util.UUID.randomUUID().toString()}){Text("编辑")}
+            if(detail?.kind==EntryKind.NOTE) TextButton(onClick={editId=detail.id;newEditorId=null;openMediaPicker=false;promotedQuickText=null;editorSession=java.util.UUID.randomUUID().toString()}){Text("编辑")}
             else if(detail==null && searching) TextButton(onClick={searching=false;query="";focus.clearFocus()}){Text("取消")}
             else if(detail==null && isMain) {
                 IconButton(onClick={searching=true}){Icon(Icons.Default.Search,"搜索" )}
@@ -172,7 +295,8 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
             }
         },colors=TopAppBarDefaults.topAppBarColors(containerColor=MaterialTheme.colorScheme.background))},
         bottomBar={if(detail==null && !searching && isMain) Column(Modifier.imePadding()) {
-            if(screen==Screen.NOTES) QuickComposer(quickText,::retainQuick,posting,holder.loaded,::submitQuick)
+            if(screen==Screen.NOTES) QuickComposer(quickText,::retainQuick,posting,holder.loaded,::submitQuick,
+                onRecord=::beginVoice,onMedia=::beginMediaEntry)
             if(!WindowInsets.isImeVisible) NavigationBar(containerColor=MaterialTheme.colorScheme.background,tonalElevation=0.dp) {
             listOf(Screen.NOTES,Screen.JOURNAL).forEach {item->NavigationBarItem(selected=screen==item,onClick={screen=item;focus.clearFocus()},icon={Icon(item.icon,null,Modifier.size(22.dp))},label={Text(item.label)},
                 colors=NavigationBarItemDefaults.colors(indicatorColor=MaterialTheme.colorScheme.primaryContainer))}
@@ -184,14 +308,14 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
             detail?.kind==EntryKind.NOTE -> NoteDetail(detail,{holder.update(detail.copy(pinned=!detail.pinned))},{holder.setState(detail.id,if(detail.state==TaskState.OPEN)TaskState.VOID else TaskState.OPEN)},{holder.update(it)},allowPlayback=editId==null && !creating)
             detail!=null -> LegacyDetail(detail,today)
             !holder.loaded -> Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){CircularProgressIndicator()}
-            screen==Screen.NOTES -> NotesPage(holder.savedTasks.filter{it.kind==EntryKind.NOTE && it.journalDate==null && writingMatches(it,if(searching)query else "",selectedTag)},{detailId=it.id},query,searching,selectedTag,{selectedTag=it},savedGeneration=savedGeneration,onReview={
+            screen==Screen.NOTES -> NotesPage(holder.savedTasks.filter{it.kind==EntryKind.NOTE && (searching || it.journalDate==null) && writingMatches(it,if(searching)query else "",selectedTag)},{detailId=it.id},query,searching,selectedTag,{selectedTag=it},savedGeneration=savedGeneration,onReview={
                 val candidates=reviewEntries(holder.savedTasks,today)
                 val next=candidates.filter{it.id!=lastReviewed}.randomOrNull() ?: candidates.firstOrNull()
                 if(next==null)notify("还没有更早的记录。今天写下的，以后再回来看看。")
                 else {lastReviewed=next.id;detailId=next.id}
             })
             screen==Screen.JOURNAL -> JournalPage(searchAll(holder.savedTasks.filter{it.kind==EntryKind.NOTE},if(searching)query else ""),today,{detailId=it.id},searching,onWrite={date->
-                createDiary=true;newDiaryDay=date.toString();sharedDraft="";creating=true;newEditorId=null;editorSession=java.util.UUID.randomUUID().toString()
+                createDiary=true;newDiaryDay=date.toString();sharedDraft="";creating=true;newEditorId=null;openMediaPicker=false;promotedQuickText=null;editorSession=java.util.UUID.randomUUID().toString()
             })
             screen==Screen.LEGACY -> LegacyPage(holder.savedTasks.filter{it.kind!=EntryKind.NOTE},{detailId=it.id})
             screen==Screen.IMPORT -> ImportPage(holder)
@@ -203,10 +327,10 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
         val task=holder.savedTasks.firstOrNull{it.id==editId}
         val closeEditor={
             runCatching { cn.jiaoban.media.AttachmentDraft.clear(editorDraft,editorSession) }
-                .onSuccess { creating=false;editId=null;newEditorId=null;sharedDraft="";focus.clearFocus() }
+                .onSuccess { creating=false;editId=null;newEditorId=null;sharedDraft="";openMediaPicker=false;promotedQuickText=null;focus.clearFocus() }
                 .onFailure { notify(it.message ?: "草稿未能关闭，请重试") }
         }
-        NoteEditor(task,if(creating)sharedDraft else "",if(task!=null)task.journalDate else if(createDiary)LocalDate.parse(newDiaryDay) else null,session=editorSession,newId=newEditorId,saving=editorBusy,onDismiss={if(!editorBusy)closeEditor()},onSave={text,date,attachments->
+        NoteEditor(task,if(creating)sharedDraft else "",if(task!=null)task.journalDate else if(createDiary)LocalDate.parse(newDiaryDay) else null,session=editorSession,newId=newEditorId,saving=editorBusy,openMediaPickerOnLaunch=openMediaPicker,onDismiss={if(!editorBusy)closeEditor()},onSave={text,date,attachments->
             if(!editorBusy) {
                 editorPosting=true
                 val submittedSession=editorSession
@@ -219,6 +343,7 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
                         editorDraft.edit().remove("saving").apply()
                         if(success && unchanged) editorDraft.edit().putString("completed",submittedSession).putBoolean("active",false).remove("text").apply()
                         if(editorSession==submittedSession) {
+                            if (success && unchanged && promotedQuickText != null && quickText == promotedQuickText) retainQuick("")
                             editorPosting=false
                             notify(if(success)"已保存" else "保存失败，文字和附件仍在，请重试")
                         }
@@ -228,6 +353,18 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
             }
         })
     }
+    if (showVoicePanel) RecordingPanel(
+        state = voiceState,
+        saving = savingVoice,
+        error = voiceSaveError,
+        notificationAllowed = notificationPermissionAllowed,
+        onDismiss = { showVoicePanel = false },
+        onPause = { voice.pause(context) },
+        onResume = { voice.resume(context) },
+        onStop = { voice.stop(context) },
+        onRetrySave = { saveStoppedVoice() },
+        onRecover = { voice.recover(context) },
+    )
     if(incomingShare!=null) AlertDialog(onDismissRequest={incomingShare=null},title={Text("收到新的分享")},text={Text("当前文字还未保存。继续编辑，或放弃当前改动并打开分享内容。")},
         confirmButton={TextButton(onClick={incomingShare=null}){Text("继续编辑")}},dismissButton={TextButton(enabled=!editorBusy,onClick={sharedDraft=incomingShare?:"";incomingShare=null;editId=null;detailId=null;createDiary=false;creating=true;newEditorId=null;editorSession=java.util.UUID.randomUUID().toString();searching=false;screen=Screen.NOTES}){Text("打开分享")}})
 }

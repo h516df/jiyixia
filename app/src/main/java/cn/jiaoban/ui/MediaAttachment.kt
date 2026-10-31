@@ -1,11 +1,14 @@
 package cn.jiaoban.ui
 
 import android.graphics.BitmapFactory
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -23,7 +26,125 @@ import androidx.media3.ui.PlayerView
 import cn.jiaoban.ImportedAttachment
 import cn.jiaoban.media.MediaStorage
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import java.io.File
+import java.util.Locale
+
+private fun audioTime(ms: Long): String {
+    val seconds = (ms.coerceAtLeast(0) / 1_000)
+    return if (seconds >= 3_600) String.format(Locale.ROOT, "%d:%02d:%02d", seconds / 3_600, seconds / 60 % 60, seconds % 60)
+    else String.format(Locale.ROOT, "%d:%02d", seconds / 60, seconds % 60)
+}
+
+private fun audioDuration(file: File): Long = runCatching {
+    val retriever = MediaMetadataRetriever()
+    try {
+        retriever.setDataSource(file.absolutePath)
+        retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+    } finally { retriever.release() }
+}.getOrDefault(0L)
+
+/** Multiple protected physical segments are one playback surface, not hundreds of file buttons. */
+@Composable
+internal fun AudioRecordingGroup(
+    attachments: List<ImportedAttachment>,
+    playing: Boolean,
+    onPlay: () -> Unit,
+    onStop: () -> Unit,
+) {
+    if (attachments.isEmpty()) return
+    val context = LocalContext.current
+    val files = remember(attachments) {
+        attachments.mapNotNull { runCatching { MediaStorage.file(context.filesDir, it.relativePath) }.getOrNull() }
+    }
+    val durations by produceState<List<Long>>(emptyList(), files) {
+        value = withContext(Dispatchers.IO) { files.map { file -> if (file.isFile) audioDuration(file) else 0L } }
+    }
+    val totalDuration = durations.sum()
+    val allAvailable = files.size == attachments.size && files.all { it.isFile }
+    val playbackKey = remember(attachments) { "audio-${attachments.joinToString(";") { it.sha256 }.hashCode()}" }
+    val prefs = remember { context.getSharedPreferences("audio_playback_v1", android.content.Context.MODE_PRIVATE) }
+    Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .68f)) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                MicGlyph(color = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(10.dp))
+                Text("语音记录", modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                Text(if (totalDuration > 0) audioTime(totalDuration) else "—", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (!allAvailable) {
+                Text("部分录音暂时无法读取，原记录没有被修改。", color = MaterialTheme.colorScheme.error)
+            } else if (!playing) {
+                OutlinedButton(onClick = onPlay, modifier = Modifier.fillMaxWidth()) { Text("播放录音") }
+            } else {
+                val lifecycle = LocalLifecycleOwner.current.lifecycle
+                var failed by remember(playbackKey) { mutableStateOf(false) }
+                var paused by remember(playbackKey) { mutableStateOf(false) }
+                var currentMs by remember(playbackKey) { mutableLongStateOf(0L) }
+                val player = remember(files) {
+                    ExoPlayer.Builder(context).build().apply {
+                        setAudioAttributes(androidx.media3.common.AudioAttributes.DEFAULT, true)
+                        setMediaItems(files.map { MediaItem.fromUri(Uri.fromFile(it)) })
+                        addListener(object : Player.Listener {
+                            override fun onPlayerError(error: PlaybackException) { failed = true }
+                        })
+                        prepare()
+                        val index = prefs.getInt("$playbackKey.index", 0).coerceIn(0, files.lastIndex)
+                        seekTo(index, prefs.getLong("$playbackKey.position", 0L).coerceAtLeast(0L))
+                        playWhenReady = true
+                    }
+                }
+                LaunchedEffect(player, durations) {
+                    while (true) {
+                        val index = player.currentMediaItemIndex.coerceIn(0, durations.lastIndex.coerceAtLeast(0))
+                        currentMs = durations.take(index).sum() + player.currentPosition.coerceAtLeast(0L)
+                        paused = !player.isPlaying && player.playbackState != Player.STATE_ENDED
+                        if (player.playbackState == Player.STATE_ENDED) { onStop(); break }
+                        delay(250L)
+                    }
+                }
+                DisposableEffect(player, lifecycle) {
+                    val observer = LifecycleEventObserver { _, event ->
+                        if (event == Lifecycle.Event.ON_STOP) { player.pause(); onStop() }
+                    }
+                    lifecycle.addObserver(observer)
+                    onDispose {
+                        lifecycle.removeObserver(observer)
+                        if (player.playbackState == Player.STATE_ENDED) {
+                            prefs.edit().remove("$playbackKey.index").remove("$playbackKey.position").apply()
+                        } else {
+                            prefs.edit().putInt("$playbackKey.index", player.currentMediaItemIndex)
+                                .putLong("$playbackKey.position", player.currentPosition.coerceAtLeast(0L)).apply()
+                        }
+                        player.release()
+                    }
+                }
+                if (totalDuration > 0L) Slider(
+                    value = (currentMs.toFloat() / totalDuration).coerceIn(0f, 1f),
+                    onValueChange = { fraction ->
+                        var target = (fraction * totalDuration).toLong()
+                        for (index in durations.indices) {
+                            val duration = durations[index]
+                            if (target < duration || index == durations.lastIndex) {
+                                player.seekTo(index, target.coerceAtLeast(0L))
+                                break
+                            }
+                            target -= duration
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text(audioTime(currentMs) + " / " + if (totalDuration > 0) audioTime(totalDuration) else "—", style = MaterialTheme.typography.labelMedium)
+                    TextButton(onClick = { if (player.isPlaying) player.pause() else player.play() }) { Text(if (paused) "继续" else "暂停") }
+                    TextButton(onClick = onStop) { Text("关闭播放") }
+                }
+                if (failed) Text("此设备暂时无法播放这段录音，原文件仍保留。", color = MaterialTheme.colorScheme.error)
+            }
+        }
+    }
+}
 
 /** Local bounded preview. No URL fetching, automatic playback, or background audio. */
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)

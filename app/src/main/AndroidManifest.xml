@@ -6,8 +6,14 @@
     <!-- 新版安装包下载后交给系统安装界面，装不装由用户确认 -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
-    <!-- Only requested when the user presses Record. No background microphone service. -->
+    <!-- Only requested when the user presses Record. The microphone service keeps long recordings
+         alive with a visible notification after the user leaves the screen. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Optional at runtime on Android 13+: needed for pause/stop buttons in the drawer. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="false"
@@ -34,6 +40,12 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
+
+        <service
+            android:name=".media.VoiceRecordingService"
+            android:exported="false"
+            android:foregroundServiceType="microphone"
+            android:stopWithTask="false" />
 
         <!-- 下载好的安装包通过它交给系统安装器，不暴露 App 的其它目录 -->
         <provider
