@@ -450,7 +450,7 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
                             }
                         }
                         IconButton(onClick=::beginVoice,enabled=holder.loaded,modifier=Modifier.size(46.dp)) {
-                            Icon(Icons.Default.Mic,"开始录音")
+                            Box(Modifier.semantics{contentDescription="开始录音"},contentAlignment=Alignment.Center){MicGlyph()}
                         }
                         FilledIconButton(onClick={if(screen==Screen.JOURNAL) { {beginDiaryEntry(LocalDate.parse(journalDay))} } else ::beginNoteEntry},
                             enabled=holder.loaded && (screen!=Screen.JOURNAL || !journalArchived),

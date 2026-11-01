@@ -34,6 +34,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.input.pointer.pointerInput
@@ -239,14 +240,15 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
                 }
                 Row(Modifier.fillMaxWidth().padding(horizontal=18.dp,vertical=3.dp),verticalAlignment=Alignment.CenterVertically) {
                     if(recording) {
-                        TextButton(onClick={voice.pause()}){Icon(Icons.Default.Pause,null);Spacer(Modifier.width(5.dp));Text("暂停")}
-                        TextButton(onClick={voice.stop()}){Icon(Icons.Default.Stop,null);Spacer(Modifier.width(5.dp));Text("结束")}
+                        TextButton(onClick={voice.pause()}){Text("暂停")}
+                        TextButton(onClick={voice.stop()}){Text("结束")}
                     } else {
                         IconButton(onClick={choose.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))},enabled=!saving && !copying) {
-                            Icon(Icons.Default.Image,"添加照片或视频")
+                            Icon(Icons.Default.Add,"添加照片或视频")
                         }
-                        IconButton(onClick={record()},enabled=!saving && !copying && !globalVoicePending) {
-                            Icon(Icons.Default.Mic,if(voiceState.phase==VoiceCapturePhase.PAUSED || voiceState.phase==VoiceCapturePhase.INTERRUPTED)"继续录音" else "录音")
+                        IconButton(onClick={record()},enabled=!saving && !copying && !globalVoicePending,
+                            modifier=Modifier.semantics{contentDescription=if(voiceState.phase==VoiceCapturePhase.PAUSED || voiceState.phase==VoiceCapturePhase.INTERRUPTED)"继续录音" else "录音"}) {
+                            MicGlyph()
                         }
                     }
                 }
@@ -282,7 +284,7 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
         },
         positionalThreshold={distance->distance*.38f}
     )
-    SwipeToDismissBox(state=swipeState,
+    SwipeToDismissBox(state=swipeState,modifier=Modifier.testTag("entry-${note.id}"),
         enableDismissFromStartToEnd=false,
         enableDismissFromEndToStart=onSwipeDelete!=null && !selectionMode && note.deletedAt==null,
         backgroundContent={

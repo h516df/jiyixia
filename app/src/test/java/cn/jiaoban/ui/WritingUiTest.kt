@@ -2,6 +2,7 @@ package cn.jiaoban.ui
 
 import android.app.Application
 import androidx.compose.ui.test.*
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.runtime.*
 import androidx.compose.ui.semantics.SemanticsActions
 import android.content.Context
@@ -121,6 +122,19 @@ class WritingUiTest {
         compose.waitUntil(10000) { store.load().single{it.id=="n1"}.deletedAt==null }
         assertEquals("留一点时间给喜欢的事\n散步、读书，以及认真做一顿晚饭。\n生活里的小事也值得专门留一页。 #生活",
             store.load().single{it.id=="n1"}.text)
+    }
+    @Test fun oneLeftSwipeDeletesAndUndoRestoresWithoutSecondTap() {
+        val store=setup()
+        compose.onNodeWithTag("entry-n2").performTouchInput {
+            swipe(start=Offset(width*.80f,height*.5f),end=Offset(width*.64f,height*.5f),durationMillis=250)
+        }
+        compose.waitForIdle()
+        assertNull("Short swipe must rebound",store.load().single{it.id=="n2"}.deletedAt)
+        compose.onNodeWithTag("entry-n2").performTouchInput {swipeLeft(durationMillis=350)}
+        compose.waitUntil(10000){store.load().single{it.id=="n2"}.deletedAt!=null}
+        compose.onNodeWithText("撤销").performClick()
+        compose.waitUntil(10000){store.load().single{it.id=="n2"}.deletedAt==null}
+        assertEquals("读到的一句话\n把日子过得缓慢一点，细节就会浮现。",store.load().single{it.id=="n2"}.text)
     }
     @Test fun oneTapEditorDraftSurvivesCompositionRecreation(){
         setup()
