@@ -26,6 +26,11 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.*
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.tween
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.zIndex
@@ -67,6 +72,8 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
     var newEditorId by rememberSaveable {mutableStateOf<String?>(null)}
     var creating by rememberSaveable { mutableStateOf(false) }
     var newDiaryDay by rememberSaveable {mutableStateOf(today.toString())}
+    var journalDay by rememberSaveable {mutableStateOf(today.toString())}
+    var journalArchived by rememberSaveable {mutableStateOf(false)}
     var createDiary by rememberSaveable { mutableStateOf(false) }
     var sharedDraft by rememberSaveable { mutableStateOf("") }
     var incomingShare by rememberSaveable { mutableStateOf<String?>(null) }
@@ -232,6 +239,16 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
         openMediaPicker = true
         creating = true
     }
+    fun beginDiaryEntry(date:LocalDate) {
+        createDiary=true
+        newDiaryDay=date.toString()
+        sharedDraft=""
+        creating=true
+        newEditorId=null
+        openMediaPicker=false
+        promotedQuickText=null
+        editorSession=java.util.UUID.randomUUID().toString()
+    }
     fun submitQuick() {
         if(posting || !holder.loaded || quickText.isBlank()) return
         val request=draft.begin() ?: return
@@ -264,9 +281,13 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
             onSharedHandled()
         }
     }
-    BackHandler(enabled = showVoicePanel || detailId != null || searching || screen != Screen.NOTES) {
+    // Let Android consume the first back gesture when the IME is open. Only the
+    // next back should dismiss search, details, or move from 日记 to 记录.
+    // The recording sheet owns back gestures; App must not remove it before its
+    // Material3 dismissal animation has finished.
+    BackHandler(enabled = !showVoicePanel && !WindowInsets.isImeVisible &&
+        (detailId != null || searching || screen != Screen.NOTES)) {
         when {
-            showVoicePanel -> showVoicePanel = false
             detailId != null -> detailId = null
             searching -> { searching=false; query=""; focus.clearFocus() }
             screen == Screen.UPDATE || screen == Screen.LEGACY || screen == Screen.IMPORT -> screen=Screen.SETTINGS
@@ -281,7 +302,7 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
             if(detail != null) Text(if(detail.kind!=EntryKind.NOTE) "旧版资料" else if(detail.journalDate!=null) "日记" else "记录",style=MaterialTheme.typography.titleMedium)
             else if(searching) OutlinedTextField(query,{query=it},singleLine=true,placeholder={Text("搜索记录与日记") },modifier=Modifier.fillMaxWidth(),shape=RoundedCornerShape(18.dp))
             else Column(verticalArrangement=Arrangement.spacedBy(3.dp)) {
-                Text(if(isMain) "记一下" else screen.label,fontSize=27.sp,fontWeight=FontWeight.SemiBold)
+                Text(screen.label,fontSize=27.sp,fontWeight=FontWeight.SemiBold)
                 if(isMain && LocalDensity.current.fontScale<=1.3f) Text(if(screen==Screen.NOTES) "随手记下，慢慢回看" else "按日翻看，想起更多",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },navigationIcon={
@@ -290,17 +311,39 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
             if(detail?.kind==EntryKind.NOTE) TextButton(onClick={editId=detail.id;newEditorId=null;openMediaPicker=false;promotedQuickText=null;editorSession=java.util.UUID.randomUUID().toString()}){Text("编辑")}
             else if(detail==null && searching) TextButton(onClick={searching=false;query="";focus.clearFocus()}){Text("取消")}
             else if(detail==null && isMain) {
-                IconButton(onClick={searching=true}){Icon(Icons.Default.Search,"搜索" )}
+                IconButton(onClick={selectedTag=null;searching=true}){Icon(Icons.Default.Search,"搜索" )}
                 IconButton(onClick={screen=Screen.SETTINGS}){Icon(Icons.Default.Settings,"设置")}
             }
         },colors=TopAppBarDefaults.topAppBarColors(containerColor=MaterialTheme.colorScheme.background))},
         bottomBar={if(detail==null && !searching && isMain) Column(Modifier.imePadding()) {
             if(screen==Screen.NOTES) QuickComposer(quickText,::retainQuick,posting,holder.loaded,::submitQuick,
                 onRecord=::beginVoice,onMedia=::beginMediaEntry)
-            if(!WindowInsets.isImeVisible) NavigationBar(containerColor=MaterialTheme.colorScheme.background,tonalElevation=0.dp) {
-            listOf(Screen.NOTES,Screen.JOURNAL).forEach {item->NavigationBarItem(selected=screen==item,onClick={screen=item;focus.clearFocus()},icon={Icon(item.icon,null,Modifier.size(22.dp))},label={Text(item.label)},
-                colors=NavigationBarItemDefaults.colors(indicatorColor=MaterialTheme.colorScheme.primaryContainer))}
-        }}},
+            if(screen==Screen.JOURNAL && !journalArchived) Surface(color=MaterialTheme.colorScheme.background) {
+                Button(onClick={beginDiaryEntry(LocalDate.parse(journalDay))},enabled=holder.loaded,
+                    modifier=Modifier.fillMaxWidth().padding(horizontal=18.dp,vertical=8.dp)
+                        .heightIn(min=52.dp).semantics{contentDescription="写日记"},
+                    shape=RoundedCornerShape(16.dp)) {
+                    Icon(Icons.Default.Edit,null,Modifier.size(20.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text(if(holder.savedTasks.any{it.kind==EntryKind.NOTE && it.journalDate?.toString()==journalDay && it.state==TaskState.OPEN})
+                        "再写一篇" else "写下这一天",style=MaterialTheme.typography.titleSmall)
+                }
+            }
+            // The IME already animates its insets. Keep navigation in composition while
+            // its height animates out/in; removing it at one IME visibility frame made
+            // the editor jump and the timeline suddenly reflow during back gestures.
+            AnimatedVisibility(visible=!WindowInsets.isImeVisible,
+                enter=expandVertically(animationSpec=tween(180))+fadeIn(animationSpec=tween(160)),
+                exit=shrinkVertically(animationSpec=tween(110))+fadeOut(animationSpec=tween(90))) {
+                NavigationBar(containerColor=MaterialTheme.colorScheme.background,tonalElevation=0.dp) {
+                    listOf(Screen.NOTES,Screen.JOURNAL).forEach {item->
+                        NavigationBarItem(selected=screen==item,onClick={screen=item;focus.clearFocus()},
+                            icon={Icon(item.icon,null,Modifier.size(22.dp))},label={Text(item.label)},
+                            colors=NavigationBarItemDefaults.colors(indicatorColor=MaterialTheme.colorScheme.primaryContainer))
+                    }
+                }
+            }
+        }},
 
     ) {padding->Column(Modifier.fillMaxSize().padding(padding)) {
         holder.saveError?.let {message->Surface(color=MaterialTheme.colorScheme.errorContainer) {Row(Modifier.fillMaxWidth().padding(start=20.dp),verticalAlignment=Alignment.CenterVertically){Text(message,Modifier.weight(1f));TextButton(onClick={if(quickText.isNotBlank())submitQuick() else holder.retrySave()}){Text("重试保存")}}}}
@@ -308,15 +351,18 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
             detail?.kind==EntryKind.NOTE -> NoteDetail(detail,{holder.update(detail.copy(pinned=!detail.pinned))},{holder.setState(detail.id,if(detail.state==TaskState.OPEN)TaskState.VOID else TaskState.OPEN)},{holder.update(it)},allowPlayback=editId==null && !creating)
             detail!=null -> LegacyDetail(detail,today)
             !holder.loaded -> Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){CircularProgressIndicator()}
-            screen==Screen.NOTES -> NotesPage(holder.savedTasks.filter{it.kind==EntryKind.NOTE && (searching || it.journalDate==null) && writingMatches(it,if(searching)query else "",selectedTag)},{detailId=it.id},query,searching,selectedTag,{selectedTag=it},savedGeneration=savedGeneration,onReview={
+            searching -> NotesPage(holder.savedTasks.filter{it.kind==EntryKind.NOTE && writingMatches(it,query,null)},
+                {detailId=it.id},query=query,searching=true)
+            screen==Screen.NOTES -> NotesPage(holder.savedTasks.filter{it.kind==EntryKind.NOTE && it.journalDate==null && writingMatches(it,"",selectedTag)},{detailId=it.id},query,false,selectedTag,{selectedTag=it},savedGeneration=savedGeneration,onReview={
                 val candidates=reviewEntries(holder.savedTasks,today)
                 val next=candidates.filter{it.id!=lastReviewed}.randomOrNull() ?: candidates.firstOrNull()
                 if(next==null)notify("还没有更早的记录。今天写下的，以后再回来看看。")
                 else {lastReviewed=next.id;detailId=next.id}
             })
-            screen==Screen.JOURNAL -> JournalPage(searchAll(holder.savedTasks.filter{it.kind==EntryKind.NOTE},if(searching)query else ""),today,{detailId=it.id},searching,onWrite={date->
-                createDiary=true;newDiaryDay=date.toString();sharedDraft="";creating=true;newEditorId=null;openMediaPicker=false;promotedQuickText=null;editorSession=java.util.UUID.randomUUID().toString()
-            })
+            screen==Screen.JOURNAL -> JournalPage(holder.savedTasks.filter{it.kind==EntryKind.NOTE},today,
+                {detailId=it.id},onWrite=::beginDiaryEntry,
+                selectedDay=LocalDate.parse(journalDay),onSelectDay={journalDay=it.toString()},
+                archived=journalArchived,onArchivedChange={journalArchived=it})
             screen==Screen.LEGACY -> LegacyPage(holder.savedTasks.filter{it.kind!=EntryKind.NOTE},{detailId=it.id})
             screen==Screen.IMPORT -> ImportPage(holder)
             screen==Screen.UPDATE -> UpdateScreen(updater,PaddingValues(0.dp))

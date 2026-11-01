@@ -63,9 +63,25 @@ class WritingUiTest {
         compose.onNodeWithText("雨停之后",substring=true).assertDoesNotExist()
         compose.onNodeWithText("日记",useUnmergedTree=true).performClick()
         compose.onNodeWithText("雨停之后",substring=true).assertIsDisplayed()
-        compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText("同一天的随手记录 · 1 条   收起"))
+        compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText("同日随记 · 1 条 · 展开"))
+        compose.onNodeWithText("同日随记 · 1 条 · 展开").performClick()
         compose.onAllNodes(hasScrollAction()).onFirst().performScrollToNode(hasText("留一点时间给喜欢的事",substring=true))
         compose.onNodeWithText("留一点时间给喜欢的事",substring=true).assertIsDisplayed()
+    }
+    @Test fun emptyDiaryDayHasNoRedundantFragmentDisclosure(){
+        setup()
+        compose.onNodeWithText("日记",useUnmergedTree=true).performClick()
+        compose.onNodeWithContentDescription("下一天").performClick()
+        compose.onNodeWithText("这一天还没写日记").assertIsDisplayed()
+        compose.onNodeWithText("同日随记",substring=true).assertDoesNotExist()
+    }
+    @Test fun searchingFromDiaryAlsoFindsOrdinaryRecords(){
+        setup()
+        compose.onNodeWithText("日记",useUnmergedTree=true).performClick()
+        compose.onNodeWithContentDescription("搜索").performClick()
+        compose.onNode(hasSetTextAction()).performTextInput("喜欢的事")
+        compose.onNodeWithText("留一点时间给喜欢的事",substring=true).assertIsDisplayed()
+        compose.onNodeWithText("雨停之后",substring=true).assertDoesNotExist()
     }
     @Test fun writingAndLegacyPreserved(){
         val store=setup()
