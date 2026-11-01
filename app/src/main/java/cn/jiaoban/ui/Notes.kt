@@ -62,6 +62,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlin.math.abs
 
 internal fun mediaFailureMessage(error: Throwable): String = when(error) {
@@ -433,7 +434,7 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
                 Text(when(day) {
                     LocalDate.now() -> "今天"
                     LocalDate.now().minusDays(1) -> "昨天"
-                    else -> day.format(DateTimeFormatter.ofPattern("M月d日 · EEEE"))
+                    else -> day.format(DateTimeFormatter.ofPattern("M月d日 · EEEE",Locale.CHINA))
                 },style=MaterialTheme.typography.labelLarge,color=c.onSurfaceVariant,modifier=Modifier.padding(start=4.dp,top=14.dp,bottom=3.dp))
             }
             items(entries,key={it.id}){note->PaperEntry(note,open,query,{onTag(it)},note.id in selectedIds,selectedIds.isNotEmpty(),onSelect,onSelect,onSwipeDelete)}

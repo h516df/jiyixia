@@ -12,5 +12,5 @@ result=${PIPESTATUS[0]}
 set -e
 adb pull /sdcard/Android/data/cn.jiaoban/files/v024-qa/. app/build/outputs/v024-device/ || true
 test "$result" -eq 0
-rg -q 'V024_PASS' app/build/outputs/v024-device/run.log
-rg -q '"passed": true' app/build/outputs/v024-device/results.json
+grep -q 'V024_PASS' app/build/outputs/v024-device/run.log
+grep -q '"passed": true' app/build/outputs/v024-device/results.json

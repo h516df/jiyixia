@@ -189,6 +189,15 @@ public class V024RegressionProbe extends Instrumentation {
             check("Undo preserves old text",record("这是一条可滑动的旧记录").isNull("deletedAt"));
 
             tap("写记录");until("记录正文");
+            boolean keyboard=false;
+            for(int i=0;i<20 && !keyboard;i++){
+                for(AccessibilityWindowInfo window:getUiAutomation().getWindows()){
+                    if(window.getType()==AccessibilityWindowInfo.TYPE_INPUT_METHOD)keyboard=true;
+                }
+                if(!keyboard && shell("dumpsys input_method").contains("mInputShown=true"))keyboard=true;
+                if(!keyboard)SystemClock.sleep(250);
+            }
+            check("One tap opens native Android keyboard",keyboard);
             String body="新的一页\n完整的第二段 🌿";
             type(body);shot("02-editor-ime");tap("完成");saved(body);
             check("One-tap writing persists multiline Unicode",record(body).getString("kind").equals("NOTE"));
