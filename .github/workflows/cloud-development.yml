@@ -47,6 +47,7 @@ jobs:
             **/build/outputs/apk/debug/*.apk
             **/build/outputs/apk/release/*-unsigned.apk
             **/build/outputs/public-update-ui/*.png
+            **/build/outputs/shiye-ui/*.png
             **/build/test-results/**/*.xml
             **/build/reports/lint-results-debug.*
           retention-days: 3

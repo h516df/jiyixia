@@ -5,6 +5,7 @@
 - **预期行为**：底部导航改用受控的 AnimatedVisibility 过渡、IME 可见时系统优先处理返回；记录/日记共用明确页标题和搜索入口，日记日期/归档状态提升到 App，写入主按钮固定底部。记录预览四行，次级回看/归档收起；日记减少重复标题、空状态和零条随记折叠，录音面板关闭前完成 SheetState 退场。
 - **待核实**：云端 Kotlin 编译、WritingUiTest/亮暗/320dp/200% 字号的实际渲染、差异/保存草稿检查均需绑定当前提交；键盘返回手势、系统录音弹窗和真实 0.19/0.21 同签名覆盖升级只能在 Android 设备上验收。原签名私钥不出 Windows；**0.21 正式 Release 保持不动，0.22 尚未发布**。具体测试和 PR 结果以本轮远端回执补充。
 - **本轮验证记录**：`git diff --check` passed、0.22 内置 `release-notes.json` 结构和版本一致性 `jq` passed；外部构建环境官方 JDK21/SDK36/Gradle9.1 下载及摘要核查 passed。但新云工作区的 Gradle 首次解析 `com.android.application:9.0.1` 被 Java/Gradle 代理/TLS 链路阻断，独立 `curl` 访问官方 Google Maven POM 为 HTTP 200；尝试配置受控 CA/代理仍失败，已停止重试。**`:app:compileDebugKotlin`、`:app:testDebugUnitTest`、Roborazzi 截图和 AndroidTest 均 not run**，不冒称新版编译通过；腾讯 DSH 主机本轮检查离线，未转派构建。需可用 Codespace/受控 runner 真正构建验证后才可原证书签 0.22 正式 APK。
+- **后续 GitHub CI 实测**：[PR #41](https://github.com/h516df/jiyixia/pull/41) 远端 head `728d53c1a3664a61457ec6798778cbc299f7b32b`；[Cloud development 41261099162](https://github.com/h516df/jiyixia/actions/runs/41261099162)（`cloud/check.sh`）BUILD SUCCESSFUL，JVM/Compose 测试、debug APK、AndroidTest APK、lint passed；[android 41261099174](https://github.com/h516df/jiyixia/actions/runs/41261099174) 的独立 debug APK 与 Windows 数据兼容检查 passed。首次 Cloud development 虽生成合成 Roborazzi 图，但旧 workflow 未将 `shiye-ui` 图片收进附件，故**尚未人工目检新 UI 图片**；当前分支加一条上传路径，等待新 CI 回读截图，不能把原工作区 Gradle 失败冒称本地通过。
 
 ---
 
