@@ -163,7 +163,7 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
                 val pending=holder.tasks.toList()
                 val busy=holder.importing
                 scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                    MediaCleanup.prune(context,candidates,durable,pending,busy)
+                    MediaCleanup.prune(context,candidates,durable,pending,busy,store.recoveryAttachmentPaths())
                 }
                 notify("已彻底删除 ${ids.size} 条内容")
             } else notify("彻底删除未完成，内容仍在回收站")
@@ -171,8 +171,9 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
     }
     fun archiveSelection() {
         val ids=selectedIds
-        holder.setArchived(ids,true) { ok ->
-            if(ok) {selectedIds=emptySet();notify("已归档 ${ids.size} 条内容")}
+        val archive=holder.savedTasks.any { it.id in ids && it.state==TaskState.OPEN }
+        holder.setArchived(ids,archive) { ok ->
+            if(ok) {selectedIds=emptySet();notify(if(archive)"已归档 ${ids.size} 条内容" else "已恢复 ${ids.size} 条归档")}
             else notify("归档失败，请重试")
         }
     }
@@ -406,8 +407,8 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
         bottomBar={if(selectedIds.isNotEmpty() && detail==null) Surface(color=MaterialTheme.colorScheme.surface) {
             Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal=8.dp,vertical=6.dp),
                 verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceEvenly) {
-                TextButton(onClick=::pinSelection){Text("置顶")}
-                TextButton(onClick=::archiveSelection){Text("归档")}
+                TextButton(onClick=::pinSelection){Text(if(holder.savedTasks.filter{it.id in selectedIds}.all{it.pinned})"取消置顶" else "置顶")}
+                TextButton(onClick=::archiveSelection){Text(if(holder.savedTasks.filter{it.id in selectedIds}.all{it.state!=TaskState.OPEN})"取消归档" else "归档")}
                 TextButton(onClick={moveToTrash(selectedIds)}){Icon(Icons.Default.Delete,null,Modifier.size(18.dp));Text("删除",color=MaterialTheme.colorScheme.error)}
             }
         }

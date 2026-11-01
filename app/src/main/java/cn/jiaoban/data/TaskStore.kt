@@ -27,6 +27,13 @@ class TaskStore(private val file: File) {
         throw IllegalStateException("记录文件及备用文件均无法读取；原文件未修改")
     }
 
+    /** A prior, recoverable snapshot may still point to media that a purge just unlinked.
+     * Null means the recovery file exists but cannot be verified, so cleanup must fail closed. */
+    fun recoveryAttachmentPaths(): Set<String>? {
+        if (!backup.exists()) return emptySet()
+        return readOrNull(backup)?.flatMap { it.attachments }?.map { it.relativePath }?.toSet()
+    }
+
     fun save(tasks: List<Task>) {
         val text = TaskCodec.encode(tasks)
         file.parentFile?.mkdirs()

@@ -3,6 +3,7 @@ package cn.jiaoban.data
 import cn.jiaoban.EntryKind
 import cn.jiaoban.Task
 import cn.jiaoban.TaskState
+import cn.jiaoban.ImportedAttachment
 import cn.jiaoban.importing.BackupPackage
 import org.junit.Assert.*
 import org.junit.Rule
@@ -48,5 +49,16 @@ class TrashPersistenceTest {
         val before=source.readBytes()
         assertTrue(runCatching { TaskStore(source).load() }.isFailure)
         assertArrayEquals(before,source.readBytes())
+    }
+
+    @Test fun recoverySnapshotProtectsMediaAfterPermanentDelete() {
+        val asset=ImportedAttachment("a".repeat(64),"photo.jpg","imports/${"a".repeat(64)}.jpg","image/jpeg",false)
+        val store=TaskStore(File(tmp.root,"records.json"))
+        store.save(listOf(note.copy(attachments=listOf(asset))))
+        store.save(emptyList())
+        assertEquals(setOf(asset.relativePath),store.recoveryAttachmentPaths())
+        // A subsequent verified snapshot makes the old asset eligible for cleanup.
+        store.save(emptyList())
+        assertEquals(emptySet<String>(),store.recoveryAttachmentPaths())
     }
 }

@@ -11,8 +11,8 @@ import cn.jiaoban.Task
  */
 object MediaCleanup {
     fun prune(context:Context,candidates:List<ImportedAttachment>,records:List<Task>,pending:List<Task> = records,
-        importing:Boolean = false):Int {
-        if(candidates.isEmpty() || importing) return 0
+        importing:Boolean = false,recoveryPaths:Set<String>?):Int {
+        if(candidates.isEmpty() || importing || recoveryPaths==null) return 0
         val app=context.applicationContext
         // An in-progress capture or a corrupted attachment draft has priority over space reclamation.
         if(VoiceSessionController.state.value.sessionId!=null) return 0
@@ -21,7 +21,7 @@ object MediaCleanup {
         val editor=app.getSharedPreferences("editor_draft_v1",Context.MODE_PRIVATE)
         val editorAssets=runCatching { AttachmentDraft.decode(editor.getString("attachments",null)) }
             .getOrElse { return 0 }
-        val protected=(records+pending).flatMap { it.attachments }.map { it.relativePath }.toSet()+
+        val protected=(records+pending).flatMap { it.attachments }.map { it.relativePath }.toSet()+recoveryPaths+
             editorAssets.map { it.relativePath }+voice.read().attachments.map { it.relativePath }
         var removed=0
         // Both photo imports and voice segments use this publisher's lock.

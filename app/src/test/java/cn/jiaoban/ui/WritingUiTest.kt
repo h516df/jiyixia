@@ -3,6 +3,7 @@ package cn.jiaoban.ui
 import android.app.Application
 import androidx.compose.ui.test.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.semantics.SemanticsActions
 import android.content.Context
 import androidx.compose.ui.test.junit4.createComposeRule
 import com.github.takahirom.roborazzi.captureRoboImage
@@ -104,8 +105,11 @@ class WritingUiTest {
     }
     @Test fun longPressDeleteThenRecoverFromRecycleBin() {
         val store=setup()
-        compose.onNodeWithText("留一点时间给喜欢的事",substring=true).performTouchInput { longClick() }
-        compose.onNodeWithText("已选 1 条").assertIsDisplayed()
+        // Exercise the accessible long-click action directly: Robolectric's synthetic
+        // touch duration can finish before Compose's long-press timeout advances.
+        compose.onNodeWithText("留一点时间给喜欢的事",substring=true)
+            .performSemanticsAction(SemanticsActions.OnLongClick)
+        compose.waitUntil(5000) { compose.onAllNodesWithText("已选 1 条").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("删除",useUnmergedTree=true).performClick()
         compose.waitUntil(10000) { store.load().single{it.id=="n1"}.deletedAt!=null }
         compose.onNodeWithText("留一点时间给喜欢的事",substring=true).assertDoesNotExist()

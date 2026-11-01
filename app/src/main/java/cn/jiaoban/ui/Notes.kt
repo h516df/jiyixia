@@ -277,7 +277,7 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
                 }
                 Text(stamp,style=MaterialTheme.typography.labelMedium,color=c.onSurfaceVariant,modifier=Modifier.weight(1f))
                 if(note.pinned && note.deletedAt==null)Text("置顶",style=MaterialTheme.typography.labelSmall,color=c.primary)
-                if(note.journalDate!=null)Text("日记",style=MaterialTheme.typography.labelSmall,color=c.primary,modifier=Modifier.padding(end=8.dp))
+                if(note.journalDate!=null)Text("日记",style=MaterialTheme.typography.labelSmall,color=c.primary,modifier=Modifier.padding(start=8.dp,end=8.dp))
                 if(note.state!=TaskState.OPEN)Text("已归档",style=MaterialTheme.typography.labelSmall,color=c.onSurfaceVariant)
             }
             if(note.text.isNotBlank())Text(note.text,style=MaterialTheme.typography.bodyLarge,maxLines=4,overflow=TextOverflow.Ellipsis)
