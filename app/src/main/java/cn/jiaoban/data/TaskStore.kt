@@ -5,6 +5,8 @@ import java.io.File
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption.ATOMIC_MOVE
 import java.nio.file.StandardCopyOption.REPLACE_EXISTING
+import org.json.JSONArray
+import java.time.Instant
 
 /**
  * 存一个 JSON 文件。写的时候先写临时文件再改名，旧文件留一份 .bak，
@@ -18,7 +20,11 @@ class TaskStore(private val file: File) {
 
     fun load(): List<Task> {
         readOrNull(file)?.let { return it }
-        return readOrNull(backup) ?: emptyList()
+        readOrNull(backup)?.let { return it }
+        if (!file.exists() && !backup.exists()) return emptyList()
+        // Corruption and an empty library are NOT equivalent. Never let a later
+        // save replace a damaged user's only surviving data with an empty list.
+        throw IllegalStateException("记录文件及备用文件均无法读取；原文件未修改")
     }
 
     fun save(tasks: List<Task>) {
@@ -51,6 +57,16 @@ class TaskStore(private val file: File) {
 
     private fun readOrNull(f: File): List<Task>? {
         if (!f.isFile) return null
-        return runCatching { TaskCodec.decode(f.readText(Charsets.UTF_8)) }.getOrNull()
+        return runCatching {
+            val raw = f.readText(Charsets.UTF_8)
+            val rows = JSONArray(raw)
+            val ids = mutableSetOf<String>()
+            for (i in 0 until rows.length()) {
+                val row = rows.getJSONObject(i)
+                require(row.getString("id").isNotBlank() && ids.add(row.getString("id")))
+                Instant.parse(row.getString("createdAt"))
+            }
+            TaskCodec.decode(raw).also { require(it.size == rows.length()) }
+        }.getOrNull()
     }
 }

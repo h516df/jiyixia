@@ -102,6 +102,22 @@ class WritingUiTest {
         compose.onNodeWithContentDescription("返回").performClick();compose.onNodeWithContentDescription("搜索").performClick();compose.onNode(hasSetTextAction()).performTextInput("细节")
         compose.onNodeWithText("读到的一句话",substring=true).assertIsDisplayed();compose.onNodeWithText("周末的小灵感",substring=true).assertDoesNotExist()
     }
+    @Test fun longPressDeleteThenRecoverFromRecycleBin() {
+        val store=setup()
+        compose.onNodeWithText("留一点时间给喜欢的事",substring=true).performTouchInput { longClick() }
+        compose.onNodeWithText("已选 1 条").assertIsDisplayed()
+        compose.onNodeWithText("删除",useUnmergedTree=true).performClick()
+        compose.waitUntil(10000) { store.load().single{it.id=="n1"}.deletedAt!=null }
+        compose.onNodeWithText("留一点时间给喜欢的事",substring=true).assertDoesNotExist()
+        compose.onNodeWithContentDescription("设置").performClick()
+        compose.onNodeWithText("回收站",substring=true).performClick()
+        compose.onNodeWithText("留一点时间给喜欢的事",substring=true).performClick()
+        compose.onNodeWithContentDescription("更多操作").performClick()
+        compose.onNodeWithText("恢复",useUnmergedTree=true).performClick()
+        compose.waitUntil(10000) { store.load().single{it.id=="n1"}.deletedAt==null }
+        assertEquals("留一点时间给喜欢的事\n散步、读书，以及认真做一顿晚饭。\n生活里的小事也值得专门留一页。 #生活",
+            store.load().single{it.id=="n1"}.text)
+    }
     @Test fun draftSurvivesTabDetailAndCompositionRecreation(){
         setup()
         compose.onNodeWithContentDescription("随手记录正文").performTextInput("还没写完的想法")

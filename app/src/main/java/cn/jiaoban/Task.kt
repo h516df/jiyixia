@@ -32,6 +32,9 @@ data class Task(
     val steps: List<TaskStep> = emptyList(),
     // A diary is still a NOTE for older readers. This date is independent of deadlines.
     val journalDate: LocalDate? = null,
+    // Null means visible (possibly archived); non-null means in the recycle bin.
+    // Archive and deletion are intentionally independent concepts.
+    val deletedAt: Instant? = null,
     val importInfo: ImportInfo? = null,
     val importedTags: List<String> = emptyList(),
     val attachments: List<ImportedAttachment> = emptyList(),

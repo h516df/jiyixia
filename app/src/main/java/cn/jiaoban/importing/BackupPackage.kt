@@ -22,7 +22,7 @@ object BackupPackage {
     fun export(records:List<Task>,filesDir:File,output:OutputStream) {
         require(records.size<=ImportBundle.MAX_RECORDS){"记录超过当前完整备份的 5000 条上限，导出未完成"}
         val metadata=linkedMapOf(
-            "manifest.json" to JSONObject().put("format","shiye-backup").put("version",1).toString().toByteArray(),
+            "manifest.json" to JSONObject().put("format","shiye-backup").put("version",2).toString().toByteArray(),
             "records.json" to TaskCodec.encode(records).toByteArray())
         require(metadata.values.all{it.size<=MAX_METADATA}){"备份记录文件过大"}
         val attachments=records.flatMap{it.attachments}
@@ -116,10 +116,10 @@ object BackupPackage {
     private fun parseMetadata(manifestBytes:ByteArray,recordBytes:ByteArray):List<Task> {
         require(manifestBytes.size<=MAX_METADATA && recordBytes.size<=MAX_METADATA){"备份记录文件过大"}
         val manifest=JSONObject(manifestBytes.toString(Charsets.UTF_8))
-        require(manifest.getString("format")=="shiye-backup" && manifest.getInt("version")==1){"不支持的记一下备份版本"}
+        require(manifest.getString("format")=="shiye-backup" && manifest.getInt("version") in 1..2){"不支持的记一下备份版本"}
         val raw=recordBytes.toString(Charsets.UTF_8)
         val rows=JSONArray(raw);require(rows.length()<=ImportBundle.MAX_RECORDS){"备份条目过多"};val ids=mutableSetOf<String>()
-        for(i in 0 until rows.length()){val o=rows.getJSONObject(i);require(o.getString("id").isNotBlank() && ids.add(o.getString("id"))){"记录ID缺失或重复"};o.getString("text");Instant.parse(o.getString("createdAt"));cn.jiaoban.EntryKind.valueOf(o.getString("kind"));cn.jiaoban.TaskState.valueOf(o.getString("state"));if(!o.isNull("journalDate"))java.time.LocalDate.parse(o.getString("journalDate"))}
+        for(i in 0 until rows.length()){val o=rows.getJSONObject(i);require(o.getString("id").isNotBlank() && ids.add(o.getString("id"))){"记录ID缺失或重复"};o.getString("text");Instant.parse(o.getString("createdAt"));cn.jiaoban.EntryKind.valueOf(o.getString("kind"));cn.jiaoban.TaskState.valueOf(o.getString("state"));if(!o.isNull("journalDate"))java.time.LocalDate.parse(o.getString("journalDate"));if(o.has("deletedAt") && !o.isNull("deletedAt"))Instant.parse(o.getString("deletedAt"))}
         val records=TaskCodec.decode(raw);require(records.size==rows.length()){ "备份条目不完整" }
         require(sameJson(rows,JSONArray(TaskCodec.encode(records)))){"备份字段损坏或版本不兼容，未恢复任何记录"}
         return records

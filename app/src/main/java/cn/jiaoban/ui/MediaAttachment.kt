@@ -4,12 +4,15 @@ import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clip
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -31,19 +34,68 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.Locale
 
-private fun audioTime(ms: Long): String {
+internal fun audioTime(ms: Long): String {
     val seconds = (ms.coerceAtLeast(0) / 1_000)
     return if (seconds >= 3_600) String.format(Locale.ROOT, "%d:%02d:%02d", seconds / 3_600, seconds / 60 % 60, seconds % 60)
     else String.format(Locale.ROOT, "%d:%02d", seconds / 60, seconds % 60)
 }
 
-private fun audioDuration(file: File): Long = runCatching {
+internal fun audioDuration(file: File): Long = runCatching {
     val retriever = MediaMetadataRetriever()
     try {
         retriever.setDataSource(file.absolutePath)
         retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
     } finally { retriever.release() }
 }.getOrDefault(0L)
+
+/** Small, bounded images for the timeline; never decode a full camera photo on the UI thread. */
+@Composable internal fun TimelineMediaPreviews(attachments:List<ImportedAttachment>) {
+    val media=attachments.filter { it.mimeType.startsWith("image/") || it.mimeType.startsWith("video/") }.take(3)
+    if(media.isEmpty()) return
+    Row(horizontalArrangement=Arrangement.spacedBy(6.dp)) {
+        media.forEach { entry ->
+            val context=LocalContext.current
+            val bitmap by produceState<android.graphics.Bitmap?>(null,entry.relativePath) {
+                value=withContext(Dispatchers.IO) {
+                    runCatching {
+                        val file=MediaStorage.file(context.filesDir,entry.relativePath)
+                        if(!file.isFile) return@runCatching null
+                        if(entry.mimeType.startsWith("image/")) {
+                            val bounds=BitmapFactory.Options().apply { inJustDecodeBounds=true }
+                            BitmapFactory.decodeFile(file.path,bounds)
+                            var sample=1
+                            while(bounds.outWidth/sample>300 || bounds.outHeight/sample>300) sample*=2
+                            BitmapFactory.decodeFile(file.path,BitmapFactory.Options().apply{inSampleSize=sample})
+                        } else {
+                            val retriever=MediaMetadataRetriever()
+                            try {retriever.setDataSource(file.path);retriever.getFrameAtTime(0L,MediaMetadataRetriever.OPTION_CLOSEST_SYNC)}
+                            finally {retriever.release()}
+                        }
+                    }.getOrNull()
+                }
+            }
+            Box(Modifier.size(88.dp).clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment=Alignment.Center) {
+                if(bitmap!=null) Image(bitmap!!.asImageBitmap(),entry.name,Modifier.fillMaxSize(),contentScale=ContentScale.Crop)
+                else Text(if(entry.mimeType.startsWith("video/"))"视频" else "照片",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                if(entry.mimeType.startsWith("video/")) Surface(shape=RoundedCornerShape(50),color=Color.Black.copy(alpha=.5f)) {
+                    Text("▶",Modifier.padding(horizontal=10.dp,vertical=5.dp),color=Color.White)
+                }
+            }
+        }
+    }
+}
+
+@Composable internal fun TimelineAudioSummary(attachments:List<ImportedAttachment>) {
+    val context=LocalContext.current
+    val durations by produceState(0L,attachments) {
+        value=withContext(Dispatchers.IO) { attachments.sumOf {
+            runCatching { audioDuration(MediaStorage.file(context.filesDir,it.relativePath)) }.getOrDefault(0L)
+        } }
+    }
+    Text("▶  语音记录  ·  "+if(durations>0)audioTime(durations) else "时长待读取",
+        style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)
+}
 
 /** Multiple protected physical segments are one playback surface, not hundreds of file buttons. */
 @Composable

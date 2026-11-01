@@ -1,6 +1,7 @@
 package cn.jiaoban.ui
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -15,26 +16,34 @@ import androidx.compose.ui.unit.sp
 import cn.jiaoban.*
 import java.time.LocalDate
 
-@Composable internal fun WritingSettings(legacyCount:Int,onLegacy:()->Unit,onExport:()->Unit,onUpdate:()->Unit,onImport:()->Unit) {
+@Composable internal fun WritingSettings(legacyCount:Int,onLegacy:()->Unit,onExport:()->Unit,onUpdate:()->Unit,onImport:()->Unit,
+    trashCount:Int=0,onTrash:()->Unit={}) {
     val context=LocalContext.current
     val version=remember{context.packageManager.getPackageInfo(context.packageName,0).versionName}
     val c=MaterialTheme.colorScheme
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-        item {Text("安心写，慢慢积累",fontSize=24.sp,lineHeight=34.sp,fontWeight=FontWeight.Medium,modifier=Modifier.padding(vertical=16.dp))}
-        item {SettingsAction("导入记录","Obsidian、Thino DAILY、Diarium与墨记原件",onImport)}
-        item {SettingsAction("导出完整资料","记录、日记、旧版资料与附件 · ZIP 备份",onExport)}
+    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(horizontal=22.dp,vertical=16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+        item {Text("安心写，慢慢积累",fontSize=24.sp,lineHeight=34.sp,fontWeight=FontWeight.Medium,modifier=Modifier.padding(vertical=12.dp))}
+        item {Text("资料管理",style=MaterialTheme.typography.titleMedium,modifier=Modifier.padding(top=16.dp,bottom=6.dp))}
+        item {SettingsAction("回收站","$trashCount 条内容 · 删除后保留30天",onTrash)}
         if(legacyCount>0)item{SettingsAction("旧版资料","$legacyCount 条完整保留 · 只读查看",onLegacy)}
-        item {SettingsAction("检查更新","记一下 $version",onUpdate)}
+        item {Text("备份与迁移",style=MaterialTheme.typography.titleMedium,modifier=Modifier.padding(top=20.dp,bottom=6.dp))}
+        item {SettingsAction("导出完整资料","记录、日记、回收站、旧资料及附件",onExport)}
+        item {SettingsAction("导入记录","备份恢复 · Obsidian · Thino · Diarium · 墨记",onImport)}
+        item {Text("应用",style=MaterialTheme.typography.titleMedium,modifier=Modifier.padding(top=20.dp,bottom=6.dp))}
+        item {SettingsAction("检查更新","当前版本 $version",onUpdate)}
         item {HorizontalDivider(color=c.outlineVariant)}
         item {Text("关于资料",style=MaterialTheme.typography.titleSmall)}
-        item {Text("内容保存在这台设备。本应用不启用系统云备份或自动换机传输；卸载、清数据或换手机前，请主动导出完整 ZIP 并确认文件已保存。归档只收起页面，不删除文字。导出文件包含全部内容，请保存到你信任的位置。当前完整备份上限为 5000 条、单附件 1 GiB、解压总计 4 GiB（需足够本机空间）；超限会报错，不会生成声称可恢复的备份。",fontSize=14.sp,lineHeight=24.sp,color=c.onSurfaceVariant)}
+        item {Text("内容只保存在这台设备，不自动上传云端。卸载、清数据或换机前请导出完整 ZIP，并确认文件已保存。归档不会删除；回收站内容保留30天。完整备份上限 5000 条、单附件 1 GiB、解压总计 4 GiB。",fontSize=14.sp,lineHeight=24.sp,color=c.onSurfaceVariant)}
         item {Text("旧版事项的原文、来源、日期和办理记录仍完整保留。完整ZIP可在“导入记录 → 记一下完整备份”恢复缺少的内容，也兼容旧版拾页备份。请勿卸载清除资料，也不要降级覆盖。",fontSize=14.sp,lineHeight=24.sp,color=c.onSurfaceVariant)}
         item {Text("记一下\n留住想法，也留住日子。",modifier=Modifier.padding(top=24.dp,bottom=24.dp),fontSize=13.sp,lineHeight=23.sp,color=c.onSurfaceVariant)}
     }
 }
 @Composable private fun SettingsAction(title:String,subtitle:String,action:()->Unit) {
-    Surface(onClick=action,shape=RoundedCornerShape(18.dp),color=MaterialTheme.colorScheme.surface) {
-        Column(Modifier.fillMaxWidth().padding(20.dp),verticalArrangement=Arrangement.spacedBy(7.dp)) {Text(title,fontSize=17.sp,fontWeight=FontWeight.Medium);Text(subtitle,fontSize=13.sp,lineHeight=21.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)}
+    Column(Modifier.fillMaxWidth().clickable(onClick=action).padding(horizontal=4.dp,vertical=13.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+        Text(title,fontSize=17.sp,fontWeight=FontWeight.Medium)
+        Text(subtitle,fontSize=13.sp,lineHeight=21.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(3.dp))
+        HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
     }
 }
 @Composable internal fun LegacyPage(tasks:List<Task>,open:(Task)->Unit) {
