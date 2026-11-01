@@ -406,12 +406,14 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
         bottomBar={if(selectedIds.isNotEmpty() && detail==null) Surface(color=MaterialTheme.colorScheme.surface) {
             Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal=8.dp,vertical=6.dp),
                 verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceEvenly) {
-                TextButton(onClick=::pinSelection){Icon(Icons.Default.PushPin,null,Modifier.size(18.dp));Text("置顶")}
-                TextButton(onClick=::archiveSelection){Icon(Icons.Default.Archive,null,Modifier.size(18.dp));Text("归档")}
+                TextButton(onClick=::pinSelection){Text("置顶")}
+                TextButton(onClick=::archiveSelection){Text("归档")}
                 TextButton(onClick={moveToTrash(selectedIds)}){Icon(Icons.Default.Delete,null,Modifier.size(18.dp));Text("删除",color=MaterialTheme.colorScheme.error)}
             }
         }
         else if(detail==null && !searching && isMain) Column(Modifier.imePadding()) {
+            if(!showVoicePanel) MiniVoiceBar(voiceState,{showVoicePanel=true},
+                {voice.pause(context)},{voice.resume(context)})
             if(screen==Screen.NOTES) QuickComposer(quickText,::retainQuick,posting,holder.loaded,::submitQuick,
                 onRecord=::beginVoice,onMedia=::beginMediaEntry)
             if(screen==Screen.JOURNAL && !journalArchived) Surface(color=MaterialTheme.colorScheme.background) {
@@ -439,7 +441,9 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
                     }
                 }
             }
-        }},
+        }
+        else if(!showVoicePanel && voiceState.sessionId!=null) MiniVoiceBar(voiceState,{showVoicePanel=true},
+            {voice.pause(context)},{voice.resume(context)})},
 
     ) {padding->Column(Modifier.fillMaxSize().padding(padding)) {
         holder.saveError?.let {message->Surface(color=MaterialTheme.colorScheme.errorContainer) {Row(Modifier.fillMaxWidth().padding(start=20.dp),verticalAlignment=Alignment.CenterVertically){Text(message,Modifier.weight(1f));TextButton(onClick={if(quickText.isNotBlank())submitQuick() else holder.retrySave()}){Text("重试保存")}}}}

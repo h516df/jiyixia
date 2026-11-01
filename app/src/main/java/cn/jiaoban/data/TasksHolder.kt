@@ -151,9 +151,9 @@ class TasksHolder(private val store: TaskStore) {
     fun purgeTrash(ids:Set<String>, onSaved:(Boolean,List<cn.jiaoban.ImportedAttachment>)->Unit) {
         val removed=tasks.filter { it.id in ids && it.deletedAt!=null && it.kind==EntryKind.NOTE }
         if(removed.isEmpty()) { onSaved(true,emptyList());return }
-        commit(tasks.filterNot { candidate -> removed.any { it.id==candidate.id } }) { ok ->
+        commit(tasks.filterNot { candidate -> removed.any { it.id==candidate.id } },onSaved={ ok ->
             onSaved(ok,if(ok)removed.flatMap { it.attachments } else emptyList())
-        }
+        })
     }
     fun setWorkStage(id: String, stage: WorkStage) = change(id) { it.withWorkStage(stage) }
     fun addFollowUp(id: String, text: String) = change(id) { it.withFollowUp(text) }

@@ -271,12 +271,12 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
             val stamp=note.importInfo?.originalDate?.replace('T',' ') ?: (if(note.importInfo!=null)"导入于 " else "")+note.createdAt.atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("HH:mm"))
             Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
                 if(selectionMode) {
-                    Icon(if(selected)Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
-                        if(selected)"已选择" else "未选择",tint=if(selected)c.primary else c.onSurfaceVariant,
+                    if(selected) Icon(Icons.Default.CheckCircle,"已选择",tint=c.primary,
                         modifier=Modifier.padding(end=12.dp).size(22.dp))
+                    else Text("○",color=c.onSurfaceVariant,modifier=Modifier.padding(end=12.dp),fontSize=24.sp)
                 }
                 Text(stamp,style=MaterialTheme.typography.labelMedium,color=c.onSurfaceVariant,modifier=Modifier.weight(1f))
-                if(note.pinned && note.deletedAt==null)Icon(Icons.Default.PushPin,"已置顶",Modifier.size(14.dp),tint=c.primary)
+                if(note.pinned && note.deletedAt==null)Text("置顶",style=MaterialTheme.typography.labelSmall,color=c.primary)
                 if(note.journalDate!=null)Text("日记",style=MaterialTheme.typography.labelSmall,color=c.primary,modifier=Modifier.padding(end=8.dp))
                 if(note.state!=TaskState.OPEN)Text("已归档",style=MaterialTheme.typography.labelSmall,color=c.onSurfaceVariant)
             }
@@ -345,12 +345,31 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
     val c=MaterialTheme.colorScheme
     var archived by rememberSaveable{mutableStateOf(false)}
     var actionMenu by remember {mutableStateOf(false)}
+    var searchType by rememberSaveable { mutableStateOf("全部") }
     val listState=androidx.compose.foundation.lazy.rememberLazyListState()
     LaunchedEffect(savedGeneration){if(savedGeneration>0){archived=false;listState.scrollToItem(0)}}
-    val shown=notes.filter{searching || (it.state!=TaskState.OPEN)==archived}.sortedByDescending{writingSortKey(it)}
+    val shown=notes.filter{entry ->
+        (searching || (entry.state!=TaskState.OPEN)==archived) &&
+        (!searching || when(searchType) {
+            "记录" -> entry.journalDate==null
+            "日记" -> entry.journalDate!=null
+            "图片" -> entry.attachments.any{it.mimeType.startsWith("image/")}
+            "视频" -> entry.attachments.any{it.mimeType.startsWith("video/")}
+            "录音" -> entry.attachments.any{it.mimeType.startsWith("audio/")}
+            else -> true
+        })
+    }.sortedByDescending{writingSortKey(it)}
     val pinned=if(archived)emptyList() else shown.filter{it.pinned}
     val regular=shown.filterNot{it in pinned}
     LazyColumn(Modifier.fillMaxSize(),state=listState,contentPadding=PaddingValues(start=18.dp,end=18.dp,top=4.dp,bottom=28.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+        if(searching)item {
+            FlowRow(horizontalArrangement=Arrangement.spacedBy(6.dp),verticalArrangement=Arrangement.spacedBy(4.dp),
+                modifier=Modifier.padding(bottom=12.dp)) {
+                listOf("全部","记录","日记","图片","视频","录音").forEach{type->
+                    FilterChip(selected=searchType==type,onClick={searchType=type},label={Text(type)})
+                }
+            }
+        }
         if(!searching)item {
             Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
                 Text(if(archived)"已归档的记录" else "按时间回看",style=MaterialTheme.typography.labelLarge,color=c.onSurfaceVariant,modifier=Modifier.weight(1f))
@@ -398,18 +417,35 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
     val diaries=notes.filter{it.journalDate!=null && (searching || (it.state!=TaskState.OPEN)==archived)}
     val shown=diaries.filter{searching || it.journalDate==selectedDay}.sortedByDescending{writingSortKey(it)}
     val fragments=notes.filter{it.journalDate==null && it.state==TaskState.OPEN && writingDay(it)==selectedDay}.sortedBy{it.createdAt}
+    val startOfWeek=selectedDay.minusDays((selectedDay.dayOfWeek.value-1).toLong())
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=18.dp,end=18.dp,top=12.dp,bottom=28.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
         if(!searching)item {
-            Surface(shape=RoundedCornerShape(18.dp),color=c.surface) {
-                Row(Modifier.fillMaxWidth().padding(4.dp),verticalAlignment=Alignment.CenterVertically) {
-                    IconButton(onClick={onSelectDay(selectedDay.minusDays(1))}) {Icon(Icons.Default.KeyboardArrowLeft,"上一天")}
-                    Column(Modifier.weight(1f),horizontalAlignment=Alignment.CenterHorizontally) {
-                        TextButton(onClick={pickerVisible=true},contentPadding=PaddingValues(horizontal=4.dp,vertical=2.dp)) {
-                            Text(selectedDay.format(DateTimeFormatter.ofPattern("M月d日")),style=MaterialTheme.typography.titleMedium,color=c.onSurface,maxLines=1,overflow=TextOverflow.Ellipsis)
-                        }
-                        Text(selectedDay.format(DateTimeFormatter.ofPattern("EEEE")),style=MaterialTheme.typography.labelMedium,color=c.onSurfaceVariant,maxLines=1)
+            Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+                    TextButton(onClick={pickerVisible=true},modifier=Modifier.weight(1f)) {
+                        Text(selectedDay.format(DateTimeFormatter.ofPattern("yyyy年M月")),style=MaterialTheme.typography.titleMedium,color=c.onSurface)
+                        Icon(Icons.Default.KeyboardArrowDown,"选择日期",Modifier.size(18.dp))
                     }
+                    IconButton(onClick={onSelectDay(selectedDay.minusDays(1))}) {Icon(Icons.Default.KeyboardArrowLeft,"上一天")}
                     IconButton(onClick={onSelectDay(selectedDay.plusDays(1))}) {Icon(Icons.Default.KeyboardArrowRight,"下一天")}
+                }
+                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(3.dp)) {
+                    val weekdays=listOf("一","二","三","四","五","六","日")
+                    repeat(7){index->
+                        val day=startOfWeek.plusDays(index.toLong())
+                        val hasDiary=notes.any{it.journalDate==day && it.state==TaskState.OPEN}
+                        val selected=day==selectedDay
+                        Surface(onClick={onSelectDay(day)},modifier=Modifier.weight(1f),
+                            shape=RoundedCornerShape(12.dp),color=if(selected)c.primaryContainer else c.background) {
+                            Column(Modifier.padding(vertical=7.dp),horizontalAlignment=Alignment.CenterHorizontally,
+                                verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                                Text(weekdays[index],style=MaterialTheme.typography.labelSmall,color=c.onSurfaceVariant)
+                                Text(day.dayOfMonth.toString(),style=MaterialTheme.typography.bodyMedium,color=if(selected)c.primary else c.onSurface)
+                                Box(Modifier.size(4.dp).background(if(hasDiary)c.primary else Color.Transparent,
+                                    RoundedCornerShape(50)))
+                            }
+                        }
+                    }
                 }
             }
             if(selectedDay!=today)TextButton(onClick={onSelectDay(today)}){Text("回到今天")}
