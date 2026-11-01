@@ -108,7 +108,7 @@ public class V024RegressionProbe extends Instrumentation {
         if(!passed)throw new AssertionError(label+" | "+labels());
     }
     private JSONArray stored()throws Exception{
-        return new JSONArray(Files.readString(new File(getTargetContext().getFilesDir(),"tasks.json").toPath()));
+        return new JSONArray(new String(Files.readAllBytes(new File(getTargetContext().getFilesDir(),"tasks.json").toPath()),StandardCharsets.UTF_8));
     }
     private JSONObject record(String value)throws Exception{
         JSONArray rows=stored();
@@ -174,7 +174,7 @@ public class V024RegressionProbe extends Instrumentation {
             seed.put(new JSONObject().put("id","n1").put("kind","NOTE")
                 .put("text","这是一条可滑动的旧记录").put("state","OPEN")
                 .put("createdAt","2026-10-18T00:00:00Z"));
-            Files.writeString(new File(getTargetContext().getFilesDir(),"tasks.json").toPath(),seed.toString());
+            Files.write(new File(getTargetContext().getFilesDir(),"tasks.json").toPath(),seed.toString().getBytes(StandardCharsets.UTF_8));
             Intent launch=getTargetContext().getPackageManager().getLaunchIntentForPackage("cn.jiaoban");
             launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);getTargetContext().startActivity(launch);
             until("这是一条可滑动的旧记录");
@@ -214,8 +214,8 @@ public class V024RegressionProbe extends Instrumentation {
                 shell("settings put system font_scale 1.0");shell("wm size reset");shell("wm density reset");
                 if(output!=null){
                     JSONObject report=new JSONObject().put("passed",result==-1).put("failure",failure).put("checks",checks);
-                    Files.writeString(new File(output,"results.json").toPath(),report.toString(2));
-                    Files.writeString(new File(output,"instrument.log").toPath(),events.toString());
+                    Files.write(new File(output,"results.json").toPath(),report.toString(2).getBytes(StandardCharsets.UTF_8));
+                    Files.write(new File(output,"instrument.log").toPath(),events.toString().getBytes(StandardCharsets.UTF_8));
                 }
             }catch(Throwable e){result=0;failure+="; finalization "+e;}
             Bundle finish=new Bundle();finish.putString("stream",(result==-1?"V024_PASS ":"V024_FAIL ")+failure+"\n");
