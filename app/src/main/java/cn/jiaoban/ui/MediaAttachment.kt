@@ -87,15 +87,18 @@ internal fun audioDuration(file: File): Long = runCatching {
     }
 }
 
-@Composable internal fun TimelineAudioSummary(attachments:List<ImportedAttachment>) {
+@Composable internal fun TimelineAudioSummary(attachments:List<ImportedAttachment>,playing:Boolean=false,onPlay:()->Unit={},onStop:()->Unit={}) {
     val context=LocalContext.current
     val durations by produceState(0L,attachments) {
         value=withContext(Dispatchers.IO) { attachments.sumOf {
             runCatching { audioDuration(MediaStorage.file(context.filesDir,it.relativePath)) }.getOrDefault(0L)
         } }
     }
-    Text("▶  语音记录  ·  "+if(durations>0)audioTime(durations) else "时长待读取",
-        style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)
+    if(playing)AudioRecordingGroup(attachments,true,onPlay,onStop)
+    else TextButton(onClick=onPlay,contentPadding=PaddingValues(horizontal=0.dp,vertical=0.dp)) {
+        Text("▶  录音  ·  "+if(durations>0)audioTime(durations) else "—",
+            style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)
+    }
 }
 
 /** Multiple protected physical segments are one playback surface, not hundreds of file buttons. */

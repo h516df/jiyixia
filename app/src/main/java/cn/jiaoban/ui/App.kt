@@ -9,6 +9,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.*
 import androidx.compose.foundation.text.KeyboardOptions
@@ -371,6 +372,12 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
     }
     val detail = holder.savedTasks.firstOrNull { it.id == detailId }
     val isMain = screen in listOf(Screen.NOTES, Screen.JOURNAL)
+    // Keep list positions while the full reading page replaces the list, and while search opens.
+    val notesScroll=rememberLazyListState()
+    val searchScroll=rememberLazyListState()
+    val journalScroll=rememberLazyListState()
+    LaunchedEffect(journalDay,journalArchived){journalScroll.scrollToItem(0)}
+    LaunchedEffect(savedGeneration){if(savedGeneration>0)notesScroll.scrollToItem(0)}
     val searchFocus=remember { FocusRequester() }
     val keyboard=LocalSoftwareKeyboardController.current
     LaunchedEffect(searching) {
@@ -452,7 +459,7 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
                         IconButton(onClick=::beginVoice,enabled=holder.loaded,modifier=Modifier.size(46.dp)) {
                             Box(Modifier.semantics{contentDescription="开始录音"},contentAlignment=Alignment.Center){MicGlyph()}
                         }
-                        FilledIconButton(onClick={if(screen==Screen.JOURNAL) { {beginDiaryEntry(LocalDate.parse(journalDay))} } else ::beginNoteEntry},
+                        FilledIconButton(onClick={if(screen==Screen.JOURNAL)beginDiaryEntry(LocalDate.parse(journalDay)) else beginNoteEntry()},
                             enabled=holder.loaded && (screen!=Screen.JOURNAL || !journalArchived),
                             modifier=Modifier.size(46.dp).semantics { contentDescription=if(screen==Screen.JOURNAL)"写日记" else "写记录" }) {
                             Icon(Icons.Default.Add,null,Modifier.size(26.dp))
@@ -477,18 +484,18 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
             }
             !holder.loaded -> Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){CircularProgressIndicator()}
             searching -> NotesPage(holder.savedTasks.filter{it.kind==EntryKind.NOTE && it.deletedAt==null && writingMatches(it,query,null)},
-                {detailId=it.id},query=query,searching=true,selectedIds=selectedIds,onSelect=::select,onSwipeDelete={moveToTrash(setOf(it.id))})
+                {detailId=it.id},query=query,searching=true,selectedIds=selectedIds,onSelect=::select,onSwipeDelete={moveToTrash(setOf(it.id))},listState=searchScroll)
             screen==Screen.NOTES -> NotesPage(holder.savedTasks.filter{it.kind==EntryKind.NOTE && it.deletedAt==null && it.journalDate==null && writingMatches(it,"",selectedTag)},{detailId=it.id},query,false,selectedTag,{selectedTag=it},savedGeneration=savedGeneration,onReview={
                 val candidates=reviewEntries(holder.savedTasks,today)
                 val next=candidates.filter{it.id!=lastReviewed}.randomOrNull() ?: candidates.firstOrNull()
                 if(next==null)notify("还没有更早的记录。今天写下的，以后再回来看看。")
                 else {lastReviewed=next.id;detailId=next.id}
-            },selectedIds=selectedIds,onSelect=::select,onSwipeDelete={moveToTrash(setOf(it.id))})
+            },selectedIds=selectedIds,onSelect=::select,onSwipeDelete={moveToTrash(setOf(it.id))},listState=notesScroll)
             screen==Screen.JOURNAL -> JournalPage(holder.savedTasks.filter{it.kind==EntryKind.NOTE && it.deletedAt==null},today,
                 {detailId=it.id},onWrite=::beginDiaryEntry,
                 selectedDay=LocalDate.parse(journalDay),onSelectDay={journalDay=it.toString()},
                 archived=journalArchived,onArchivedChange={journalArchived=it},
-                selectedIds=selectedIds,onSelect=::select,onSwipeDelete={moveToTrash(setOf(it.id))})
+                selectedIds=selectedIds,onSelect=::select,onSwipeDelete={moveToTrash(setOf(it.id))},listState=journalScroll)
             screen==Screen.TRASH -> TrashPage(holder.savedTasks.filter{it.kind==EntryKind.NOTE && it.deletedAt!=null},
                 {detailId=it.id},::restore,{permanentConfirm=it})
             screen==Screen.LEGACY -> LegacyPage(holder.savedTasks.filter{it.kind!=EntryKind.NOTE},{detailId=it.id})

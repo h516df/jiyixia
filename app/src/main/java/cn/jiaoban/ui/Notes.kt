@@ -20,6 +20,8 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
@@ -38,6 +40,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.TextRange
@@ -272,9 +275,15 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
     onSwipeDelete:((Task)->Unit)?=null) {
     val c=MaterialTheme.colorScheme
     val haptic=LocalHapticFeedback.current
+    var playingInline by remember(note.id) {mutableStateOf(false)}
+    var widthPx by remember(note.id) {mutableFloatStateOf(1f)}
+    val stateRef=remember(note.id) {mutableStateOf<SwipeToDismissBoxState?>(null)}
     val swipeState=rememberSwipeToDismissBoxState(
         confirmValueChange={ destination ->
-            if(destination==SwipeToDismissBoxValue.EndToStart && !selectionMode && onSwipeDelete!=null && note.deletedAt==null) {
+            // Material's velocity-based fling can settle even below its positional threshold.
+            // Honor the product's explicit distance requirement, including very fast short flicks.
+            val crossed=runCatching {-(stateRef.value?.requireOffset() ?: 0f)>=widthPx*.38f}.getOrDefault(false)
+            if(destination==SwipeToDismissBoxValue.EndToStart && crossed && !selectionMode && onSwipeDelete!=null && note.deletedAt==null) {
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 onSwipeDelete(note)
             }
@@ -284,7 +293,8 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
         },
         positionalThreshold={distance->distance*.38f}
     )
-    SwipeToDismissBox(state=swipeState,modifier=Modifier.testTag("entry-${note.id}"),
+    SideEffect {stateRef.value=swipeState}
+    SwipeToDismissBox(state=swipeState,modifier=Modifier.testTag("entry-${note.id}").onSizeChanged{widthPx=it.width.toFloat()},
         enableDismissFromStartToEnd=false,
         enableDismissFromEndToStart=onSwipeDelete!=null && !selectionMode && note.deletedAt==null,
         backgroundContent={
@@ -314,7 +324,8 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
             if(note.text.isNotBlank())Text(note.text,style=MaterialTheme.typography.bodyLarge,maxLines=4,overflow=TextOverflow.Ellipsis)
             val voiceCount=note.attachments.count{it.mimeType.startsWith("audio/")}
             TimelineMediaPreviews(note.attachments)
-            if(voiceCount>0)TimelineAudioSummary(note.attachments.filter{it.mimeType.startsWith("audio/")})
+            if(voiceCount>0)TimelineAudioSummary(note.attachments.filter{it.mimeType.startsWith("audio/")},playingInline,
+                {playingInline=true},{playingInline=false})
             val tags=(writingTags(note.text)+note.importedTags).distinct()
             if(!selectionMode && tags.isNotEmpty() && onTag!=null)FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 tags.forEach {tag->SuggestionChip(onClick={onTag(tag)},label={Text("#$tag",style=MaterialTheme.typography.labelMedium)},border=null,colors=SuggestionChipDefaults.suggestionChipColors(containerColor=c.primaryContainer.copy(alpha=.5f)))}
@@ -368,13 +379,13 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
 }
 
 @Composable internal fun NotesPage(notes:List<Task>,open:(Task)->Unit,query:String="",searching:Boolean=false,selectedTag:String?=null,onTag:(String?)->Unit={},savedGeneration:Int=0,onReview:()->Unit={},
-    selectedIds:Set<String> = emptySet(),onSelect:(Task)->Unit={},onSwipeDelete:((Task)->Unit)?=null) {
+    selectedIds:Set<String> = emptySet(),onSelect:(Task)->Unit={},onSwipeDelete:((Task)->Unit)?=null,
+    listState:LazyListState=rememberLazyListState()) {
     val c=MaterialTheme.colorScheme
     var archived by rememberSaveable{mutableStateOf(false)}
     var actionMenu by remember {mutableStateOf(false)}
     var searchType by rememberSaveable { mutableStateOf("全部") }
-    val listState=androidx.compose.foundation.lazy.rememberLazyListState()
-    LaunchedEffect(savedGeneration){if(savedGeneration>0){archived=false;listState.scrollToItem(0)}}
+    LaunchedEffect(savedGeneration){if(savedGeneration>0)archived=false}
     val shown=notes.filter{entry ->
         (searching || (entry.state!=TaskState.OPEN)==archived) &&
         (!searching || when(searchType) {
@@ -436,7 +447,8 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
     notes:List<Task>,today:LocalDate,open:(Task)->Unit,searching:Boolean=false,
     onWrite:(LocalDate)->Unit={},selectedDay:LocalDate=today,onSelectDay:(LocalDate)->Unit={},
     archived:Boolean=false,onArchivedChange:(Boolean)->Unit={}
-    ,selectedIds:Set<String> = emptySet(),onSelect:(Task)->Unit={},onSwipeDelete:((Task)->Unit)?=null
+    ,selectedIds:Set<String> = emptySet(),onSelect:(Task)->Unit={},onSwipeDelete:((Task)->Unit)?=null,
+    listState:LazyListState=rememberLazyListState()
 ) {
     val c=MaterialTheme.colorScheme
     var pickerVisible by remember{mutableStateOf(false)}
@@ -445,7 +457,7 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
     val shown=diaries.filter{searching || it.journalDate==selectedDay}.sortedByDescending{writingSortKey(it)}
     val fragments=notes.filter{it.journalDate==null && it.state==TaskState.OPEN && writingDay(it)==selectedDay}.sortedBy{it.createdAt}
     val startOfWeek=selectedDay.minusDays((selectedDay.dayOfWeek.value-1).toLong())
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=18.dp,end=18.dp,top=12.dp,bottom=28.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
+    LazyColumn(Modifier.fillMaxSize(),state=listState,contentPadding=PaddingValues(start=18.dp,end=18.dp,top=12.dp,bottom=28.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
         if(!searching)item {
             Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
                 Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
