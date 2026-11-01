@@ -5,6 +5,7 @@ import android.media.MediaMetadataRetriever
 import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -86,15 +87,18 @@ internal fun audioDuration(file: File): Long = runCatching {
     }
 }
 
-@Composable internal fun TimelineAudioSummary(attachments:List<ImportedAttachment>) {
+@Composable internal fun TimelineAudioSummary(attachments:List<ImportedAttachment>,playing:Boolean=false,onPlay:()->Unit={},onStop:()->Unit={}) {
     val context=LocalContext.current
     val durations by produceState(0L,attachments) {
         value=withContext(Dispatchers.IO) { attachments.sumOf {
             runCatching { audioDuration(MediaStorage.file(context.filesDir,it.relativePath)) }.getOrDefault(0L)
         } }
     }
-    Text("▶  语音记录  ·  "+if(durations>0)audioTime(durations) else "时长待读取",
-        style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)
+    if(playing)AudioRecordingGroup(attachments,true,onPlay,onStop)
+    else TextButton(onClick=onPlay,contentPadding=PaddingValues(horizontal=0.dp,vertical=0.dp)) {
+        Text("▶  录音  ·  "+if(durations>0)audioTime(durations) else "—",
+            style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)
+    }
 }
 
 /** Multiple protected physical segments are one playback surface, not hundreds of file buttons. */
@@ -200,7 +204,8 @@ internal fun AudioRecordingGroup(
 
 /** Local bounded preview. No URL fetching, automatic playback, or background audio. */
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
-@Composable internal fun MediaAttachment(attachment: ImportedAttachment, playing: Boolean, onPlay: () -> Unit, onStop: () -> Unit) {
+@Composable internal fun MediaAttachment(attachment: ImportedAttachment, playing: Boolean, onPlay: () -> Unit, onStop: () -> Unit,
+    onImageTap:(()->Unit)?=null) {
     val context = LocalContext.current
     val file = remember(attachment.relativePath) { runCatching { MediaStorage.file(context.filesDir, attachment.relativePath) }.getOrNull() }
     val image = attachment.mimeType.startsWith("image/")
@@ -222,7 +227,8 @@ internal fun AudioRecordingGroup(
             style = MaterialTheme.typography.labelMedium)
         if (file?.isFile != true) Text("附件暂时无法读取，原记录未改动", color = MaterialTheme.colorScheme.error)
         else if (image) {
-            bitmap?.let { Image(it.asImageBitmap(), "照片预览：${attachment.name}", Modifier.fillMaxWidth().heightIn(max = 240.dp), contentScale = ContentScale.Fit) }
+            bitmap?.let { Image(it.asImageBitmap(), "照片预览：${attachment.name}", Modifier.fillMaxWidth().heightIn(max = 240.dp)
+                .clickable { onImageTap?.invoke() }, contentScale = ContentScale.Fit) }
                 ?: Text("预览不可用；原文件仍保留", style = MaterialTheme.typography.bodySmall)
         } else if (playable) {
             if (playing) {

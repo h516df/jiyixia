@@ -44,18 +44,26 @@ class MediaEditorUiTest {
     }
     private fun shot(name:String) { compose.waitForIdle();val file=File("build/outputs/shiye-media-ui/$name.png");file.parentFile.mkdirs();compose.onRoot().captureRoboImage(file.absolutePath) }
     @Test fun mediaOnlyDraftSurvivesRecreationAndSaves() {
-        setup();compose.onNodeWithText("录音").assertIsDisplayed();compose.onNodeWithText("照片 / 视频").assertIsDisplayed()
+        setup();compose.onNodeWithContentDescription("录音").assertIsDisplayed();compose.onNodeWithContentDescription("添加照片或视频").assertIsDisplayed()
         compose.runOnIdle { epoch++ };compose.waitForIdle()
-        compose.onNode(hasText("保存") and hasClickAction()).assertIsEnabled().performClick()
+        compose.onNode(hasText("完成") and hasClickAction()).assertIsEnabled().performClick()
         assertEquals("image/png",saved!!.single().mimeType)
         shot("editor-light")
+    }
+    @Test fun imageOpensFullScreenViewerAndReturnsToEditor() {
+        setup()
+        compose.onNodeWithContentDescription("照片预览：合成照片.png").performClick()
+        compose.onNodeWithText("1 / 1").assertIsDisplayed()
+        shot("photo-fullscreen")
+        compose.onNodeWithContentDescription("关闭图片").performClick()
+        compose.onNodeWithContentDescription("记录正文").assertIsDisplayed()
     }
     @Test @Config(qualifiers="zh-rCN-w320dp-h900dp-night-xhdpi") fun mediaEditorDarkLarge() { setup(2f);shot("editor-dark-320-font200") }
     @Test @Config(qualifiers="zh-rCN-w320dp-h900dp-xhdpi") fun mediaEditorLightLarge() { setup(2f);shot("editor-light-320-font200") }
     @Test fun removingLastAttachmentDisablesEmptySaveAndPersists() {
         setup();compose.onNodeWithText("从这一页移除").performScrollTo().performClick()
-        compose.onNode(hasText("保存") and hasClickAction()).assertIsNotEnabled()
-        compose.runOnIdle { epoch++ };compose.waitForIdle();compose.onNode(hasText("保存") and hasClickAction()).assertIsNotEnabled()
+        compose.onNode(hasText("完成") and hasClickAction()).assertIsNotEnabled()
+        compose.runOnIdle { epoch++ };compose.waitForIdle();compose.onNode(hasText("完成") and hasClickAction()).assertIsNotEnabled()
         val raw=RuntimeEnvironment.getApplication().getSharedPreferences("editor_draft_v1",Context.MODE_PRIVATE).getString("attachments",null)
         assertTrue(AttachmentDraft.decode(raw).isEmpty())
     }

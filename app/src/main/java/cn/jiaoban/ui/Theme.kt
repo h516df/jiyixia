@@ -11,58 +11,59 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-// A warm paper-and-pine system. Hierarchy comes from type and spacing, not shadows.
-private val Paper = Color(0xFFF5F4EF)
-private val PaperNight = Color(0xFF191D1C)
-private val Ink = Color(0xFF263A34)
-private val InkSoft = Color(0xFF596A60)
-private val Pine = Color(0xFF486859)
-private val SurfacePaper = Color(0xFFFFFEFA)
+// Neutral Notes / Journal palette: contrast and typographic hierarchy first.
+// The amber tint is intentionally reserved for active controls; photos supply color.
+private val Paper = Color(0xFFF8F8F7)
+private val PaperNight = Color(0xFF151515)
+private val Ink = Color(0xFF1D1D1F)
+private val InkSoft = Color(0xFF747477)
+private val Accent = Color(0xFF936317)
+private val SurfacePaper = Color(0xFFFFFFFF)
 
 private val LightColors = lightColorScheme(
-    primary = Pine,
+    primary = Accent,
     onPrimary = Color.White,
-    secondary = Pine,
+    secondary = Accent,
     onSecondary = Color.White,
     background = Paper,
     onBackground = Ink,
     surface = SurfacePaper,
     onSurface = Ink,
-    surfaceVariant = Color(0xFFEAEDE7),
+    surfaceVariant = Color(0xFFF1F1EF),
     onSurfaceVariant = InkSoft,
-    primaryContainer = Color(0xFFDEE8DC),
-    onPrimaryContainer = Color(0xFF294638),
-    secondaryContainer = Color(0xFFE8E6DC),
-    onSecondaryContainer = Color(0xFF4B5745),
-    outline = Color(0xFF8D9C91),
-    outlineVariant = Color(0xFFDDE3DB),
+    primaryContainer = Color(0xFFFFF0D4),
+    onPrimaryContainer = Color(0xFF684308),
+    secondaryContainer = Color(0xFFF4F1EA),
+    onSecondaryContainer = Color(0xFF47433D),
+    outline = Color(0xFFA2A2A6),
+    outlineVariant = Color(0xFFE8E8EB),
 )
 
 private val DarkColors = darkColorScheme(
-    primary = Color(0xFFB3CBB6),
-    onPrimary = Color(0xFF213C2E),
-    primaryContainer = Color(0xFF314B3C),
-    onPrimaryContainer = Color(0xFFDCEBD8),
-    secondary = Color(0xFF7CC4AE),
-    onSecondary = Color(0xFF07231C),
+    primary = Color(0xFFE5B96B),
+    onPrimary = Color(0xFF3F2603),
+    primaryContainer = Color(0xFF4B371B),
+    onPrimaryContainer = Color(0xFFFFE7B7),
+    secondary = Color(0xFFE5B96B),
+    onSecondary = Color(0xFF3F2603),
     background = PaperNight,
-    onBackground = Color(0xFFF2EBE0),
-    surface = Color(0xFF222A25),
-    onSurface = Color(0xFFF2EBE0),
-    surfaceVariant = Color(0xFF2B352E),
-    onSurfaceVariant = Color(0xFFBCC8BC),
-    secondaryContainer = Color(0xFF354338),
-    onSecondaryContainer = Color(0xFFD0DFCD),
-    outline = Color(0xFF8F9E91),
-    outlineVariant = Color(0xFF3E4D42),
+    onBackground = Color(0xFFF5F5F7),
+    surface = Color(0xFF262628),
+    onSurface = Color(0xFFF5F5F7),
+    surfaceVariant = Color(0xFF323235),
+    onSurfaceVariant = Color(0xFFB7B7BE),
+    secondaryContainer = Color(0xFF363330),
+    onSecondaryContainer = Color(0xFFD9D2C7),
+    outline = Color(0xFF8B8B91),
+    outlineVariant = Color(0xFF414144),
 )
 
 private val WritingTypography = Typography(
     headlineSmall = TextStyle(fontSize = 25.sp, lineHeight = 33.sp, fontWeight = FontWeight.Medium),
     titleLarge = TextStyle(fontSize = 23.sp, lineHeight = 31.sp, fontWeight = FontWeight.Medium),
     titleMedium = TextStyle(fontSize = 18.sp, lineHeight = 26.sp, fontWeight = FontWeight.Medium),
-    bodyLarge = TextStyle(fontSize = 17.sp, lineHeight = 28.sp, fontWeight = FontWeight.Normal),
-    bodyMedium = TextStyle(fontSize = 15.sp, lineHeight = 24.sp, fontWeight = FontWeight.Normal),
+    bodyLarge = TextStyle(fontSize = 17.sp, lineHeight = 26.sp, fontWeight = FontWeight.Normal),
+    bodyMedium = TextStyle(fontSize = 15.sp, lineHeight = 23.sp, fontWeight = FontWeight.Normal),
     labelMedium = TextStyle(fontSize = 13.sp, lineHeight = 19.sp, fontWeight = FontWeight.Medium),
     labelSmall = TextStyle(fontSize = 12.sp, lineHeight = 17.sp, fontWeight = FontWeight.Normal),
 )

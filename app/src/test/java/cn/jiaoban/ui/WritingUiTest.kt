@@ -2,6 +2,7 @@ package cn.jiaoban.ui
 
 import android.app.Application
 import androidx.compose.ui.test.*
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.runtime.*
 import androidx.compose.ui.semantics.SemanticsActions
 import android.content.Context
@@ -89,7 +90,7 @@ class WritingUiTest {
         compose.onNodeWithText("日记",useUnmergedTree=true).performClick()
         compose.onNodeWithContentDescription("写日记").performClick()
         compose.onNode(hasSetTextAction()).performTextInput("今天的新日记\n完整的第二行 🌿")
-        compose.onNodeWithText("保存",useUnmergedTree=true).performClick()
+        compose.onNodeWithText("完成",useUnmergedTree=true).performClick()
         compose.waitUntil(10000){store.load().any{it.text.startsWith("今天的新日记")}}
         val saved=store.load().single{it.text.startsWith("今天的新日记")}
         assertEquals(today,saved.journalDate);assertEquals(EntryKind.NOTE,saved.kind);assertEquals(old,store.load().single{it.id=="legacy"})
@@ -122,18 +123,26 @@ class WritingUiTest {
         assertEquals("留一点时间给喜欢的事\n散步、读书，以及认真做一顿晚饭。\n生活里的小事也值得专门留一页。 #生活",
             store.load().single{it.id=="n1"}.text)
     }
-    @Test fun draftSurvivesTabDetailAndCompositionRecreation(){
+    @Test fun oneLeftSwipeDeletesAndUndoRestoresWithoutSecondTap() {
+        val store=setup()
+        compose.onNodeWithTag("entry-n2").performTouchInput {
+            swipe(start=Offset(width*.80f,height*.5f),end=Offset(width*.64f,height*.5f),durationMillis=250)
+        }
+        compose.waitForIdle()
+        assertNull("Short swipe must rebound",store.load().single{it.id=="n2"}.deletedAt)
+        compose.onNodeWithTag("entry-n2").performTouchInput {swipeLeft(durationMillis=350)}
+        compose.waitUntil(10000){store.load().single{it.id=="n2"}.deletedAt!=null}
+        compose.onNodeWithText("撤销").performClick()
+        compose.waitUntil(10000){store.load().single{it.id=="n2"}.deletedAt==null}
+        assertEquals("读到的一句话\n把日子过得缓慢一点，细节就会浮现。",store.load().single{it.id=="n2"}.text)
+    }
+    @Test fun oneTapEditorDraftSurvivesCompositionRecreation(){
         setup()
-        compose.onNodeWithContentDescription("随手记录正文").performTextInput("还没写完的想法")
-        compose.onNodeWithText("日记",useUnmergedTree=true).performClick()
-        compose.onNodeWithText("记录",useUnmergedTree=true).performClick()
-        compose.onNodeWithContentDescription("随手记录正文").assertTextContains("还没写完的想法")
-        compose.onNodeWithText("留一点时间给喜欢的事",substring=true).performClick()
-        compose.onNodeWithContentDescription("返回").performClick()
-        compose.onNodeWithContentDescription("随手记录正文").assertTextContains("还没写完的想法")
+        compose.onNodeWithContentDescription("写记录").performClick()
+        compose.onNodeWithContentDescription("记录正文").performTextInput("还没写完的想法")
         compose.runOnIdle{epoch++}
-        compose.waitUntil(10000){compose.onAllNodesWithContentDescription("随手记录正文").fetchSemanticsNodes().isNotEmpty()}
-        compose.onNodeWithContentDescription("随手记录正文").assertTextContains("还没写完的想法")
+        compose.waitUntil(10000){compose.onAllNodesWithContentDescription("记录正文").fetchSemanticsNodes().isNotEmpty()}
+        compose.onNodeWithContentDescription("记录正文").assertTextContains("还没写完的想法")
     }
     @Test fun fullEditorDraftSurvivesFreshComposition(){
         val store=setup()
@@ -143,19 +152,20 @@ class WritingUiTest {
         compose.runOnIdle{epoch++}
         compose.waitUntil(10000){compose.onAllNodesWithText("补记的半篇日记").fetchSemanticsNodes().isNotEmpty()}
         compose.onNode(hasSetTextAction() and hasText("补记的半篇日记")).assertIsDisplayed()
-        compose.onNodeWithText("保存",useUnmergedTree=true).performClick()
+        compose.onNodeWithText("完成",useUnmergedTree=true).performClick()
         compose.waitUntil(10000){store.load().any{it.text=="补记的半篇日记"}}
     }
-    @Test fun failedQuickWriteKeepsDraftAndRetryIsSingleRecord(){
+    @Test fun failedEditorWriteKeepsDraftAndRetryIsSingleRecord(){
         val store=setup();val blocker=File(dataFile.path+".tmp");assertTrue(blocker.mkdir())
-        compose.onNodeWithContentDescription("随手记录正文").performTextInput("失败也不能丢的想法")
-        compose.onNodeWithText("记下",useUnmergedTree=true).performClick()
-        compose.waitUntil(10000){compose.onAllNodesWithText("重试保存").fetchSemanticsNodes().isNotEmpty()}
-        compose.onNodeWithContentDescription("随手记录正文").assertTextContains("失败也不能丢的想法")
+        compose.onNodeWithContentDescription("写记录").performClick()
+        compose.onNodeWithContentDescription("记录正文").performTextInput("失败也不能丢的想法")
+        compose.onNodeWithText("完成",useUnmergedTree=true).performClick()
+        compose.waitUntil(10000){compose.onAllNodesWithText("保存失败，文字和附件仍在，请重试").fetchSemanticsNodes().isNotEmpty()}
+        compose.onNodeWithContentDescription("记录正文").assertTextContains("失败也不能丢的想法")
         compose.onNodeWithText("已记下").assertDoesNotExist()
         assertFalse(store.load().any{it.text=="失败也不能丢的想法"})
         assertTrue(blocker.delete())
-        compose.onNodeWithText("重试保存").performClick()
+        compose.onNodeWithText("完成",useUnmergedTree=true).performClick()
         compose.waitUntil(10000){store.load().any{it.text=="失败也不能丢的想法"}}
         assertEquals(1,store.load().count{it.text=="失败也不能丢的想法"})
     }
@@ -168,8 +178,8 @@ class WritingUiTest {
         io.execute{gate.await(30,java.util.concurrent.TimeUnit.SECONDS)}
         try {
             compose.runOnIdle{incoming="在途第一份正文"}
-            compose.waitUntil(10000){compose.onAllNodesWithText("保存",useUnmergedTree=true).fetchSemanticsNodes().isNotEmpty()}
-            compose.onNodeWithText("保存",useUnmergedTree=true).performClick()
+            compose.waitUntil(10000){compose.onAllNodesWithText("完成",useUnmergedTree=true).fetchSemanticsNodes().isNotEmpty()}
+            compose.onNodeWithText("完成",useUnmergedTree=true).performClick()
             compose.runOnIdle{epoch++}
             compose.waitUntil(10000){compose.onAllNodesWithText("保存中…",useUnmergedTree=true).fetchSemanticsNodes().isNotEmpty()}
             compose.onNode(hasText("在途第一份正文")).assertIsNotEnabled()
@@ -181,7 +191,7 @@ class WritingUiTest {
         compose.waitUntil(10000){compose.onAllNodesWithText("打开分享").fetchSemanticsNodes().singleOrNull()?.config?.contains(androidx.compose.ui.semantics.SemanticsProperties.Disabled)==false}
         compose.onNodeWithText("打开分享").performClick()
         compose.onNode(hasText("第二份分享正文") and hasSetTextAction()).assertIsDisplayed()
-        compose.onNodeWithText("保存",useUnmergedTree=true).performClick()
+        compose.onNodeWithText("完成",useUnmergedTree=true).performClick()
         compose.waitUntil(10000){store.load().any{it.text=="第二份分享正文"}}
         assertEquals(1,store.load().count{it.text=="在途第一份正文"})
         assertEquals(1,store.load().count{it.text=="第二份分享正文"})
@@ -192,14 +202,15 @@ class WritingUiTest {
         compose.onNodeWithText("编辑").performClick()
         compose.onNode(hasSetTextAction()).performTextReplacement("应当放弃的修改")
         val blocker=File(dataFile.path+".tmp");assertTrue(blocker.mkdir())
-        compose.onNodeWithText("保存",useUnmergedTree=true).performClick()
+        compose.onNodeWithText("完成",useUnmergedTree=true).performClick()
         compose.waitUntil(10000){compose.onAllNodesWithText("保存失败，文字和附件仍在，请重试").fetchSemanticsNodes().isNotEmpty()}
         compose.onNodeWithContentDescription("关闭笔记").performClick()
         compose.onNodeWithText("放弃改动").performClick()
         compose.onNodeWithContentDescription("返回").performClick()
         assertTrue(blocker.delete())
-        compose.onNodeWithContentDescription("随手记录正文").performTextInput("另外一条独立记录")
-        compose.onNodeWithText("记下",useUnmergedTree=true).performClick()
+        compose.onNodeWithContentDescription("写记录").performClick()
+        compose.onNodeWithContentDescription("记录正文").performTextInput("另外一条独立记录")
+        compose.onNodeWithText("完成",useUnmergedTree=true).performClick()
         compose.waitUntil(10000){store.load().any{it.text=="另外一条独立记录"}}
         assertEquals(original,store.load().single{it.id=="n1"})
         assertFalse(store.load().any{it.text=="应当放弃的修改"})
@@ -207,26 +218,28 @@ class WritingUiTest {
     @Test fun failedEditorThenNewShareDoesNotReuseOldId(){
         val store=setup();val blocker=File(dataFile.path+".tmp");assertTrue(blocker.mkdir())
         compose.runOnIdle{incoming="第一份分享"}
-        compose.waitUntil(10000){compose.onAllNodesWithText("保存",useUnmergedTree=true).fetchSemanticsNodes().isNotEmpty()}
-        compose.onNodeWithText("保存",useUnmergedTree=true).performClick()
+        compose.waitUntil(10000){compose.onAllNodesWithText("完成",useUnmergedTree=true).fetchSemanticsNodes().isNotEmpty()}
+        compose.onNodeWithText("完成",useUnmergedTree=true).performClick()
         compose.waitUntil(10000){compose.onAllNodesWithText("保存失败，文字和附件仍在，请重试").fetchSemanticsNodes().isNotEmpty()}
         compose.runOnIdle{incoming="第二份分享"}
         compose.waitUntil(10000){compose.onAllNodesWithText("打开分享").fetchSemanticsNodes().isNotEmpty()}
         compose.onNodeWithText("打开分享").performClick();assertTrue(blocker.delete())
         compose.onNode(hasSetTextAction() and hasText("第二份分享")).assertIsDisplayed()
-        compose.onNodeWithText("保存",useUnmergedTree=true).performClick()
+        compose.onNodeWithText("完成",useUnmergedTree=true).performClick()
         compose.waitUntil(10000){store.load().any{it.text=="第二份分享"}}
         val records=store.load().filter{it.text.endsWith("份分享")}
         assertEquals(1,records.size);assertEquals("第二份分享",records.single().text)
     }
     @Test fun quickSaveAndNextRecord(){
         val store=setup()
-        compose.onNodeWithContentDescription("随手记录正文").performTextInput("一闪而过的想法 #随手记")
-        compose.onNodeWithText("记下",useUnmergedTree=true).performClick()
+        compose.onNodeWithContentDescription("写记录").performClick()
+        compose.onNodeWithContentDescription("记录正文").performTextInput("一闪而过的想法 #随手记")
+        compose.onNodeWithText("完成",useUnmergedTree=true).performClick()
         compose.waitUntil(10000){store.load().any{it.text=="一闪而过的想法 #随手记"}}
         compose.waitForIdle()
-        compose.onNodeWithContentDescription("随手记录正文").performTextInput("紧接着的第二条")
-        compose.onNodeWithText("记下",useUnmergedTree=true).performClick()
+        compose.onNodeWithContentDescription("写记录").performClick()
+        compose.onNodeWithContentDescription("记录正文").performTextInput("紧接着的第二条")
+        compose.onNodeWithText("完成",useUnmergedTree=true).performClick()
         compose.waitUntil(10000){store.load().any{it.text=="紧接着的第二条"}}
         assertEquals(1,store.load().count{it.text=="一闪而过的想法 #随手记"})
         assertEquals(1,store.load().count{it.text=="紧接着的第二条"})

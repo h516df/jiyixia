@@ -49,12 +49,12 @@ class CoreEntryUiTest {
         assertTrue(compose.onNodeWithContentDescription("记录正文").fetchSemanticsNode().boundsInWindow.height>80f)
         val output=File("build/outputs/core-ui/keyboard-entry.png");output.parentFile.mkdirs()
         compose.onNode(isDialog()).captureRoboImage(output.absolutePath)
-        compose.onNode(hasText("保存") and hasClickAction()).performClick()
+        compose.onNode(hasText("完成") and hasClickAction()).performClick()
         val store=TaskStore(File(compose.activity.filesDir,"tasks.json"))
         compose.waitUntil(10000){store.load().any{it.text.startsWith("合成测试：")}}
         compose.onNodeWithText("合成测试：键盘打开也能写字",substring=true).performClick()
-        compose.onNodeWithText("合成测试：键盘打开也能写字").assertIsDisplayed()
-        compose.onNodeWithText("保留第二行").assertIsDisplayed()
+        compose.onNodeWithText("合成测试：键盘打开也能写字",substring=true).assertIsDisplayed()
+        compose.onNodeWithText("保留第二行",substring=true).assertIsDisplayed()
     }
     @Test fun actualPickerResultCopiesThenSavesImageOnlyDiary() {
         open()
@@ -63,7 +63,7 @@ class CoreEntryUiTest {
         original.outputStream().use {Bitmap.createBitmap(40,40,Bitmap.Config.ARGB_8888).apply{eraseColor(android.graphics.Color.GREEN)}.compress(Bitmap.CompressFormat.PNG,100,it)}
         val before=original.readBytes()
         val uri=FileProvider.getUriForFile(compose.activity,"cn.jiaoban.imports",original)
-        compose.onNodeWithText("照片 / 视频").performClick()
+        compose.onNodeWithContentDescription("添加照片或视频").performClick()
         compose.runOnIdle {
             val shadow=shadowOf(compose.activity)
             val request=shadow.nextStartedActivityForResult
@@ -71,7 +71,7 @@ class CoreEntryUiTest {
             shadow.receiveResult(request.intent,Activity.RESULT_OK,Intent().setData(uri))
         }
         compose.waitUntil(10000){compose.onAllNodesWithText("从这一页移除").fetchSemanticsNodes().isNotEmpty()}
-        compose.onNode(hasText("保存") and hasClickAction()).assertIsEnabled().performClick()
+        compose.onNode(hasText("完成") and hasClickAction()).assertIsEnabled().performClick()
         val store=TaskStore(File(compose.activity.filesDir,"tasks.json"))
         compose.waitUntil(10000){store.load().any{it.attachments.isNotEmpty()}}
         val saved=store.load().last{it.attachments.isNotEmpty()}.attachments.single()
@@ -81,7 +81,7 @@ class CoreEntryUiTest {
     @Test fun actualPermissionCallbackBeforeResumeDoesNotBecomeFalseDenial() {
         open()
         shadowOf(RuntimeEnvironment.getApplication()).denyPermissions(android.Manifest.permission.RECORD_AUDIO)
-        compose.onNodeWithText("录音").performClick()
+        compose.onNodeWithContentDescription("录音").performClick()
         compose.runOnIdle {
             val request=shadowOf(compose.activity).lastRequestedPermission
             assertNotNull(request)
@@ -95,14 +95,14 @@ class CoreEntryUiTest {
         compose.runOnIdle {
             (compose.activity.lifecycle as androidx.lifecycle.LifecycleRegistry).handleLifecycleEvent(androidx.lifecycle.Lifecycle.Event.ON_RESUME)
         }
-        compose.onNodeWithText("暂停录音").assertIsDisplayed()
-        compose.onNodeWithText("结束录音").performClick()
+        compose.onNodeWithText("暂停").assertIsDisplayed()
+        compose.onNodeWithText("结束").performClick()
     }
     @Test @Config(qualifiers="zh-rCN-w320dp-h800dp-night-xhdpi") fun deniedPermissionWithKeyboardAndLargeFontStillAllowsText() {
         RuntimeEnvironment.setFontScale(2f)
         open()
         shadowOf(RuntimeEnvironment.getApplication()).denyPermissions(android.Manifest.permission.RECORD_AUDIO)
-        compose.onNodeWithText("录音").performClick()
+        compose.onNodeWithContentDescription("录音").performClick()
         compose.runOnIdle {
             val request=shadowOf(compose.activity).lastRequestedPermission
             compose.activity.onRequestPermissionsResult(request.requestCode,request.requestedPermissions,intArrayOf(android.content.pm.PackageManager.PERMISSION_DENIED))
@@ -119,7 +119,7 @@ class CoreEntryUiTest {
         assertTrue(compose.onNodeWithContentDescription("记录正文").fetchSemanticsNode().boundsInWindow.height>80f)
         val output=File("build/outputs/core-ui/denied-dark-320-font200.png");output.parentFile!!.mkdirs()
         compose.onNode(isDialog()).captureRoboImage(output.absolutePath)
-        compose.onNode(hasText("保存") and hasClickAction()).assertIsEnabled().performClick()
+        compose.onNode(hasText("完成") and hasClickAction()).assertIsEnabled().performClick()
         val store=TaskStore(File(compose.activity.filesDir,"tasks.json"))
         compose.waitUntil(10000){store.load().any{it.text=="拒绝麦克风也可以保存文字"}}
     }

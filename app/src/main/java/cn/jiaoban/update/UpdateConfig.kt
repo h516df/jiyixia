@@ -32,7 +32,9 @@ object UpdateConfig {
     const val CLIENT_ID = "Iv23liQM3N2avCTc0QAd"
 
     const val PACKAGE = "cn.jiaoban"
+    // The old prefix stays valid for v0.23 and earlier installers. Do not drop its alias.
     const val APK_PREFIX = "Jiaoban"
+    const val DISPLAY_APK_PREFIX = "Jiyixia"
     const val API = "https://api.github.com/repos/$REPO"
     const val VERIFY_URI = "https://github.com/login/device"
 
@@ -45,7 +47,7 @@ object UpdateConfig {
 
     fun publicApkUrl(value: String, tag: String, name: String): Boolean =
         tag.matches(Regex("jiyixia-stable-v[0-9]+\\.[0-9]+")) &&
-            name.matches(Regex("Jiaoban-v[0-9]+\\.[0-9]+-(universal|arm64)\\.apk")) &&
+            name.matches(Regex("(Jiaoban|Jiyixia)-v[0-9]+\\.[0-9]+-(universal|arm64)\\.apk")) &&
             value == "https://github.com/$PUBLIC_REPO/releases/download/$tag/$name"
     const val MAX_APK = 120L * 1024 * 1024
 
@@ -75,7 +77,8 @@ object UpdateConfig {
      */
     fun apkNames(version: String, abis: List<String>): List<String> {
         val preferred = if (abis.firstOrNull() == "arm64-v8a") "arm64" else "universal"
-        return listOf("$APK_PREFIX-v$version-$preferred.apk", "$APK_PREFIX-v$version-universal.apk").distinct()
+        return listOf("$DISPLAY_APK_PREFIX-v$version-$preferred.apk", "$DISPLAY_APK_PREFIX-v$version-universal.apk",
+            "$APK_PREFIX-v$version-$preferred.apk", "$APK_PREFIX-v$version-universal.apk").distinct()
     }
 
     fun notesName(version: String): String = "$APK_PREFIX-v$version-release-notes.json"

@@ -17,8 +17,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
@@ -33,6 +36,11 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.TextRange
@@ -54,6 +62,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import java.time.format.DateTimeFormatter
+import java.util.Locale
+import kotlin.math.abs
 
 internal fun mediaFailureMessage(error: Throwable): String = when(error) {
     is java.io.IOException, is SecurityException -> "附件未能保存，请检查可用空间后重试；原文件未改动。"
@@ -105,6 +115,7 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
         onDispose { persisted.unregisterOnSharedPreferenceChangeListener(listener) }
     }
     var playing by remember { mutableStateOf<String?>(null) }
+    var selectedPhoto by remember { mutableStateOf<String?>(null) }
     var showRecordingFiles by rememberSaveable(session) { mutableStateOf(false) }
     fun retainMedia(added:List<ImportedAttachment>) {
         attachments=AttachmentDraft.append(persisted,session,added)
@@ -181,11 +192,12 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
     fun close(){if(copying || saving)return; voice.stop(); if(dirty || recording)discard=true else onDismiss()}
     val focus=remember{FocusRequester()}
     FullPage(::close) {
-        LaunchedEffect(Unit){if(!openMediaPickerOnLaunch && note==null && initial.isEmpty()){withFrameNanos{};focus.requestFocus()}}
+        val keyboard=androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+        LaunchedEffect(session){if(!openMediaPickerOnLaunch && note==null){withFrameNanos{};focus.requestFocus();keyboard?.show()}}
         Scaffold(contentWindowInsets=WindowInsets.safeDrawing,containerColor=MaterialTheme.colorScheme.background,
-            topBar={TopAppBar(title={Text(if(diary) "写日记" else if(note==null)"写一条记录" else "编辑记录",style=MaterialTheme.typography.titleMedium)},
+            topBar={TopAppBar(title={Text(if(diary) dateText.orEmpty() else java.time.LocalDate.now().format(DateTimeFormatter.ofPattern("M月d日")),style=MaterialTheme.typography.titleMedium)},
                 navigationIcon={IconButton(onClick={close()}){Icon(Icons.Default.ArrowBack,"关闭笔记")}},
-                actions={TextButton(onClick={onSave(value.text,dateText?.let{LocalDate.parse(it)},attachments)},enabled=!saving && !copying && !recording && !voiceState.attachmentSaveFailed && !draftWriteFailed && mediaError!="附件草稿无法读取，请保留资料并重试" && (value.text.isNotBlank() || attachments.isNotEmpty())){Text(if(saving)"保存中…" else "保存",fontWeight=FontWeight.SemiBold)}},
+                actions={TextButton(onClick={onSave(value.text,dateText?.let{LocalDate.parse(it)},attachments)},enabled=!saving && !copying && !recording && !voiceState.attachmentSaveFailed && !draftWriteFailed && mediaError!="附件草稿无法读取，请保留资料并重试" && (value.text.isNotBlank() || attachments.isNotEmpty())){Text(if(saving)"保存中…" else "完成",fontWeight=FontWeight.SemiBold)}},
                 colors=TopAppBarDefaults.topAppBarColors(containerColor=MaterialTheme.colorScheme.background))}) {padding->
             Column(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
                 if(diary) TextButton(onClick={datePicker=true},modifier=Modifier.padding(horizontal=16.dp)) {
@@ -193,9 +205,9 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
                 }
 
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-                TextField(value,{value=it},enabled=!saving,placeholder={Text(if(diary) "今天有哪些想留住的细节？" else "现在的想法是……",lineHeight=32.sp)},
+                TextField(value,{value=it},enabled=!saving,placeholder={Text(if(diary) "写下今天…" else "开始记录…")},
                     modifier=Modifier.fillMaxWidth().heightIn(min=160.dp).padding(horizontal=8.dp).focusRequester(focus).semantics { contentDescription="记录正文" },
-                    textStyle=MaterialTheme.typography.bodyLarge.copy(fontSize=18.sp,lineHeight=30.sp),
+                    textStyle=MaterialTheme.typography.bodyLarge.copy(fontSize=17.sp,lineHeight=26.sp),
                     colors=TextFieldDefaults.colors(focusedContainerColor=MaterialTheme.colorScheme.background,unfocusedContainerColor=MaterialTheme.colorScheme.background,
                         focusedIndicatorColor=androidx.compose.ui.graphics.Color.Transparent,unfocusedIndicatorColor=androidx.compose.ui.graphics.Color.Transparent))
                 val audioAttachments=attachments.filter{it.mimeType.startsWith("audio/")}
@@ -216,7 +228,8 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
                 }
                 attachments.filterNot{it.mimeType.startsWith("audio/")}.forEach { attachment ->
                     Column(Modifier.padding(horizontal=20.dp,vertical=8.dp)) {
-                        MediaAttachment(attachment,playing==attachment.relativePath,{ if(!recording)playing=attachment.relativePath },{playing=null})
+                        MediaAttachment(attachment,playing==attachment.relativePath,{ if(!recording)playing=attachment.relativePath },{playing=null},
+                            onImageTap=if(attachment.mimeType.startsWith("image/")) { { selectedPhoto=attachment.relativePath } } else null)
                         TextButton(onClick={runCatching { val next=attachments.filterNot{it.relativePath==attachment.relativePath}; AttachmentDraft.replace(persisted,session,next);attachments=next }.onFailure{mediaError=it.message}},enabled=!saving && !copying && !recording) { Text("从这一页移除") }
                     }
                 }
@@ -229,24 +242,21 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
                 if(draftWriteFailed)TextButton(onClick={persistEditor()}){Text("重试保存草稿")}
                 if(voiceState.attachmentSaveFailed)TextButton(onClick={voice.recover()}){Text("恢复已完成录音")}
                 }
-                FlowRow(Modifier.fillMaxWidth().padding(horizontal=12.dp),verticalArrangement=Arrangement.spacedBy(0.dp)) {
+                Row(Modifier.fillMaxWidth().padding(horizontal=18.dp,vertical=3.dp),verticalAlignment=Alignment.CenterVertically) {
                     if(recording) {
-                        TextButton(onClick={voice.pause()}){Text("暂停录音")}
-                        TextButton(onClick={voice.stop()}){Text("结束录音")}
+                        TextButton(onClick={voice.pause()}){Text("暂停")}
+                        TextButton(onClick={voice.stop()}){Text("结束")}
                     } else {
-                        TextButton(onClick={record()},enabled=!saving && !copying && !globalVoicePending){Text(if(voiceState.phase==VoiceCapturePhase.PAUSED || voiceState.phase==VoiceCapturePhase.INTERRUPTED)"继续录音" else "录音")}
-                        TextButton(onClick={choose.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))},enabled=!saving && !copying){Text("照片 / 视频")}
+                        IconButton(onClick={choose.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))},enabled=!saving && !copying) {
+                            Icon(Icons.Default.Add,"添加照片或视频")
+                        }
+                        IconButton(onClick={record()},enabled=!saving && !copying && !globalVoicePending,
+                            modifier=Modifier.semantics{contentDescription=if(voiceState.phase==VoiceCapturePhase.PAUSED || voiceState.phase==VoiceCapturePhase.INTERRUPTED)"继续录音" else "录音"}) {
+                            MicGlyph()
+                        }
                     }
                 }
                 if(globalVoicePending && !recording) Text("录音进行中或有待保存的语音，请先结束并保存；当前文字与照片仍可编辑。",Modifier.padding(horizontal=20.dp),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                if(WindowInsets.ime.getBottom(LocalDensity.current)==0) {
-                Text(if(recording)"正在录音 · 每30秒保留一段，离开或锁屏会暂停" else "原媒体仅存本机 · 录音离开页面会暂停",Modifier.padding(horizontal=20.dp),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
-                Row(Modifier.fillMaxWidth().padding(horizontal=16.dp),verticalAlignment=Alignment.CenterVertically) {
-                    Text(if(diary) "这一页，只为自己" else "留一点空白给想法",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.weight(1f));Text("${value.text.length} 字",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                }
             }
         }
         if(datePicker) {
@@ -255,14 +265,46 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
         }
         if(discard)AlertDialog(onDismissRequest={discard=false},title={Text("笔记还未保存")},text={Text("继续写，或放弃这次改动。")},
             confirmButton={TextButton(onClick={discard=false}){Text("继续编辑")}},dismissButton={TextButton(onClick={discard=false;onDismiss()}){Text("放弃改动")}})
+        selectedPhoto?.let { path -> PhotoViewer(attachments.filter{it.mimeType.startsWith("image/")},path){selectedPhoto=null} }
     }
 }
 
 /** Body-first records; no title field, extraction, or prerequisite classification. */
-@OptIn(ExperimentalLayoutApi::class,ExperimentalFoundationApi::class)
+@OptIn(ExperimentalLayoutApi::class,ExperimentalFoundationApi::class,ExperimentalMaterial3Api::class)
 @Composable internal fun PaperEntry(note:Task,open:(Task)->Unit,query:String="",onTag:((String)->Unit)?=null,
-    selected:Boolean=false,selectionMode:Boolean=false,onLongPress:((Task)->Unit)?=null,onSelect:((Task)->Unit)?=null) {
+    selected:Boolean=false,selectionMode:Boolean=false,onLongPress:((Task)->Unit)?=null,onSelect:((Task)->Unit)?=null,
+    onSwipeDelete:((Task)->Unit)?=null) {
     val c=MaterialTheme.colorScheme
+    val haptic=LocalHapticFeedback.current
+    var playingInline by remember(note.id) {mutableStateOf(false)}
+    var widthPx by remember(note.id) {mutableFloatStateOf(1f)}
+    val stateRef=remember(note.id) {mutableStateOf<SwipeToDismissBoxState?>(null)}
+    val swipeState=rememberSwipeToDismissBoxState(
+        confirmValueChange={ destination ->
+            // Material's velocity-based fling can settle even below its positional threshold.
+            // Honor the product's explicit distance requirement, including very fast short flicks.
+            val crossed=runCatching {-(stateRef.value?.requireOffset() ?: 0f)>=widthPx*.38f}.getOrDefault(false)
+            if(destination==SwipeToDismissBoxValue.EndToStart && crossed && !selectionMode && onSwipeDelete!=null && note.deletedAt==null) {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                onSwipeDelete(note)
+            }
+            // The storage write is asynchronous. Keep the item until it actually succeeds;
+            // failed saves must not remove it from the screen.
+            false
+        },
+        positionalThreshold={distance->distance*.38f}
+    )
+    SideEffect {stateRef.value=swipeState}
+    SwipeToDismissBox(state=swipeState,modifier=Modifier.testTag("entry-${note.id}").onSizeChanged{widthPx=it.width.toFloat()},
+        enableDismissFromStartToEnd=false,
+        enableDismissFromEndToStart=onSwipeDelete!=null && !selectionMode && note.deletedAt==null,
+        backgroundContent={
+            Box(Modifier.fillMaxSize().padding(vertical=4.dp)
+                .background(c.errorContainer.copy(alpha=.65f),RoundedCornerShape(14.dp))
+                .padding(end=22.dp),contentAlignment=Alignment.CenterEnd) {
+                Icon(Icons.Default.Delete,"松手移入回收站",tint=c.error)
+            }
+        }) {
     Surface(modifier=Modifier.fillMaxWidth().combinedClickable(
         onClick={if(selectionMode)onSelect?.invoke(note) else open(note)},
         onLongClick=if(onLongPress!=null)({onLongPress(note)}) else null
@@ -283,13 +325,15 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
             if(note.text.isNotBlank())Text(note.text,style=MaterialTheme.typography.bodyLarge,maxLines=4,overflow=TextOverflow.Ellipsis)
             val voiceCount=note.attachments.count{it.mimeType.startsWith("audio/")}
             TimelineMediaPreviews(note.attachments)
-            if(voiceCount>0)TimelineAudioSummary(note.attachments.filter{it.mimeType.startsWith("audio/")})
+            if(voiceCount>0)TimelineAudioSummary(note.attachments.filter{it.mimeType.startsWith("audio/")},playingInline,
+                {playingInline=true},{playingInline=false})
             val tags=(writingTags(note.text)+note.importedTags).distinct()
             if(!selectionMode && tags.isNotEmpty() && onTag!=null)FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 tags.forEach {tag->SuggestionChip(onClick={onTag(tag)},label={Text("#$tag",style=MaterialTheme.typography.labelMedium)},border=null,colors=SuggestionChipDefaults.suggestionChipColors(containerColor=c.primaryContainer.copy(alpha=.5f)))}
             }
             HorizontalDivider(color=c.outlineVariant.copy(alpha=.7f))
         }
+    }
     }
 }
 
@@ -328,26 +372,21 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
 
 @Composable internal fun WritingEmpty(title:String,subtitle:String) {
     val c=MaterialTheme.colorScheme
-    Column(Modifier.fillMaxWidth().padding(vertical=48.dp,horizontal=12.dp),verticalArrangement=Arrangement.spacedBy(15.dp)) {
-        Canvas(Modifier.size(64.dp)) {
-            drawRoundRect(c.primaryContainer,cornerRadius=androidx.compose.ui.geometry.CornerRadius(14.dp.toPx()))
-            drawLine(c.primary,androidx.compose.ui.geometry.Offset(20.dp.toPx(),20.dp.toPx()),androidx.compose.ui.geometry.Offset(44.dp.toPx(),20.dp.toPx()),2.dp.toPx())
-            drawLine(c.primary,androidx.compose.ui.geometry.Offset(20.dp.toPx(),30.dp.toPx()),androidx.compose.ui.geometry.Offset(40.dp.toPx(),30.dp.toPx()),2.dp.toPx())
-            drawLine(c.primary,androidx.compose.ui.geometry.Offset(20.dp.toPx(),40.dp.toPx()),androidx.compose.ui.geometry.Offset(32.dp.toPx(),40.dp.toPx()),2.dp.toPx())
-        }
-        Text(title,style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Medium)
-        Text(subtitle,style=MaterialTheme.typography.bodyMedium,lineHeight=24.sp,color=c.onSurfaceVariant)
+    Column(Modifier.fillMaxWidth().padding(vertical=58.dp,horizontal=18.dp),
+        verticalArrangement=Arrangement.spacedBy(6.dp),horizontalAlignment=Alignment.CenterHorizontally) {
+        Text(title,style=MaterialTheme.typography.bodyLarge,color=c.onSurfaceVariant)
+        if(subtitle.isNotBlank())Text(subtitle,style=MaterialTheme.typography.bodyMedium,color=c.onSurfaceVariant)
     }
 }
 
 @Composable internal fun NotesPage(notes:List<Task>,open:(Task)->Unit,query:String="",searching:Boolean=false,selectedTag:String?=null,onTag:(String?)->Unit={},savedGeneration:Int=0,onReview:()->Unit={},
-    selectedIds:Set<String> = emptySet(),onSelect:(Task)->Unit={}) {
+    selectedIds:Set<String> = emptySet(),onSelect:(Task)->Unit={},onSwipeDelete:((Task)->Unit)?=null,
+    listState:LazyListState=rememberLazyListState()) {
     val c=MaterialTheme.colorScheme
     var archived by rememberSaveable{mutableStateOf(false)}
     var actionMenu by remember {mutableStateOf(false)}
     var searchType by rememberSaveable { mutableStateOf("全部") }
-    val listState=androidx.compose.foundation.lazy.rememberLazyListState()
-    LaunchedEffect(savedGeneration){if(savedGeneration>0){archived=false;listState.scrollToItem(0)}}
+    LaunchedEffect(savedGeneration){if(savedGeneration>0)archived=false}
     val shown=notes.filter{entry ->
         (searching || (entry.state!=TaskState.OPEN)==archived) &&
         (!searching || when(searchType) {
@@ -372,7 +411,8 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
         }
         if(!searching)item {
             Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-                Text(if(archived)"已归档的记录" else "按时间回看",style=MaterialTheme.typography.labelLarge,color=c.onSurfaceVariant,modifier=Modifier.weight(1f))
+                if(archived)Text("已归档",style=MaterialTheme.typography.labelLarge,color=c.onSurfaceVariant,modifier=Modifier.weight(1f))
+                else Spacer(Modifier.weight(1f))
                 if(archived) TextButton(onClick={archived=false}) {Text("返回记录")}
                 else Box {
                     IconButton(onClick={actionMenu=true}) {Icon(Icons.Default.MoreVert,"更多记录操作")}
@@ -384,21 +424,20 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
             }
         }
         if(selectedTag!=null)item {Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Text("#$selectedTag",color=c.primary,modifier=Modifier.weight(1f));TextButton(onClick={onTag(null)}){Text("清除筛选")}}}
-        if(archived && !searching)item{Text("已归档 · 内容完整保留",style=MaterialTheme.typography.labelMedium,color=c.onSurfaceVariant)}
-        if(shown.isEmpty())item{WritingEmpty(if(searching || selectedTag!=null)"没有找到这段文字" else if(archived)"还没有归档的记录" else "想到什么，就记下来",if(searching || selectedTag!=null)"换个关键词，或清除标签筛选。" else "不必起标题，也不必想好放在哪里。")}
+        if(shown.isEmpty())item{WritingEmpty(if(searching || selectedTag!=null)"没有找到记录" else if(archived)"暂无归档" else "写下第一条记录","")}
         if(pinned.isNotEmpty()) {
             item {Text("置顶",style=MaterialTheme.typography.labelLarge,color=c.primary,modifier=Modifier.padding(start=4.dp,top=10.dp))}
-            items(pinned,key={it.id}){note->PaperEntry(note,open,query,{onTag(it)},note.id in selectedIds,selectedIds.isNotEmpty(),onSelect,onSelect)}
+            items(pinned,key={it.id}){note->PaperEntry(note,open,query,{onTag(it)},note.id in selectedIds,selectedIds.isNotEmpty(),onSelect,onSelect,onSwipeDelete)}
         }
         regular.groupBy { writingDay(it) }.forEach { (day,entries) ->
             item(key="date-$day") {
                 Text(when(day) {
                     LocalDate.now() -> "今天"
                     LocalDate.now().minusDays(1) -> "昨天"
-                    else -> day.format(DateTimeFormatter.ofPattern("M月d日 · EEEE"))
+                    else -> day.format(DateTimeFormatter.ofPattern("M月d日 · EEEE",Locale.CHINA))
                 },style=MaterialTheme.typography.labelLarge,color=c.onSurfaceVariant,modifier=Modifier.padding(start=4.dp,top=14.dp,bottom=3.dp))
             }
-            items(entries,key={it.id}){note->PaperEntry(note,open,query,{onTag(it)},note.id in selectedIds,selectedIds.isNotEmpty(),onSelect,onSelect)}
+            items(entries,key={it.id}){note->PaperEntry(note,open,query,{onTag(it)},note.id in selectedIds,selectedIds.isNotEmpty(),onSelect,onSelect,onSwipeDelete)}
         }
     }
 }
@@ -409,7 +448,8 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
     notes:List<Task>,today:LocalDate,open:(Task)->Unit,searching:Boolean=false,
     onWrite:(LocalDate)->Unit={},selectedDay:LocalDate=today,onSelectDay:(LocalDate)->Unit={},
     archived:Boolean=false,onArchivedChange:(Boolean)->Unit={}
-    ,selectedIds:Set<String> = emptySet(),onSelect:(Task)->Unit={}
+    ,selectedIds:Set<String> = emptySet(),onSelect:(Task)->Unit={},onSwipeDelete:((Task)->Unit)?=null,
+    listState:LazyListState=rememberLazyListState()
 ) {
     val c=MaterialTheme.colorScheme
     var pickerVisible by remember{mutableStateOf(false)}
@@ -418,7 +458,7 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
     val shown=diaries.filter{searching || it.journalDate==selectedDay}.sortedByDescending{writingSortKey(it)}
     val fragments=notes.filter{it.journalDate==null && it.state==TaskState.OPEN && writingDay(it)==selectedDay}.sortedBy{it.createdAt}
     val startOfWeek=selectedDay.minusDays((selectedDay.dayOfWeek.value-1).toLong())
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=18.dp,end=18.dp,top=12.dp,bottom=28.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
+    LazyColumn(Modifier.fillMaxSize(),state=listState,contentPadding=PaddingValues(start=18.dp,end=18.dp,top=12.dp,bottom=28.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
         if(!searching)item {
             Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
                 Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
@@ -429,7 +469,13 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
                     IconButton(onClick={onSelectDay(selectedDay.minusDays(1))}) {Icon(Icons.Default.KeyboardArrowLeft,"上一天")}
                     IconButton(onClick={onSelectDay(selectedDay.plusDays(1))}) {Icon(Icons.Default.KeyboardArrowRight,"下一天")}
                 }
-                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(3.dp)) {
+                var weekDrag by remember { mutableFloatStateOf(0f) }
+                Row(Modifier.fillMaxWidth().pointerInput(selectedDay) {
+                    detectHorizontalDragGestures(onDragStart={weekDrag=0f},onDragEnd={
+                        if(abs(weekDrag)>48.dp.toPx()) onSelectDay(selectedDay.plusDays(if(weekDrag<0)7 else -7))
+                        weekDrag=0f
+                    },onHorizontalDrag={change,dragAmount->change.consume();weekDrag+=dragAmount})
+                },horizontalArrangement=Arrangement.spacedBy(3.dp)) {
                     val weekdays=listOf("一","二","三","四","五","六","日")
                     repeat(7){index->
                         val day=startOfWeek.plusDays(index.toLong())
@@ -464,7 +510,7 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
                 }
             }
         }
-        items(shown,key={it.id}){PaperEntry(it,open,selected=it.id in selectedIds,selectionMode=selectedIds.isNotEmpty(),onLongPress=onSelect,onSelect=onSelect)}
+        items(shown,key={it.id}){PaperEntry(it,open,selected=it.id in selectedIds,selectionMode=selectedIds.isNotEmpty(),onLongPress=onSelect,onSelect=onSelect,onSwipeDelete=onSwipeDelete)}
         if(!searching && !archived && fragments.isNotEmpty())item {
             HorizontalDivider(color=c.outlineVariant)
             TextButton(onClick={showFragments=!showFragments},modifier=Modifier.fillMaxWidth().semantics {
@@ -475,7 +521,7 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
                 Text(if(LocalDensity.current.fontScale>1.3f) "随记 · ${fragments.size} 条" else "同日随记 · ${fragments.size} 条 · ${if(showFragments)"收起" else "展开"}",style=MaterialTheme.typography.labelLarge)
             }
         }
-        if(!searching && !archived && showFragments)items(fragments,key={"fragment-${it.id}"}){PaperEntry(it,open,selected=it.id in selectedIds,selectionMode=selectedIds.isNotEmpty(),onLongPress=onSelect,onSelect=onSelect)}
+        if(!searching && !archived && showFragments)items(fragments,key={"fragment-${it.id}"}){PaperEntry(it,open,selected=it.id in selectedIds,selectionMode=selectedIds.isNotEmpty(),onLongPress=onSelect,onSelect=onSelect,onSwipeDelete=onSwipeDelete)}
     }
     if(pickerVisible) {
         val picker=rememberDatePickerState(initialSelectedDateMillis=selectedDay.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli())
@@ -488,6 +534,7 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
     val context=LocalContext.current
     var confirm by remember{mutableStateOf(false)}
     var playing by remember{mutableStateOf<String?>(null)}
+    var selectedPhoto by remember {mutableStateOf<String?>(null)}
     var showAudioFiles by rememberSaveable(note.id){mutableStateOf(false)}
     val audios=note.attachments.filter{it.mimeType.startsWith("audio/")}
     val otherMedia=note.attachments.filterNot{it.mimeType.startsWith("audio/")}
@@ -500,12 +547,13 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
         }.onFailure{android.widget.Toast.makeText(context,"无法打开附件，请先导出完整资料检查原文件",android.widget.Toast.LENGTH_LONG).show()}
     }
     LaunchedEffect(allowPlayback){if(!allowPlayback)playing=null}
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(26.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
+    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(horizontal=22.dp,vertical=24.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
         item {Text(note.journalDate?.format(DateTimeFormatter.ofPattern("yyyy年 M月d日 · 日记")) ?: note.createdAt.atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("yyyy年 M月d日 · 记录")),style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)}
-        // Legacy checklist text stays literal and each line remains independently selectable.
-        if(note.text.isNotEmpty())note.text.split('\n').forEachIndexed { index,line ->
-            item(key="text-line-$index") {
-                SelectionContainer {Text(line,style=MaterialTheme.typography.bodyLarge,fontWeight=FontWeight.Normal,lineHeight=30.sp)}
+        // Preserve all legacy newlines and checklist characters, but render one continuous
+        // selectable body; a separate LazyColumn item per line made ordinary line breaks huge.
+        if(note.text.isNotEmpty())item(key="continuous-body") {
+            SelectionContainer {
+                Text(note.text,style=MaterialTheme.typography.bodyLarge.copy(fontSize=17.sp,lineHeight=26.sp),fontWeight=FontWeight.Normal)
             }
         }
         if(note.deletedAt==null)item {FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -530,10 +578,12 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
             }
         }
         items(otherMedia,key={it.relativePath}){attachment->
-            MediaAttachment(attachment,allowPlayback && playing==attachment.relativePath,{if(allowPlayback)playing=attachment.relativePath},{playing=null})
+            MediaAttachment(attachment,allowPlayback && playing==attachment.relativePath,{if(allowPlayback)playing=attachment.relativePath},{playing=null},
+                onImageTap=if(attachment.mimeType.startsWith("image/")) { {selectedPhoto=attachment.relativePath} } else null)
             OutlinedButton(onClick={openAttachment(attachment)},modifier=Modifier.fillMaxWidth()){Text((if(attachment.sourceFile)"原文件 · " else "附件 · ")+attachment.name,maxLines=2)}
         }
     }
+    selectedPhoto?.let {path->PhotoViewer(otherMedia.filter{it.mimeType.startsWith("image/")},path){selectedPhoto=null}}
     if(confirm)AlertDialog(onDismissRequest={confirm=false},title={Text(if(note.state==TaskState.OPEN)"归档这一页？" else "恢复这一页？")},text={Text("内容完整保留，可在对应页面的归档中找回。")},confirmButton={TextButton(onClick={confirm=false;archive()}){Text("确定")}},dismissButton={TextButton(onClick={confirm=false}){Text("取消")}})
 }
 
