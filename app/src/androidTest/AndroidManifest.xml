@@ -2,4 +2,5 @@
     <instrumentation android:name="cn.jiaoban.DateRegressionProbe" android:targetPackage="cn.jiaoban" />
     <instrumentation android:name="cn.jiaoban.RedesignRegressionProbe" android:targetPackage="cn.jiaoban" />
     <instrumentation android:name="cn.jiaoban.WritingRegressionProbe" android:targetPackage="cn.jiaoban" />
+    <instrumentation android:name="cn.jiaoban.V024RegressionProbe" android:targetPackage="cn.jiaoban" />
 </manifest>
