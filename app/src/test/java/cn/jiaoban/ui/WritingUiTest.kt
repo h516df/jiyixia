@@ -109,6 +109,9 @@ class WritingUiTest {
         // touch duration can finish before Compose's long-press timeout advances.
         compose.onNodeWithText("留一点时间给喜欢的事",substring=true)
             .performSemanticsAction(SemanticsActions.OnLongClick)
+        if(compose.onAllNodesWithText("已选 1 条").fetchSemanticsNodes().isEmpty()) {
+            println("Long-press selection snapshot: "+compose.onRoot(useUnmergedTree=true).printToString().take(11000))
+        }
         compose.waitUntil(5000) { compose.onAllNodesWithText("已选 1 条").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("删除",useUnmergedTree=true).performClick()
         compose.waitUntil(10000) { store.load().single{it.id=="n1"}.deletedAt!=null }

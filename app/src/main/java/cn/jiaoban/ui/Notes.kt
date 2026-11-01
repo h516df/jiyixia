@@ -265,7 +265,7 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
     val c=MaterialTheme.colorScheme
     Surface(modifier=Modifier.fillMaxWidth().combinedClickable(
         onClick={if(selectionMode)onSelect?.invoke(note) else open(note)},
-        onLongClick={onLongPress?.let{{it(note)}}}
+        onLongClick=if(onLongPress!=null)({onLongPress(note)}) else null
     ),shape=RoundedCornerShape(8.dp),color=if(selected)c.primaryContainer.copy(alpha=.65f) else c.background) {
         Column(Modifier.fillMaxWidth().padding(horizontal=12.dp,vertical=14.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
             val stamp=note.importInfo?.originalDate?.replace('T',' ') ?: (if(note.importInfo!=null)"导入于 " else "")+note.createdAt.atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("HH:mm"))
