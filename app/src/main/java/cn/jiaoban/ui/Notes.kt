@@ -31,7 +31,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.semantics
@@ -268,9 +267,10 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
             val stamp=note.importInfo?.originalDate?.replace('T',' ') ?: (if(note.importInfo!=null)"导入于 " else "")+note.createdAt.atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("HH:mm"))
             Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
                 Text(stamp,style=MaterialTheme.typography.labelMedium,color=c.onSurfaceVariant,modifier=Modifier.weight(1f))
+                if(note.journalDate!=null)Text("日记",style=MaterialTheme.typography.labelSmall,color=c.primary,modifier=Modifier.padding(end=8.dp))
                 if(note.state!=TaskState.OPEN)Text("已归档",style=MaterialTheme.typography.labelSmall,color=c.onSurfaceVariant)
             }
-            if(note.text.isNotBlank())Text(note.text,style=MaterialTheme.typography.bodyLarge,maxLines=7,overflow=TextOverflow.Ellipsis)
+            if(note.text.isNotBlank())Text(note.text,style=MaterialTheme.typography.bodyLarge,maxLines=4,overflow=TextOverflow.Ellipsis)
             val voiceCount=note.attachments.count{it.mimeType.startsWith("audio/")}
             val imageCount=note.attachments.count{it.mimeType.startsWith("image/")}
             val videoCount=note.attachments.count{it.mimeType.startsWith("video/")}
@@ -306,7 +306,7 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
                 IconButton(onClick=onMedia,enabled=ready && !posting,modifier=Modifier.size(48.dp).semantics { contentDescription="添加照片或视频" }) {
                     Icon(Icons.Default.Add,null,tint=c.primary)
                 }
-                OutlinedTextField(text,onText,enabled=ready && !posting,placeholder={Text("记下一点想法…",fontSize=15.sp)},
+                OutlinedTextField(text,onText,enabled=ready && !posting,placeholder={Text(if(LocalDensity.current.fontScale>1.3f) "记点什么…" else "记下一点想法…",fontSize=15.sp)},
                     minLines=1,maxLines=3,modifier=Modifier.weight(1f).semantics{contentDescription="随手记录正文"},shape=RoundedCornerShape(18.dp),
                     textStyle=MaterialTheme.typography.bodyLarge.copy(fontSize=16.sp,lineHeight=25.sp),
                     colors=OutlinedTextFieldDefaults.colors(focusedBorderColor=c.primary,unfocusedBorderColor=c.outlineVariant,focusedContainerColor=c.surface,unfocusedContainerColor=c.surface))
@@ -340,16 +340,22 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
 @Composable internal fun NotesPage(notes:List<Task>,open:(Task)->Unit,query:String="",searching:Boolean=false,selectedTag:String?=null,onTag:(String?)->Unit={},savedGeneration:Int=0,onReview:()->Unit={}) {
     val c=MaterialTheme.colorScheme
     var archived by rememberSaveable{mutableStateOf(false)}
-    val configuration=LocalConfiguration.current
-    val compactActions=configuration.screenWidthDp<=360 || configuration.fontScale>=1.4f
+    var actionMenu by remember {mutableStateOf(false)}
     val listState=androidx.compose.foundation.lazy.rememberLazyListState()
     LaunchedEffect(savedGeneration){if(savedGeneration>0){archived=false;listState.scrollToItem(0)}}
     val shown=notes.filter{searching || (it.state!=TaskState.OPEN)==archived}.sortedByDescending{writingSortKey(it)}
     LazyColumn(Modifier.fillMaxSize(),state=listState,contentPadding=PaddingValues(start=18.dp,end=18.dp,top=4.dp,bottom=28.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
         if(!searching)item {
             Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-                TextButton(onClick=onReview,modifier=Modifier.weight(1f)){Text(if(compactActions)"回看" else "回看一条旧记录",style=MaterialTheme.typography.labelLarge)}
-                TextButton(onClick={archived=!archived}){Text(if(archived)"返回记录" else "归档",style=MaterialTheme.typography.labelLarge)}
+                Text(if(archived)"已归档的记录" else "按时间回看",style=MaterialTheme.typography.labelLarge,color=c.onSurfaceVariant,modifier=Modifier.weight(1f))
+                if(archived) TextButton(onClick={archived=false}) {Text("返回记录")}
+                else Box {
+                    IconButton(onClick={actionMenu=true}) {Icon(Icons.Default.MoreVert,"更多记录操作")}
+                    DropdownMenu(expanded=actionMenu,onDismissRequest={actionMenu=false}) {
+                        DropdownMenuItem(text={Text("随机回看")},onClick={actionMenu=false;onReview()})
+                        DropdownMenuItem(text={Text("查看归档")},onClick={actionMenu=false;archived=true})
+                    }
+                }
             }
         }
         if(selectedTag!=null)item {Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Text("#$selectedTag",color=c.primary,modifier=Modifier.weight(1f));TextButton(onClick={onTag(null)}){Text("清除筛选")}}}
@@ -369,56 +375,64 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable internal fun JournalPage(notes:List<Task>,today:LocalDate,open:(Task)->Unit,searching:Boolean=false,onWrite:(LocalDate)->Unit={}) {
+@Suppress("UNUSED_PARAMETER") // The primary diary write action is anchored in App's bottom bar.
+@Composable internal fun JournalPage(
+    notes:List<Task>,today:LocalDate,open:(Task)->Unit,searching:Boolean=false,
+    onWrite:(LocalDate)->Unit={},selectedDay:LocalDate=today,onSelectDay:(LocalDate)->Unit={},
+    archived:Boolean=false,onArchivedChange:(Boolean)->Unit={}
+) {
     val c=MaterialTheme.colorScheme
-    var archived by rememberSaveable{mutableStateOf(false)}
-    var selectedDay by rememberSaveable{mutableStateOf(today.toString())}
-    val day=LocalDate.parse(selectedDay)
     var pickerVisible by remember{mutableStateOf(false)}
-    var showFragments by rememberSaveable(selectedDay){mutableStateOf(true)}
+    var showFragments by rememberSaveable(selectedDay.toString()){mutableStateOf(false)}
     val diaries=notes.filter{it.journalDate!=null && (searching || (it.state!=TaskState.OPEN)==archived)}
-    val shown=diaries.filter{searching || it.journalDate==day}.sortedByDescending{writingSortKey(it)}
-    val fragments=notes.filter{it.journalDate==null && it.state==TaskState.OPEN && writingDay(it)==day}.sortedBy{it.createdAt}
+    val shown=diaries.filter{searching || it.journalDate==selectedDay}.sortedByDescending{writingSortKey(it)}
+    val fragments=notes.filter{it.journalDate==null && it.state==TaskState.OPEN && writingDay(it)==selectedDay}.sortedBy{it.createdAt}
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=18.dp,end=18.dp,top=12.dp,bottom=28.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
         if(!searching)item {
-            Text("日记",style=MaterialTheme.typography.headlineSmall)
-            Text("给一天留几行文字，也可以回头补记。",style=MaterialTheme.typography.bodyMedium,color=c.onSurfaceVariant)
-            Surface(shape=RoundedCornerShape(18.dp),color=c.surface,modifier=Modifier.padding(top=10.dp)) {
-                Row(Modifier.fillMaxWidth().padding(6.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween) {
-                    IconButton(onClick={selectedDay=day.minusDays(1).toString()}){Icon(Icons.Default.KeyboardArrowLeft,"上一天")}
-                    TextButton(onClick={pickerVisible=true}) {
-                        Text(day.format(DateTimeFormatter.ofPattern("M月d日 EEEE")),style=MaterialTheme.typography.titleMedium,color=c.onSurface)
+            Surface(shape=RoundedCornerShape(18.dp),color=c.surface) {
+                Row(Modifier.fillMaxWidth().padding(4.dp),verticalAlignment=Alignment.CenterVertically) {
+                    IconButton(onClick={onSelectDay(selectedDay.minusDays(1))}) {Icon(Icons.Default.KeyboardArrowLeft,"上一天")}
+                    Column(Modifier.weight(1f),horizontalAlignment=Alignment.CenterHorizontally) {
+                        TextButton(onClick={pickerVisible=true},contentPadding=PaddingValues(horizontal=4.dp,vertical=2.dp)) {
+                            Text(selectedDay.format(DateTimeFormatter.ofPattern("M月d日")),style=MaterialTheme.typography.titleMedium,color=c.onSurface,maxLines=1,overflow=TextOverflow.Ellipsis)
+                        }
+                        Text(selectedDay.format(DateTimeFormatter.ofPattern("EEEE")),style=MaterialTheme.typography.labelMedium,color=c.onSurfaceVariant,maxLines=1)
                     }
-                    IconButton(onClick={selectedDay=day.plusDays(1).toString()}){Icon(Icons.Default.KeyboardArrowRight,"下一天")}
+                    IconButton(onClick={onSelectDay(selectedDay.plusDays(1))}) {Icon(Icons.Default.KeyboardArrowRight,"下一天")}
                 }
             }
-            if(day!=today)TextButton(onClick={selectedDay=today.toString()}){Text("回到今天")}
+            if(selectedDay!=today)TextButton(onClick={onSelectDay(today)}){Text("回到今天")}
         }
         if(!searching)item {
-            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
-                Text(if(archived)"归档日记" else if(day==today)"今天的日记" else "这一天的日记",style=MaterialTheme.typography.titleMedium,modifier=Modifier.weight(1f))
-                TextButton(onClick={archived=!archived}){Text(if(archived)"返回日记" else "归档")}
-            }
-            if(!archived) FilledTonalButton(onClick={onWrite(day)},modifier=Modifier.fillMaxWidth().semantics{contentDescription="写日记"},shape=RoundedCornerShape(14.dp)){
-                Icon(Icons.Default.Add,null,Modifier.size(18.dp));Spacer(Modifier.width(8.dp));Text(if(shown.isEmpty())"写下这一天" else "再写一篇")
+            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+                Text(if(archived)"已归档日记" else "${shown.size} 篇日记",style=MaterialTheme.typography.labelLarge,color=c.onSurfaceVariant,modifier=Modifier.weight(1f))
+                TextButton(onClick={onArchivedChange(!archived)}) {Text(if(archived)"返回日记" else "查看归档")}
             }
         }
         if(shown.isEmpty())item {
-            Text(if(searching)"没有找到日记，换个关键词试试。" else if(archived)"这一天没有归档日记。" else "还没写也没关系。一两句话，就能留下今天的感受。",fontSize=14.sp,lineHeight=25.sp,color=c.onSurfaceVariant,modifier=Modifier.padding(vertical=14.dp))
+            Surface(shape=RoundedCornerShape(18.dp),color=c.surface) {
+                Column(Modifier.fillMaxWidth().padding(22.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                    Text(if(searching)"没有找到日记" else if(archived)"这一天没有归档日记" else "这一天还没写日记",style=MaterialTheme.typography.titleMedium)
+                    Text(if(searching)"换个关键词试试。" else if(archived)"归档的内容仍会保留在本机。" else "写几句话，留住今天。",style=MaterialTheme.typography.bodyMedium,lineHeight=23.sp,color=c.onSurfaceVariant)
+                }
+            }
         }
         items(shown,key={it.id}){PaperEntry(it,open)}
-        if(!searching && !archived)item {
+        if(!searching && !archived && fragments.isNotEmpty())item {
             HorizontalDivider(color=c.outlineVariant)
-            TextButton(onClick={showFragments=!showFragments},modifier=Modifier.fillMaxWidth()){
-                Text("同一天的随手记录 · ${fragments.size} 条   ${if(showFragments)"收起" else "展开"}",style=MaterialTheme.typography.labelLarge)
+            TextButton(onClick={showFragments=!showFragments},modifier=Modifier.fillMaxWidth().semantics {
+                contentDescription="同日随记 ${fragments.size} 条，${if(showFragments)"收起" else "展开"}"
+            }) {
+                Icon(if(showFragments)Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,null,Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(if(LocalDensity.current.fontScale>1.3f) "随记 · ${fragments.size} 条" else "同日随记 · ${fragments.size} 条 · ${if(showFragments)"收起" else "展开"}",style=MaterialTheme.typography.labelLarge)
             }
-            if(showFragments && fragments.isEmpty())Text("这天还没有随手记录。",style=MaterialTheme.typography.bodyMedium,color=c.onSurfaceVariant)
         }
         if(!searching && !archived && showFragments)items(fragments,key={"fragment-${it.id}"}){PaperEntry(it,open)}
     }
     if(pickerVisible) {
-        val picker=rememberDatePickerState(initialSelectedDateMillis=day.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli())
-        DatePickerDialog(onDismissRequest={pickerVisible=false},confirmButton={TextButton(onClick={picker.selectedDateMillis?.let{selectedDay=Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate().toString()};pickerVisible=false}){Text("确定")}},dismissButton={TextButton(onClick={pickerVisible=false}){Text("取消")}}){DatePicker(picker)}
+        val picker=rememberDatePickerState(initialSelectedDateMillis=selectedDay.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli())
+        DatePickerDialog(onDismissRequest={pickerVisible=false},confirmButton={TextButton(onClick={picker.selectedDateMillis?.let{onSelectDay(Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate())};pickerVisible=false}){Text("确定")}},dismissButton={TextButton(onClick={pickerVisible=false}){Text("取消")}}){DatePicker(picker)}
     }
 }
 

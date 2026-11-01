@@ -27,6 +27,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -43,6 +48,7 @@ import androidx.compose.ui.unit.sp
 import cn.jiaoban.media.VoiceCapturePhase
 import cn.jiaoban.media.VoiceSessionState
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 private fun recordingElapsed(elapsedMs: Long): String {
     val seconds = (elapsedMs.coerceAtLeast(0) / 1_000)
@@ -156,15 +162,30 @@ internal fun RecordingPanel(
     onRecover: () -> Unit,
     notificationAllowed: Boolean = true,
 ) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+    var dismissing by remember { mutableStateOf(false) }
+    fun dismissAfterAnimation() {
+        if (dismissing) return
+        dismissing = true
+        scope.launch {
+            try {
+                sheetState.hide()
+            } finally {
+                if (!sheetState.isVisible) onDismiss()
+                else dismissing = false
+            }
+        }
+    }
     ModalBottomSheet(
-        onDismissRequest=onDismiss,
-        sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true),
+        onDismissRequest=::dismissAfterAnimation,
+        sheetState=sheetState,
         containerColor=MaterialTheme.colorScheme.background,
     ) {
       Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).imePadding().navigationBarsPadding().padding(horizontal=16.dp,vertical=10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("语音记录", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-            TextButton(onClick = onDismiss) { Text("收起") }
+            TextButton(onClick = ::dismissAfterAnimation, enabled = !dismissing) { Text("收起") }
         }
         RecordingControlPanel(state, onPause, onResume, onStop, onRecover, notificationAllowed)
         if (saving) {

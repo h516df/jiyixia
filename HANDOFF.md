@@ -1,4 +1,15 @@
-# 当前接续：0.21 整体改版与短/长录音（2026-10-31）
+# 当前接续：0.22 记录/日记交互改进（2026-11-01）
+
+- **用户反馈与视频**：0.21 在底部快速输入框收起系统键盘时，输入栏及页面内容大幅跳动，底部记录/日记导航突然出现。视频演示的是 Android IME 而非侧边抽屉；`App.kt` 的 `imePadding` + `if (!WindowInsets.isImeVisible)` 直接增删 NavigationBar 是关键布局原因。用户同时指出记录/日记页面层级、主操作位置和空状态逻辑不一致。
+- **实现分支**：从 `main` `96c6bd165fb00250dcbfadbb33ca66c2e0c7f8f4` 创建 `feat/jiyixia-022-navigation-ime`。0.22 / versionCode 22；工作区改动只涉及 Compose 页面、UI 测试、版本说明与交接，不修改 `cn.jiaoban`、旧 JSON/附件/备份格式或原签名。
+- **预期行为**：底部导航改用受控的 AnimatedVisibility 过渡、IME 可见时系统优先处理返回；记录/日记共用明确页标题和搜索入口，日记日期/归档状态提升到 App，写入主按钮固定底部。记录预览四行，次级回看/归档收起；日记减少重复标题、空状态和零条随记折叠，录音面板关闭前完成 SheetState 退场。
+- **待核实**：云端 Kotlin 编译、WritingUiTest/亮暗/320dp/200% 字号的实际渲染、差异/保存草稿检查均需绑定当前提交；键盘返回手势、系统录音弹窗和真实 0.19/0.21 同签名覆盖升级只能在 Android 设备上验收。原签名私钥不出 Windows；**0.21 正式 Release 保持不动，0.22 尚未发布**。具体测试和 PR 结果以本轮远端回执补充。
+- **本轮验证记录**：`git diff --check` passed、0.22 内置 `release-notes.json` 结构和版本一致性 `jq` passed；外部构建环境官方 JDK21/SDK36/Gradle9.1 下载及摘要核查 passed。但新云工作区的 Gradle 首次解析 `com.android.application:9.0.1` 被 Java/Gradle 代理/TLS 链路阻断，独立 `curl` 访问官方 Google Maven POM 为 HTTP 200；尝试配置受控 CA/代理仍失败，已停止重试。**`:app:compileDebugKotlin`、`:app:testDebugUnitTest`、Roborazzi 截图和 AndroidTest 均 not run**，不冒称新版编译通过；腾讯 DSH 主机本轮检查离线，未转派构建。需可用 Codespace/受控 runner 真正构建验证后才可原证书签 0.22 正式 APK。
+- **后续 GitHub CI 实测**：[PR #41](https://github.com/h516df/jiyixia/pull/41) 远端 head `728d53c1a3664a61457ec6798778cbc299f7b32b`；[Cloud development 41261099162](https://github.com/h516df/jiyixia/actions/runs/41261099162)（`cloud/check.sh`）BUILD SUCCESSFUL，JVM/Compose 测试、debug APK、AndroidTest APK、lint passed；[android 41261099174](https://github.com/h516df/jiyixia/actions/runs/41261099174) 的独立 debug APK 与 Windows 数据兼容检查 passed。首次 Cloud development 虽生成合成 Roborazzi 图，但旧 workflow 未将 `shiye-ui` 图片收进附件，故**尚未人工目检新 UI 图片**；当前分支加一条上传路径，等待新 CI 回读截图，不能把原工作区 Gradle 失败冒称本地通过。
+
+---
+
+# 历史接续：0.21 整体改版与短/长录音（2026-10-31）
 
 - **手机基线与边界**：用户手机实际是 **0.19**，不是 0.20。下一正式包必须使用 `cn.jiaoban`、原证书及递增版本码同签名覆盖，不能卸载、清资料或拿云端 debug APK 直接安装。原签名私钥只在 Windows `MY-AI-PC`，未转移到云端；DSH 主机离线，未触碰用户手机。
 - **源码与正式发布**：整体改版及短/长录音 [PR #37](https://github.com/h516df/jiyixia/pull/37) 已 squash 合并至 `main`，合并提交 `0d7a60ab78e45ffd24151491693dc1a0004229fe`。v0.21 / versionCode 21 已作为 [正式 GitHub Release](https://github.com/h516df/jiyixia/releases/tag/v0.21) 发布（非 draft、非 prerelease，GitHub latest），v0.21 tag 精确指向此提交。未来 main 可能继续更新，但正式包与该 tag 固定对应。
