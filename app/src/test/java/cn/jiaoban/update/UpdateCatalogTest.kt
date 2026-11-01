@@ -99,13 +99,28 @@ class UpdateCatalogTest {
     @Test
     fun apkNamesPreferArm64ThenUniversal() {
         assertEquals(
-            listOf("Jiaoban-v0.3-arm64.apk", "Jiaoban-v0.3-universal.apk"),
+            listOf("Jiyixia-v0.3-arm64.apk", "Jiyixia-v0.3-universal.apk",
+                "Jiaoban-v0.3-arm64.apk", "Jiaoban-v0.3-universal.apk"),
             UpdateConfig.apkNames("0.3", listOf("arm64-v8a")),
         )
         assertEquals(
-            listOf("Jiaoban-v0.3-universal.apk"),
+            listOf("Jiyixia-v0.3-universal.apk", "Jiaoban-v0.3-universal.apk"),
             UpdateConfig.apkNames("0.3", listOf("x86_64")),
         )
+    }
+
+    @Test fun currentUpdaterPrefersNewBrandWhileLegacyInstallersStillFindOldAsset() {
+        val assets=listOf(
+            UpdateAsset(1,200,"Jiaoban-v0.24-universal.apk",null),
+            UpdateAsset(2,200,"Jiyixia-v0.24-universal.apk",null),
+        )
+        val notes=ReleaseNotes("0.24",24,listOf("改进" to listOf("新界面")))
+        val choice=UpdateCatalog.decide(notes,assets,23,listOf("arm64-v8a")) as UpdateCatalog.Result.Available
+        assertEquals("Jiyixia-v0.24-universal.apk",choice.candidate.apk.name)
+        assertTrue(UpdateConfig.publicApkUrl("https://github.com/h516df/app-releases/releases/download/jiyixia-stable-v0.24/Jiaoban-v0.24-universal.apk",
+            "jiyixia-stable-v0.24","Jiaoban-v0.24-universal.apk"))
+        assertTrue(UpdateConfig.publicApkUrl("https://github.com/h516df/app-releases/releases/download/jiyixia-stable-v0.24/Jiyixia-v0.24-universal.apk",
+            "jiyixia-stable-v0.24","Jiyixia-v0.24-universal.apk"))
     }
 
     @Test

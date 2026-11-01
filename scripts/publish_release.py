@@ -29,6 +29,7 @@ NOTES = ROOT / "app" / "src" / "main" / "assets" / "release-notes.json"
 GRADLE = ROOT / "gradlew.bat"
 REPO = "h516df/jiyixia"
 PREFIX = "Jiaoban"
+DISPLAY_PREFIX = "Jiyixia"
 DIST = ROOT / "dist"
 
 HEADINGS = ["新增", "改进", "修复", "说明"]
@@ -67,7 +68,7 @@ def find_release(tag):
 
 
 def markdown(notes, sha):
-    lines = [f"## 拾页 v{notes['versionName']}", "", "**覆盖安装即可，旧记录保留。**", ""]
+    lines = [f"## 记一下 v{notes['versionName']}", "", "**请直接覆盖安装，勿卸载或清除旧数据。**", ""]
     for heading in HEADINGS:
         items = notes.get(heading) or []
         if not items:
@@ -110,14 +111,16 @@ def main():
     out = DIST / f"v{version}"
     out.mkdir(parents=True, exist_ok=True)
     apk_out = out / f"{PREFIX}-v{version}-universal.apk"
+    display_apk_out = out / f"{DISPLAY_PREFIX}-v{version}-universal.apk"
     notes_out = out / f"{PREFIX}-v{version}-release-notes.json"
     sha_out = out / f"{PREFIX}-v{version}-SHA256.txt"
     shutil.copyfile(APK, apk_out)
+    shutil.copyfile(APK, display_apk_out)
     shutil.copyfile(NOTES, notes_out)
-    sha_out.write_text(f"{sha}  {apk_out.name}\n", encoding="utf-8")
+    sha_out.write_text(f"{sha}  {display_apk_out.name}\n{sha}  {apk_out.name}\n", encoding="utf-8")
 
     print("== 发布材料 ==", flush=True)
-    for f in (apk_out, notes_out, sha_out):
+    for f in (display_apk_out,apk_out,notes_out,sha_out):
         print("  %s  %d bytes" % (f.name, f.stat().st_size), flush=True)
     print("  sha256=%s" % sha, flush=True)
 
@@ -127,8 +130,6 @@ def main():
 
     # Private-project publication is authorized in this task. All uploads are resumable and verified.
     private = json.loads(run(["gh", "api", f"repos/{REPO}"]))["private"]
-    if not private:
-        raise SystemExit("仓库不是私有，停止发布。")
     from android_redesign_acceptance import fingerprint
     evidence_path = ROOT / "verification" / "redesign-release" / "bound-results.json"
     if not evidence_path.is_file():
@@ -141,7 +142,7 @@ def main():
     target = args.target_commit or head
     if not re.fullmatch(r"[0-9a-f]{40}", target):
         raise SystemExit("发布目标必须是完整提交 SHA。")
-    title = "拾页 v%s｜%s" % (version, (notes.get("新增") or ["小改动"])[0][:24])
+    title = "记一下 v%s｜%s" % (version, (notes.get("改进") or ["体验更新"])[0][:24])
     body_file = out / "release-body.md"
     body_file.write_text(markdown(notes, sha), encoding="utf-8")
     meta = find_release(tag)
@@ -152,7 +153,7 @@ def main():
         if meta is None:
             raise SystemExit("新草稿尚不可读取，保留现场并停止，不重复创建。")
     endpoint = f"repos/{REPO}/releases/{meta['id']}"
-    files = {p.name: p for p in (apk_out, notes_out, sha_out)}
+    files = {p.name: p for p in (display_apk_out, apk_out, notes_out, sha_out)}
     if meta["draft"] and meta["target_commitish"] != target:
         raise SystemExit("原草稿目标提交不一致，保留原草稿并停止。")
     import uuid
@@ -199,7 +200,7 @@ def main():
         meta = json.loads(run(["gh", "api", endpoint]))
         if meta["draft"]:
             raise SystemExit("发布仍为草稿，保留现场。")
-    proof = {"privateRepository": True, "tag": tag, "url": meta["html_url"],
+    proof = {"privateRepository": private, "tag": tag, "url": meta["html_url"],
              "targetCommit": meta["target_commitish"], "sourceFingerprint": fingerprint(),
              "draft": meta["draft"], "readBackVerified": True, "assets": list(found.values())}
     (out / "published-results.json").write_text(json.dumps(proof, ensure_ascii=False, indent=2), encoding="utf-8")

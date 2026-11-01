@@ -303,6 +303,16 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
         openMediaPicker = true
         creating = true
     }
+    fun beginNoteEntry() {
+        if (!holder.loaded) return
+        promotedQuickText = quickText.takeIf { it.isNotBlank() }
+        sharedDraft = quickText
+        createDiary = false
+        newEditorId = null
+        openMediaPicker = false
+        editorSession = java.util.UUID.randomUUID().toString()
+        creating = true
+    }
     fun beginDiaryEntry(date:LocalDate) {
         createDiary=true
         newDiaryDay=date.toString()
@@ -361,16 +371,18 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
     }
     val detail = holder.savedTasks.firstOrNull { it.id == detailId }
     val isMain = screen in listOf(Screen.NOTES, Screen.JOURNAL)
+    val searchFocus=remember { FocusRequester() }
+    val keyboard=LocalSoftwareKeyboardController.current
+    LaunchedEffect(searching) {
+        if(searching) { withFrameNanos{};searchFocus.requestFocus();keyboard?.show() }
+    }
     Scaffold(contentWindowInsets=WindowInsets.safeDrawing,containerColor=MaterialTheme.colorScheme.background,
         snackbarHost={SnackbarHost(snack)},
-        topBar={TopAppBar(expandedHeight=if(LocalDensity.current.fontScale>1.3f)112.dp else 82.dp,title={
+        topBar={TopAppBar(expandedHeight=72.dp,title={
             if(selectedIds.isNotEmpty()) Text("已选 ${selectedIds.size} 条",style=MaterialTheme.typography.titleMedium)
             else if(detail != null) Text(if(detail.kind!=EntryKind.NOTE) "旧版资料" else if(detail.deletedAt!=null)"回收站" else if(detail.journalDate!=null) "日记" else "记录",style=MaterialTheme.typography.titleMedium)
-            else if(searching) OutlinedTextField(query,{query=it},singleLine=true,placeholder={Text("搜索记录与日记") },modifier=Modifier.fillMaxWidth(),shape=RoundedCornerShape(18.dp))
-            else Column(verticalArrangement=Arrangement.spacedBy(3.dp)) {
-                Text(screen.label,fontSize=27.sp,fontWeight=FontWeight.SemiBold)
-                if(isMain && LocalDensity.current.fontScale<=1.3f) Text(if(screen==Screen.NOTES) "随手记下，慢慢回看" else "按日翻看，想起更多",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+            else if(searching) OutlinedTextField(query,{query=it},singleLine=true,placeholder={Text("搜索") },modifier=Modifier.fillMaxWidth().focusRequester(searchFocus),shape=RoundedCornerShape(18.dp))
+            else Text(screen.label,fontSize=30.sp,fontWeight=FontWeight.Bold)
         },navigationIcon={
             if(selectedIds.isNotEmpty()) IconButton(onClick={selectedIds=emptySet()}){Icon(Icons.Default.Close,"取消选择")}
             else if(detail!=null || !isMain) IconButton(onClick={if(detail!=null)detailId=null else screen=if(screen==Screen.UPDATE || screen==Screen.LEGACY || screen==Screen.IMPORT || screen==Screen.TRASH)Screen.SETTINGS else Screen.NOTES}) {Icon(Icons.Default.ArrowBack,"返回")}
@@ -412,33 +424,39 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
                 TextButton(onClick={moveToTrash(selectedIds)}){Icon(Icons.Default.Delete,null,Modifier.size(18.dp));Text("删除",color=MaterialTheme.colorScheme.error)}
             }
         }
-        else if(detail==null && !searching && isMain) Column(Modifier.imePadding()) {
+        else if(detail==null && !searching && isMain) Column {
             if(!showVoicePanel) MiniVoiceBar(voiceState,{showVoicePanel=true},
                 {voice.pause(context)},{voice.resume(context)})
-            if(screen==Screen.NOTES) QuickComposer(quickText,::retainQuick,posting,holder.loaded,::submitQuick,
-                onRecord=::beginVoice,onMedia=::beginMediaEntry)
-            if(screen==Screen.JOURNAL && !journalArchived) Surface(color=MaterialTheme.colorScheme.background) {
-                Button(onClick={beginDiaryEntry(LocalDate.parse(journalDay))},enabled=holder.loaded,
-                    modifier=Modifier.fillMaxWidth().padding(horizontal=18.dp,vertical=8.dp)
-                        .heightIn(min=52.dp).semantics{contentDescription="写日记"},
-                    shape=RoundedCornerShape(16.dp)) {
-                    Icon(Icons.Default.Edit,null,Modifier.size(20.dp))
-                    Spacer(Modifier.width(10.dp))
-                    Text(if(holder.savedTasks.any{it.kind==EntryKind.NOTE && it.journalDate?.toString()==journalDay && it.state==TaskState.OPEN})
-                        "再写一篇" else "写下这一天",style=MaterialTheme.typography.titleSmall)
-                }
-            }
-            // The IME already animates its insets. Keep navigation in composition while
-            // its height animates out/in; removing it at one IME visibility frame made
-            // the editor jump and the timeline suddenly reflow during back gestures.
             AnimatedVisibility(visible=!WindowInsets.isImeVisible,
                 enter=expandVertically(animationSpec=tween(180))+fadeIn(animationSpec=tween(160)),
                 exit=shrinkVertically(animationSpec=tween(110))+fadeOut(animationSpec=tween(90))) {
-                NavigationBar(containerColor=MaterialTheme.colorScheme.background,tonalElevation=0.dp) {
-                    listOf(Screen.NOTES,Screen.JOURNAL).forEach {item->
-                        NavigationBarItem(selected=screen==item,onClick={screen=item;focus.clearFocus()},
-                            icon={Icon(item.icon,null,Modifier.size(22.dp))},label={Text(item.label)},
-                            colors=NavigationBarItemDefaults.colors(indicatorColor=MaterialTheme.colorScheme.primaryContainer))
+                Surface(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=8.dp),
+                    shape=RoundedCornerShape(28.dp),color=MaterialTheme.colorScheme.surface.copy(alpha=.96f),
+                    shadowElevation=7.dp,tonalElevation=2.dp,
+                    border=BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant.copy(alpha=.65f))) {
+                    Row(Modifier.fillMaxWidth().padding(horizontal=8.dp,vertical=5.dp),verticalAlignment=Alignment.CenterVertically,
+                        horizontalArrangement=Arrangement.spacedBy(4.dp)) {
+                        listOf(Screen.NOTES,Screen.JOURNAL).forEach {item->
+                            val active=screen==item
+                            Surface(onClick={screen=item;focus.clearFocus()},shape=RoundedCornerShape(22.dp),
+                                color=if(active)MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                                modifier=Modifier.weight(1f)) {
+                                Row(Modifier.heightIn(min=46.dp).padding(horizontal=5.dp),verticalAlignment=Alignment.CenterVertically,
+                                    horizontalArrangement=Arrangement.Center) {
+                                    Icon(item.icon,item.label,Modifier.size(18.dp),tint=if(active)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(item.label,style=MaterialTheme.typography.labelMedium,color=if(active)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                        IconButton(onClick=::beginVoice,enabled=holder.loaded,modifier=Modifier.size(46.dp)) {
+                            Icon(Icons.Default.Mic,"开始录音")
+                        }
+                        FilledIconButton(onClick={if(screen==Screen.JOURNAL) { {beginDiaryEntry(LocalDate.parse(journalDay))} } else ::beginNoteEntry},
+                            enabled=holder.loaded && (screen!=Screen.JOURNAL || !journalArchived),
+                            modifier=Modifier.size(46.dp).semantics { contentDescription=if(screen==Screen.JOURNAL)"写日记" else "写记录" }) {
+                            Icon(Icons.Default.Add,null,Modifier.size(26.dp))
+                        }
                     }
                 }
             }
@@ -459,18 +477,18 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
             }
             !holder.loaded -> Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){CircularProgressIndicator()}
             searching -> NotesPage(holder.savedTasks.filter{it.kind==EntryKind.NOTE && it.deletedAt==null && writingMatches(it,query,null)},
-                {detailId=it.id},query=query,searching=true,selectedIds=selectedIds,onSelect=::select)
+                {detailId=it.id},query=query,searching=true,selectedIds=selectedIds,onSelect=::select,onSwipeDelete={moveToTrash(setOf(it.id))})
             screen==Screen.NOTES -> NotesPage(holder.savedTasks.filter{it.kind==EntryKind.NOTE && it.deletedAt==null && it.journalDate==null && writingMatches(it,"",selectedTag)},{detailId=it.id},query,false,selectedTag,{selectedTag=it},savedGeneration=savedGeneration,onReview={
                 val candidates=reviewEntries(holder.savedTasks,today)
                 val next=candidates.filter{it.id!=lastReviewed}.randomOrNull() ?: candidates.firstOrNull()
                 if(next==null)notify("还没有更早的记录。今天写下的，以后再回来看看。")
                 else {lastReviewed=next.id;detailId=next.id}
-            },selectedIds=selectedIds,onSelect=::select)
+            },selectedIds=selectedIds,onSelect=::select,onSwipeDelete={moveToTrash(setOf(it.id))})
             screen==Screen.JOURNAL -> JournalPage(holder.savedTasks.filter{it.kind==EntryKind.NOTE && it.deletedAt==null},today,
                 {detailId=it.id},onWrite=::beginDiaryEntry,
                 selectedDay=LocalDate.parse(journalDay),onSelectDay={journalDay=it.toString()},
                 archived=journalArchived,onArchivedChange={journalArchived=it},
-                selectedIds=selectedIds,onSelect=::select)
+                selectedIds=selectedIds,onSelect=::select,onSwipeDelete={moveToTrash(setOf(it.id))})
             screen==Screen.TRASH -> TrashPage(holder.savedTasks.filter{it.kind==EntryKind.NOTE && it.deletedAt!=null},
                 {detailId=it.id},::restore,{permanentConfirm=it})
             screen==Screen.LEGACY -> LegacyPage(holder.savedTasks.filter{it.kind!=EntryKind.NOTE},{detailId=it.id})
