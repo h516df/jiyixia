@@ -15,8 +15,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -88,9 +86,10 @@ internal fun MicGlyph(modifier: Modifier = Modifier.size(23.dp), color: Color = 
                 style=MaterialTheme.typography.labelMedium,modifier=Modifier.weight(1f))
             Text(recordingElapsed(state.elapsedMs),style=MaterialTheme.typography.labelMedium)
             if(recording || state.phase==VoiceCapturePhase.PAUSED || state.phase==VoiceCapturePhase.INTERRUPTED)
-                IconButton(onClick={if(recording)onPause() else onResume()}) {
-                    Icon(if(recording)Icons.Default.Pause else Icons.Default.PlayArrow,
-                        if(recording)"暂停录音" else "继续录音")
+                IconButton(onClick={if(recording)onPause() else onResume()},modifier=Modifier.semantics {
+                    contentDescription=if(recording)"暂停录音" else "继续录音"
+                }) {
+                    Text(if(recording)"Ⅱ" else "▶",color=MaterialTheme.colorScheme.primary,fontSize=20.sp)
                 }
             Icon(Icons.Default.KeyboardArrowUp,"展开录音",Modifier.size(20.dp))
         }
