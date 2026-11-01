@@ -306,7 +306,7 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
                 IconButton(onClick=onMedia,enabled=ready && !posting,modifier=Modifier.size(48.dp).semantics { contentDescription="添加照片或视频" }) {
                     Icon(Icons.Default.Add,null,tint=c.primary)
                 }
-                OutlinedTextField(text,onText,enabled=ready && !posting,placeholder={Text("记下一点想法…",fontSize=15.sp)},
+                OutlinedTextField(text,onText,enabled=ready && !posting,placeholder={Text(if(LocalDensity.current.fontScale>1.3f) "记点什么…" else "记下一点想法…",fontSize=15.sp)},
                     minLines=1,maxLines=3,modifier=Modifier.weight(1f).semantics{contentDescription="随手记录正文"},shape=RoundedCornerShape(18.dp),
                     textStyle=MaterialTheme.typography.bodyLarge.copy(fontSize=16.sp,lineHeight=25.sp),
                     colors=OutlinedTextFieldDefaults.colors(focusedBorderColor=c.primary,unfocusedBorderColor=c.outlineVariant,focusedContainerColor=c.surface,unfocusedContainerColor=c.surface))
@@ -413,17 +413,19 @@ internal val mediaCopySessions = mutableStateMapOf<String,Boolean>()
             Surface(shape=RoundedCornerShape(18.dp),color=c.surface) {
                 Column(Modifier.fillMaxWidth().padding(22.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                     Text(if(searching)"没有找到日记" else if(archived)"这一天没有归档日记" else "这一天还没写日记",style=MaterialTheme.typography.titleMedium)
-                    Text(if(searching)"换个关键词试试。" else if(archived)"归档的内容仍会保留在本机。" else "在下方点「写日记」，几句话也可以。",style=MaterialTheme.typography.bodyMedium,lineHeight=23.sp,color=c.onSurfaceVariant)
+                    Text(if(searching)"换个关键词试试。" else if(archived)"归档的内容仍会保留在本机。" else "写几句话，留住今天。",style=MaterialTheme.typography.bodyMedium,lineHeight=23.sp,color=c.onSurfaceVariant)
                 }
             }
         }
         items(shown,key={it.id}){PaperEntry(it,open)}
         if(!searching && !archived && fragments.isNotEmpty())item {
             HorizontalDivider(color=c.outlineVariant)
-            TextButton(onClick={showFragments=!showFragments},modifier=Modifier.fillMaxWidth()) {
+            TextButton(onClick={showFragments=!showFragments},modifier=Modifier.fillMaxWidth().semantics {
+                contentDescription="同日随记 ${fragments.size} 条，${if(showFragments)"收起" else "展开"}"
+            }) {
                 Icon(if(showFragments)Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,null,Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("同日随记 · ${fragments.size} 条 · ${if(showFragments)"收起" else "展开"}",style=MaterialTheme.typography.labelLarge)
+                Text(if(LocalDensity.current.fontScale>1.3f) "随记 · ${fragments.size} 条" else "同日随记 · ${fragments.size} 条 · ${if(showFragments)"收起" else "展开"}",style=MaterialTheme.typography.labelLarge)
             }
         }
         if(!searching && !archived && showFragments)items(fragments,key={"fragment-${it.id}"}){PaperEntry(it,open)}
