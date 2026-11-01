@@ -1,0 +1,42 @@
+name: Signed v0.23 to v0.24 upgrade
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  upgrade:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Ensure Android signing verification tools
+        run: |
+          "${ANDROID_HOME:-$ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" 'build-tools;35.0.0'
+      - name: Verify signed release draft and previous official APK
+        run: bash scripts/ci_signed_upgrade_download.sh
+      - name: Enable KVM
+        run: |
+          if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
+      - name: Install v0.23, create a record, upgrade in place, verify v0.24
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          avd-name: Shiye_Upgrade_API35
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: python3 scripts/ci_signed_upgrade_ui.py
+      - name: Preserve upgrade evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: signed-upgrade-${{ github.sha }}
+          path: app/build/outputs/signed-upgrade/
+          retention-days: 3
+          if-no-files-found: warn

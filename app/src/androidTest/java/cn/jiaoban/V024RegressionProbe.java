@@ -194,7 +194,6 @@ public class V024RegressionProbe extends Instrumentation {
                 for(AccessibilityWindowInfo window:getUiAutomation().getWindows()){
                     if(window.getType()==AccessibilityWindowInfo.TYPE_INPUT_METHOD)keyboard=true;
                 }
-                if(!keyboard && shell("dumpsys input_method").contains("mInputShown=true"))keyboard=true;
                 if(!keyboard)SystemClock.sleep(250);
             }
             check("One tap opens native Android keyboard",keyboard);
