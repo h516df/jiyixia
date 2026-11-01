@@ -45,6 +45,7 @@ import cn.jiaoban.*
 import cn.jiaoban.data.*
 import cn.jiaoban.media.VoiceCapturePhase
 import cn.jiaoban.media.VoiceSessionController
+import cn.jiaoban.media.MediaCleanup
 import cn.jiaoban.parse.*
 import cn.jiaoban.update.Updater
 import kotlinx.coroutines.launch
@@ -52,7 +53,8 @@ import java.time.*
 
 private enum class Screen(val label: String, val icon: ImageVector) {
     NOTES("记录", Icons.Default.Edit), JOURNAL("日记", Icons.Default.DateRange),
-    IMPORT("导入记录", Icons.Default.Info), LEGACY("旧版资料", Icons.Default.Info), SETTINGS("设置", Icons.Default.Settings), UPDATE("检查更新", Icons.Default.Refresh)
+    IMPORT("导入记录", Icons.Default.Info), LEGACY("旧版资料", Icons.Default.Info), SETTINGS("设置", Icons.Default.Settings), UPDATE("检查更新", Icons.Default.Refresh),
+    TRASH("回收站",Icons.Default.Delete)
 }
 
 @OptIn(ExperimentalMaterial3Api::class,ExperimentalLayoutApi::class)
@@ -65,6 +67,9 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
     var screen by rememberSaveable { mutableStateOf(Screen.NOTES) }
     var searching by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
+    var selectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var detailMenu by remember { mutableStateOf(false) }
+    var permanentConfirm by remember { mutableStateOf<Set<String>>(emptySet()) }
     var editId by rememberSaveable { mutableStateOf<String?>(null) }
     var detailId by rememberSaveable { mutableStateOf<String?>(null) }
     var editorSession by rememberSaveable {mutableStateOf(java.util.UUID.randomUUID().toString())}
@@ -130,6 +135,56 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
     val snack = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     fun notify(message: String) { scope.launch { snack.showSnackbar(message) } }
+    fun select(note:Task) { selectedIds=if(note.id in selectedIds)selectedIds-note.id else selectedIds+note.id }
+    fun restore(ids:Set<String>) {
+        holder.restoreFromTrash(ids) { ok ->
+            if(ok) {detailId=null;notify("已恢复 ${ids.size} 条内容")}
+            else notify("恢复失败，原内容仍在回收站")
+        }
+    }
+    fun moveToTrash(ids:Set<String>) {
+        if(ids.isEmpty()) return
+        holder.moveToTrash(ids) { ok ->
+            if(ok) {
+                selectedIds=emptySet();detailId=null
+                scope.launch {
+                    if(snack.showSnackbar("已移到回收站",actionLabel="撤销",withDismissAction=true)==SnackbarResult.ActionPerformed)
+                        restore(ids)
+                }
+            } else notify("删除未保存，请检查存储空间后重试")
+        }
+    }
+    fun purge(ids:Set<String>) {
+        if(ids.isEmpty()) return
+        holder.purgeTrash(ids) { ok,candidates ->
+            if(ok) {
+                detailId=null
+                val durable=holder.savedTasks.toList()
+                val pending=holder.tasks.toList()
+                val busy=holder.importing
+                scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                    MediaCleanup.prune(context,candidates,durable,pending,busy,store.recoveryAttachmentPaths())
+                }
+                notify("已彻底删除 ${ids.size} 条内容")
+            } else notify("彻底删除未完成，内容仍在回收站")
+        }
+    }
+    fun archiveSelection() {
+        val ids=selectedIds
+        val archive=holder.savedTasks.any { it.id in ids && it.state==TaskState.OPEN }
+        holder.setArchived(ids,archive) { ok ->
+            if(ok) {selectedIds=emptySet();notify(if(archive)"已归档 ${ids.size} 条内容" else "已恢复 ${ids.size} 条归档")}
+            else notify("归档失败，请重试")
+        }
+    }
+    fun pinSelection() {
+        val ids=selectedIds
+        val pin=holder.savedTasks.filter { it.id in ids }.any { !it.pinned }
+        holder.setPinned(ids,pin) { ok ->
+            if(ok) {selectedIds=emptySet();notify(if(pin)"已置顶" else "已取消置顶")}
+            else notify("操作失败，请重试")
+        }
+    }
     // The recording owner survives an editor being closed and the Activity going to the background.
     // The stable session ID also becomes the entry ID, so a failed save can safely be retried.
     val voice = VoiceSessionController
@@ -221,6 +276,15 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
     LaunchedEffect(holder.loaded) {
         if (holder.loaded) voice.recover(context)
     }
+    LaunchedEffect(holder.loaded) {
+        if(holder.loaded) {
+            val cutoff=java.time.Instant.now().minus(java.time.Duration.ofDays(30))
+            val expired=holder.savedTasks.filter {
+                it.kind==EntryKind.NOTE && it.deletedAt?.isBefore(cutoff)==true
+            }.map { it.id }.toSet()
+            if(expired.isNotEmpty()) purge(expired)
+        }
+    }
     LaunchedEffect(holder.loaded, voiceState.phase, voiceState.sessionId, voiceState.attachmentSaveFailed) {
         val sessionId = voiceState.sessionId
         if (holder.loaded && sessionId != null && sessionId != attemptedVoiceSession &&
@@ -286,11 +350,12 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
     // The recording sheet owns back gestures; App must not remove it before its
     // Material3 dismissal animation has finished.
     BackHandler(enabled = !showVoicePanel && !WindowInsets.isImeVisible &&
-        (detailId != null || searching || screen != Screen.NOTES)) {
+        (selectedIds.isNotEmpty() || detailId != null || searching || screen != Screen.NOTES)) {
         when {
+            selectedIds.isNotEmpty() -> selectedIds=emptySet()
             detailId != null -> detailId = null
             searching -> { searching=false; query=""; focus.clearFocus() }
-            screen == Screen.UPDATE || screen == Screen.LEGACY || screen == Screen.IMPORT -> screen=Screen.SETTINGS
+            screen == Screen.UPDATE || screen == Screen.LEGACY || screen == Screen.IMPORT || screen==Screen.TRASH -> screen=Screen.SETTINGS
             else -> screen=Screen.NOTES
         }
     }
@@ -299,23 +364,57 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
     Scaffold(contentWindowInsets=WindowInsets.safeDrawing,containerColor=MaterialTheme.colorScheme.background,
         snackbarHost={SnackbarHost(snack)},
         topBar={TopAppBar(expandedHeight=if(LocalDensity.current.fontScale>1.3f)112.dp else 82.dp,title={
-            if(detail != null) Text(if(detail.kind!=EntryKind.NOTE) "旧版资料" else if(detail.journalDate!=null) "日记" else "记录",style=MaterialTheme.typography.titleMedium)
+            if(selectedIds.isNotEmpty()) Text("已选 ${selectedIds.size} 条",style=MaterialTheme.typography.titleMedium)
+            else if(detail != null) Text(if(detail.kind!=EntryKind.NOTE) "旧版资料" else if(detail.deletedAt!=null)"回收站" else if(detail.journalDate!=null) "日记" else "记录",style=MaterialTheme.typography.titleMedium)
             else if(searching) OutlinedTextField(query,{query=it},singleLine=true,placeholder={Text("搜索记录与日记") },modifier=Modifier.fillMaxWidth(),shape=RoundedCornerShape(18.dp))
             else Column(verticalArrangement=Arrangement.spacedBy(3.dp)) {
                 Text(screen.label,fontSize=27.sp,fontWeight=FontWeight.SemiBold)
                 if(isMain && LocalDensity.current.fontScale<=1.3f) Text(if(screen==Screen.NOTES) "随手记下，慢慢回看" else "按日翻看，想起更多",fontSize=12.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },navigationIcon={
-            if(detail!=null || !isMain) IconButton(onClick={if(detail!=null)detailId=null else screen=if(screen==Screen.UPDATE || screen==Screen.LEGACY || screen==Screen.IMPORT)Screen.SETTINGS else Screen.NOTES}) {Icon(Icons.Default.ArrowBack,"返回")}
+            if(selectedIds.isNotEmpty()) IconButton(onClick={selectedIds=emptySet()}){Icon(Icons.Default.Close,"取消选择")}
+            else if(detail!=null || !isMain) IconButton(onClick={if(detail!=null)detailId=null else screen=if(screen==Screen.UPDATE || screen==Screen.LEGACY || screen==Screen.IMPORT || screen==Screen.TRASH)Screen.SETTINGS else Screen.NOTES}) {Icon(Icons.Default.ArrowBack,"返回")}
         },actions={
-            if(detail?.kind==EntryKind.NOTE) TextButton(onClick={editId=detail.id;newEditorId=null;openMediaPicker=false;promotedQuickText=null;editorSession=java.util.UUID.randomUUID().toString()}){Text("编辑")}
+            if(selectedIds.isNotEmpty()) Unit
+            else if(detail?.kind==EntryKind.NOTE) {
+                if(detail.deletedAt==null) TextButton(onClick={editId=detail.id;newEditorId=null;openMediaPicker=false;promotedQuickText=null;editorSession=java.util.UUID.randomUUID().toString()}){Text("编辑")}
+                Box {
+                    IconButton(onClick={detailMenu=true}){Icon(Icons.Default.MoreVert,"更多操作")}
+                    DropdownMenu(expanded=detailMenu,onDismissRequest={detailMenu=false}) {
+                        if(detail.deletedAt!=null) {
+                            DropdownMenuItem(text={Text("恢复")},onClick={detailMenu=false;restore(setOf(detail.id))})
+                            DropdownMenuItem(text={Text("彻底删除")},onClick={detailMenu=false;permanentConfirm=setOf(detail.id)})
+                        } else {
+                            DropdownMenuItem(text={Text(if(detail.pinned)"取消置顶" else "置顶")},onClick={
+                                detailMenu=false
+                                holder.setPinned(setOf(detail.id),!detail.pinned){ok->notify(if(ok)"已更新置顶状态" else "置顶失败")}
+                            })
+                            DropdownMenuItem(text={Text(if(detail.state==TaskState.OPEN)"归档" else "恢复归档")},onClick={
+                                detailMenu=false
+                                holder.setArchived(setOf(detail.id),detail.state==TaskState.OPEN){ok->notify(if(ok)"已更新归档状态" else "操作失败")}
+                            })
+                            DropdownMenuItem(text={Text("删除",color=MaterialTheme.colorScheme.error)},onClick={detailMenu=false;moveToTrash(setOf(detail.id))})
+                        }
+                    }
+                }
+            }
             else if(detail==null && searching) TextButton(onClick={searching=false;query="";focus.clearFocus()}){Text("取消")}
             else if(detail==null && isMain) {
                 IconButton(onClick={selectedTag=null;searching=true}){Icon(Icons.Default.Search,"搜索" )}
                 IconButton(onClick={screen=Screen.SETTINGS}){Icon(Icons.Default.Settings,"设置")}
             }
         },colors=TopAppBarDefaults.topAppBarColors(containerColor=MaterialTheme.colorScheme.background))},
-        bottomBar={if(detail==null && !searching && isMain) Column(Modifier.imePadding()) {
+        bottomBar={if(selectedIds.isNotEmpty() && detail==null) Surface(color=MaterialTheme.colorScheme.surface) {
+            Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal=8.dp,vertical=6.dp),
+                verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceEvenly) {
+                TextButton(onClick=::pinSelection){Text(if(holder.savedTasks.filter{it.id in selectedIds}.all{it.pinned})"取消置顶" else "置顶")}
+                TextButton(onClick=::archiveSelection){Text(if(holder.savedTasks.filter{it.id in selectedIds}.all{it.state!=TaskState.OPEN})"取消归档" else "归档")}
+                TextButton(onClick={moveToTrash(selectedIds)}){Icon(Icons.Default.Delete,null,Modifier.size(18.dp));Text("删除",color=MaterialTheme.colorScheme.error)}
+            }
+        }
+        else if(detail==null && !searching && isMain) Column(Modifier.imePadding()) {
+            if(!showVoicePanel) MiniVoiceBar(voiceState,{showVoicePanel=true},
+                {voice.pause(context)},{voice.resume(context)})
             if(screen==Screen.NOTES) QuickComposer(quickText,::retainQuick,posting,holder.loaded,::submitQuick,
                 onRecord=::beginVoice,onMedia=::beginMediaEntry)
             if(screen==Screen.JOURNAL && !journalArchived) Surface(color=MaterialTheme.colorScheme.background) {
@@ -343,30 +442,42 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
                     }
                 }
             }
-        }},
+        }
+        else if(!showVoicePanel && voiceState.sessionId!=null) MiniVoiceBar(voiceState,{showVoicePanel=true},
+            {voice.pause(context)},{voice.resume(context)})},
 
     ) {padding->Column(Modifier.fillMaxSize().padding(padding)) {
         holder.saveError?.let {message->Surface(color=MaterialTheme.colorScheme.errorContainer) {Row(Modifier.fillMaxWidth().padding(start=20.dp),verticalAlignment=Alignment.CenterVertically){Text(message,Modifier.weight(1f));TextButton(onClick={if(quickText.isNotBlank())submitQuick() else holder.retrySave()}){Text("重试保存")}}}}
         when {
             detail?.kind==EntryKind.NOTE -> NoteDetail(detail,{holder.update(detail.copy(pinned=!detail.pinned))},{holder.setState(detail.id,if(detail.state==TaskState.OPEN)TaskState.VOID else TaskState.OPEN)},{holder.update(it)},allowPlayback=editId==null && !creating)
             detail!=null -> LegacyDetail(detail,today)
+            holder.loadError!=null -> Column(Modifier.fillMaxSize().padding(24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+                Text("无法读取本机资料",style=MaterialTheme.typography.titleLarge)
+                Text(holder.loadError!!,style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.error)
+                Button(onClick={holder.retryLoad()}){Text("重试读取")}
+                Text("原文件没有被清空或覆盖。若重试仍失败，请保留应用数据并使用已有完整备份恢复。",color=MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             !holder.loaded -> Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){CircularProgressIndicator()}
-            searching -> NotesPage(holder.savedTasks.filter{it.kind==EntryKind.NOTE && writingMatches(it,query,null)},
-                {detailId=it.id},query=query,searching=true)
-            screen==Screen.NOTES -> NotesPage(holder.savedTasks.filter{it.kind==EntryKind.NOTE && it.journalDate==null && writingMatches(it,"",selectedTag)},{detailId=it.id},query,false,selectedTag,{selectedTag=it},savedGeneration=savedGeneration,onReview={
+            searching -> NotesPage(holder.savedTasks.filter{it.kind==EntryKind.NOTE && it.deletedAt==null && writingMatches(it,query,null)},
+                {detailId=it.id},query=query,searching=true,selectedIds=selectedIds,onSelect=::select)
+            screen==Screen.NOTES -> NotesPage(holder.savedTasks.filter{it.kind==EntryKind.NOTE && it.deletedAt==null && it.journalDate==null && writingMatches(it,"",selectedTag)},{detailId=it.id},query,false,selectedTag,{selectedTag=it},savedGeneration=savedGeneration,onReview={
                 val candidates=reviewEntries(holder.savedTasks,today)
                 val next=candidates.filter{it.id!=lastReviewed}.randomOrNull() ?: candidates.firstOrNull()
                 if(next==null)notify("还没有更早的记录。今天写下的，以后再回来看看。")
                 else {lastReviewed=next.id;detailId=next.id}
-            })
-            screen==Screen.JOURNAL -> JournalPage(holder.savedTasks.filter{it.kind==EntryKind.NOTE},today,
+            },selectedIds=selectedIds,onSelect=::select)
+            screen==Screen.JOURNAL -> JournalPage(holder.savedTasks.filter{it.kind==EntryKind.NOTE && it.deletedAt==null},today,
                 {detailId=it.id},onWrite=::beginDiaryEntry,
                 selectedDay=LocalDate.parse(journalDay),onSelectDay={journalDay=it.toString()},
-                archived=journalArchived,onArchivedChange={journalArchived=it})
+                archived=journalArchived,onArchivedChange={journalArchived=it},
+                selectedIds=selectedIds,onSelect=::select)
+            screen==Screen.TRASH -> TrashPage(holder.savedTasks.filter{it.kind==EntryKind.NOTE && it.deletedAt!=null},
+                {detailId=it.id},::restore,{permanentConfirm=it})
             screen==Screen.LEGACY -> LegacyPage(holder.savedTasks.filter{it.kind!=EntryKind.NOTE},{detailId=it.id})
             screen==Screen.IMPORT -> ImportPage(holder)
             screen==Screen.UPDATE -> UpdateScreen(updater,PaddingValues(0.dp))
-            else -> WritingSettings(holder.savedTasks.count{it.kind!=EntryKind.NOTE},{screen=Screen.LEGACY},{export.launch("记一下-完整资料-$today.zip")},{screen=Screen.UPDATE},{screen=Screen.IMPORT})
+            else -> WritingSettings(holder.savedTasks.count{it.kind!=EntryKind.NOTE},{screen=Screen.LEGACY},{export.launch("记一下-完整资料-$today.zip")},{screen=Screen.UPDATE},{screen=Screen.IMPORT},
+                holder.savedTasks.count{it.kind==EntryKind.NOTE && it.deletedAt!=null},{screen=Screen.TRASH})
         }
     }}
     if(holder.loaded && (creating || editId!=null)) {
@@ -413,5 +524,12 @@ fun App(store: TaskStore, today: LocalDate, sharedText: String? = null, onShared
     )
     if(incomingShare!=null) AlertDialog(onDismissRequest={incomingShare=null},title={Text("收到新的分享")},text={Text("当前文字还未保存。继续编辑，或放弃当前改动并打开分享内容。")},
         confirmButton={TextButton(onClick={incomingShare=null}){Text("继续编辑")}},dismissButton={TextButton(enabled=!editorBusy,onClick={sharedDraft=incomingShare?:"";incomingShare=null;editId=null;detailId=null;createDiary=false;creating=true;newEditorId=null;editorSession=java.util.UUID.randomUUID().toString();searching=false;screen=Screen.NOTES}){Text("打开分享")}})
+    if(permanentConfirm.isNotEmpty()) AlertDialog(onDismissRequest={permanentConfirm=emptySet()},
+        title={Text("彻底删除 ${permanentConfirm.size} 条内容？")},
+        text={Text("彻底删除后无法从回收站恢复。其他记录引用的照片、视频和录音不会受影响。")},
+        confirmButton={TextButton(onClick={val ids=permanentConfirm;permanentConfirm=emptySet();purge(ids)}) {
+            Text("确认删除",color=MaterialTheme.colorScheme.error)
+        }},
+        dismissButton={TextButton(onClick={permanentConfirm=emptySet()}){Text("取消")}})
 }
 

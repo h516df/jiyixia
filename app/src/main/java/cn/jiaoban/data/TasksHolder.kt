@@ -43,6 +43,8 @@ class TasksHolder(private val store: TaskStore) {
 
     var loaded by mutableStateOf(false)
         private set
+    var loadError by mutableStateOf<String?>(null)
+        private set
 
     /** 读盘还没回来时用户就动过数据了，这时不能再拿读到的旧快照覆盖内存。 */
     private var dirty = false
@@ -52,14 +54,19 @@ class TasksHolder(private val store: TaskStore) {
 
     fun start() {
         io.execute {
-            val list = store.load()
+            val result = runCatching { store.load() }
             main.post {
-                // 读盘期间如果用户已经记了东西，别拿旧快照把它盖掉
-                if (!dirty) {tasks = list;savedTasks = list}
-                loaded = true
+                if (result.isSuccess) {
+                    if (!dirty) {tasks = result.getOrThrow();savedTasks = result.getOrThrow()}
+                    loadError = null; loaded = true
+                } else {
+                    loadError = "资料无法读取，已停止写入以保护原文件。请勿卸载或清除数据。"
+                    loaded = false
+                }
             }
         }
     }
+    fun retryLoad() { if (!loaded) start() }
 
     /**
      * 一句话进来，人和期限都自己认：认出谁交代的、认出什么时候要，认不出就默认 3 天。
@@ -108,6 +115,7 @@ class TasksHolder(private val store: TaskStore) {
         val previous=tasks.firstOrNull{it.id==id}
         if(clean.isEmpty() && (attachments ?: previous?.attachments.orEmpty()).isEmpty()) return null
         if(previous!=null && previous.kind!=EntryKind.NOTE) return null
+        if(previous?.deletedAt != null) return null
         val entry=previous?.copy(text=clean,journalDate=journalDate,attachments=attachments ?: previous.attachments) ?: Task(
             id=id ?: UUID.randomUUID().toString(),text=clean,createdAt=Instant.now(),kind=EntryKind.NOTE,
             expiryPolicy=ExpiryPolicy.MUST_FINISH,journalDate=journalDate,attachments=attachments.orEmpty())
@@ -122,6 +130,31 @@ class TasksHolder(private val store: TaskStore) {
         return after
     }
     fun setState(id: String, state: TaskState) = change(id) { it.withState(state) }
+    fun moveToTrash(ids:Set<String>, onSaved:(Boolean)->Unit) {
+        if(ids.isEmpty()) return
+        val whenDeleted=Instant.now()
+        commit(tasks.map { if(it.id in ids && it.kind==EntryKind.NOTE && it.deletedAt==null) it.copy(deletedAt=whenDeleted) else it },onSaved)
+    }
+    fun restoreFromTrash(ids:Set<String>, onSaved:(Boolean)->Unit) {
+        if(ids.isEmpty()) return
+        commit(tasks.map { if(it.id in ids && it.deletedAt!=null) it.copy(deletedAt=null) else it },onSaved)
+    }
+    fun setPinned(ids:Set<String>, pinned:Boolean, onSaved:(Boolean)->Unit) {
+        if(ids.isEmpty()) return
+        commit(tasks.map { if(it.id in ids && it.kind==EntryKind.NOTE && it.deletedAt==null) it.copy(pinned=pinned) else it },onSaved)
+    }
+    fun setArchived(ids:Set<String>, archived:Boolean, onSaved:(Boolean)->Unit) {
+        if(ids.isEmpty()) return
+        commit(tasks.map { if(it.id in ids && it.kind==EntryKind.NOTE && it.deletedAt==null) it.withState(if(archived)TaskState.VOID else TaskState.OPEN) else it },onSaved)
+    }
+    /** Physical media cleanup must happen only after this durable metadata save. */
+    fun purgeTrash(ids:Set<String>, onSaved:(Boolean,List<cn.jiaoban.ImportedAttachment>)->Unit) {
+        val removed=tasks.filter { it.id in ids && it.deletedAt!=null && it.kind==EntryKind.NOTE }
+        if(removed.isEmpty()) { onSaved(true,emptyList());return }
+        commit(tasks.filterNot { candidate -> removed.any { it.id==candidate.id } },onSaved={ ok ->
+            onSaved(ok,if(ok)removed.flatMap { it.attachments } else emptyList())
+        })
+    }
     fun setWorkStage(id: String, stage: WorkStage) = change(id) { it.withWorkStage(stage) }
     fun addFollowUp(id: String, text: String) = change(id) { it.withFollowUp(text) }
 

@@ -10,6 +10,6 @@ fun writingDay(entry:Task,zone:ZoneId=ZoneId.systemDefault()):LocalDate = entry.
 fun writingMatches(entry:Task,query:String,tag:String?):Boolean =
     matches(entry,query) && (tag==null || tag in (writingTags(entry.text)+entry.importedTags))
 fun reviewEntries(entries:List<Task>,today:LocalDate,zone:ZoneId=ZoneId.systemDefault()):List<Task> =
-    entries.filter{it.kind==EntryKind.NOTE && it.state==TaskState.OPEN && writingDay(it,zone).isBefore(today)}.sortedBy{it.createdAt}
+    entries.filter{it.kind==EntryKind.NOTE && it.deletedAt==null && it.state==TaskState.OPEN && writingDay(it,zone).isBefore(today)}.sortedBy{it.createdAt}
 
 fun writingSortKey(entry:Task):String = entry.importInfo?.originalDate ?: entry.createdAt.atZone(ZoneId.systemDefault()).toLocalDateTime().toString()

@@ -15,9 +15,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
@@ -67,6 +69,30 @@ internal fun MicGlyph(modifier: Modifier = Modifier.size(23.dp), color: Color = 
             style = Stroke(width = stroke, cap = StrokeCap.Round))
         drawLine(color, Offset(12f * unit, 19f * unit), Offset(12f * unit, 22f * unit), stroke, cap = StrokeCap.Round)
         drawLine(color, Offset(8f * unit, 22f * unit), Offset(16f * unit, 22f * unit), stroke, cap = StrokeCap.Round)
+    }
+}
+
+/** Persistent state control after the recording sheet is minimized. */
+@Composable internal fun MiniVoiceBar(state:VoiceSessionState,onExpand:()->Unit,onPause:()->Unit,onResume:()->Unit) {
+    if(state.sessionId==null || state.phase==VoiceCapturePhase.IDLE) return
+    val recording=state.phase==VoiceCapturePhase.RECORDING
+    Surface(onClick=onExpand,modifier=Modifier.fillMaxWidth().padding(horizontal=12.dp,vertical=3.dp),
+        shape=androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
+        color=MaterialTheme.colorScheme.primaryContainer) {
+        Row(Modifier.padding(start=14.dp,end=5.dp),verticalAlignment=Alignment.CenterVertically,
+            horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+            MicGlyph(Modifier.size(17.dp))
+            Text(if(recording)"录音中" else if(state.phase==VoiceCapturePhase.STOPPED)"录音待保存" else "录音已暂停",
+                style=MaterialTheme.typography.labelMedium,modifier=Modifier.weight(1f))
+            Text(recordingElapsed(state.elapsedMs),style=MaterialTheme.typography.labelMedium)
+            if(recording || state.phase==VoiceCapturePhase.PAUSED || state.phase==VoiceCapturePhase.INTERRUPTED)
+                IconButton(onClick={if(recording)onPause() else onResume()},modifier=Modifier.semantics {
+                    contentDescription=if(recording)"暂停录音" else "继续录音"
+                }) {
+                    Text(if(recording)"Ⅱ" else "▶",color=MaterialTheme.colorScheme.primary,fontSize=20.sp)
+                }
+            Icon(Icons.Default.KeyboardArrowUp,"展开录音",Modifier.size(20.dp))
+        }
     }
 }
 

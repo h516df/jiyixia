@@ -33,6 +33,8 @@ object TaskCodec {
             o.put("kind",t.kind.name)
             o.put("pinned",t.pinned)
             o.put("journalDate", t.journalDate?.toString() ?: JSONObject.NULL)
+            // Omit the field for older active records to preserve v1 ZIP round-trips.
+            t.deletedAt?.let { o.put("deletedAt", it.toString()) }
             t.importInfo?.let { source->o.put("importInfo",JSONObject().put("format",source.format).put("key",source.key).put("originalPath",source.originalPath).put("originalDate",source.originalDate ?: JSONObject.NULL).put("originalTitle",source.originalTitle ?: JSONObject.NULL).put("metadata",source.metadata ?: JSONObject.NULL)) }
             o.put("importedTags",JSONArray(t.importedTags))
             o.put("attachments",JSONArray().apply{t.attachments.forEach{a->put(JSONObject().put("sha256",a.sha256).put("name",a.name).put("relativePath",a.relativePath).put("mimeType",a.mimeType).put("sourceFile",a.sourceFile))}})
@@ -80,6 +82,7 @@ object TaskCodec {
                 kind = runCatching { EntryKind.valueOf(o.optString("kind","DELEGATED")) }.getOrDefault(EntryKind.DELEGATED),
                 pinned = o.optBoolean("pinned",false),
                 journalDate = runCatching { LocalDate.parse(o.optString("journalDate")) }.getOrNull(),
+                deletedAt = o.optString("deletedAt").takeIf { it.isNotBlank() }?.let { Instant.parse(it) },
                 importInfo=o.optJSONObject("importInfo")?.let{s->ImportInfo(s.optString("format"),s.optString("key"),s.optString("originalPath"),s.nullable("originalDate"),s.nullable("originalTitle"),s.nullable("metadata"))},
                 importedTags=o.optJSONArray("importedTags")?.let{a->(0 until a.length()).map{a.optString(it)}.filter{it.isNotBlank()}} ?: emptyList(),
                 attachments=o.optJSONArray("attachments")?.let{a->(0 until a.length()).mapNotNull{i->a.optJSONObject(i)?.let{x->ImportedAttachment(x.optString("sha256"),x.optString("name"),x.optString("relativePath"),x.optString("mimeType"),x.optBoolean("sourceFile"))}}} ?: emptyList(),
